@@ -15,6 +15,13 @@ BIN="target/release/arbor-bench"
 "$BIN" gen "$DIR" 100000
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# hyperfine no Windows chama shells personalizados com "/C"; lá os comandos vão embrulhados em `bash -c`, sem shell.
+SHELL_OPT=(--shell bash)
+if [[ "${OS:-}" == "Windows_NT" ]]; then SHELL_OPT=(-N); fi
+wrap() {
+  if [[ "${OS:-}" == "Windows_NT" ]]; then printf 'bash -c %q' "$1"; else printf '%s' "$1"; fi
+}
 FD=""; have fd && FD=fd; have fdfind && FD=fdfind
 
 list=(-n "arbor (listar + stat + ordem natural)" "$BIN list $DIR")
@@ -34,11 +41,13 @@ if [[ "${OS:-}" == "Windows_NT" ]]; then
   have pwsh && list+=(-n "PowerShell Get-ChildItem" "pwsh -NoProfile -Command \"Get-ChildItem -LiteralPath '$WDIR' | Sort-Object Name | Out-Null\"")
 fi
 
+for i in "${!list[@]}"; do (( i % 3 == 2 )) && list[i]="$(wrap "${list[i]}")"; done
+
 {
   echo "### Listar uma pasta com 100 mil arquivos ($(uname -s 2>/dev/null || echo Windows), $(nproc 2>/dev/null || echo ?) núcleos)"
   echo
 } > "$OUT"
-hyperfine --warmup 3 --runs 10 --style basic --shell bash --export-markdown list.md "${list[@]}"
+hyperfine --warmup 3 --runs 10 --style basic "${SHELL_OPT[@]}" --export-markdown list.md "${list[@]}"
 cat list.md >> "$OUT"
 
 # Filtro fuzzy: os mesmos 100 mil nomes, a mesma consulta, saída descartada.
@@ -46,7 +55,8 @@ cat list.md >> "$OUT"
 ( cd "$DIR" && ls ) > names.txt 2>/dev/null || "$BIN" list "$DIR" > names.txt
 filter=(-n "arbor filter (nucleo, paralelo)" "$BIN filter vislo < names.txt")
 have fzf && filter+=(-n "fzf --filter" "fzf --filter vislo < names.txt")
-hyperfine --warmup 3 --runs 10 --style basic --shell bash --export-markdown filter.md "${filter[@]}"
+for i in "${!filter[@]}"; do (( i % 3 == 2 )) && filter[i]="$(wrap "${filter[i]}")"; done
+hyperfine --warmup 3 --runs 10 --style basic "${SHELL_OPT[@]}" --export-markdown filter.md "${filter[@]}"
 {
   echo
   echo "### Filtrar 100 mil nomes com a consulta \"vislo\" (processo inteiro, inclui ler a entrada)"
