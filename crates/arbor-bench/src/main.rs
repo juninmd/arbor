@@ -33,6 +33,10 @@ fn main() -> ExitCode {
         }
         Some("list") => {
             let snap = scan_all(Path::new(arg(1).unwrap_or(".")), Sort::default());
+            if let Some(e) = snap.error {
+                eprintln!("{e}");
+                return ExitCode::FAILURE;
+            }
             let mut out = std::io::stdout().lock();
             let _ = writeln!(out, "{}", snap.entries.len());
             ExitCode::SUCCESS

@@ -8,6 +8,8 @@
 set -euo pipefail
 
 DIR="${1:-bench-100k}"
+# No Windows, barras normais: dentro de `bash -c` as invertidas sumiriam do caminho
+if [[ "${OS:-}" == "Windows_NT" ]]; then DIR="$(cygpath -m "$DIR")"; fi
 OUT="${2:-bench-compare.md}"
 BIN="target/release/arbor-bench"
 [[ -x "$BIN" || -x "$BIN.exe" ]] || cargo build --release -p arbor-bench
