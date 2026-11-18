@@ -1,74 +1,242 @@
-# arbor
+<div align="center">
 
-Explorer de arquivos rápido, open source e multiplataforma (Linux, macOS e Windows), escrito em Rust com [iced](https://iced.rs).
+<img src="docs/header.png" alt="arbor: o explorer de arquivos que nunca espera pelo disco" width="100%" />
 
-A regra principal: **a interface nunca espera pelo disco.** A listagem roda numa thread própria e chega em lotes (a pasta aparece na hora, mesmo com 50 mil arquivos), a lista é virtualizada (só as linhas visíveis viram widgets) e cópias, miniaturas e preview rodam em segundo plano.
+<br/>
 
-![Painel duplo](docs/painel-duplo.png)
+[![Release](https://img.shields.io/github/v/release/juninmd/arbor?style=for-the-badge&color=8fe6ff&label=release&labelColor=0b1024)](https://github.com/juninmd/arbor/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/juninmd/arbor/ci.yml?style=for-the-badge&label=ci&labelColor=0b1024)](https://github.com/juninmd/arbor/actions/workflows/ci.yml)
+[![Bench](https://img.shields.io/github/actions/workflow/status/juninmd/arbor/bench.yml?branch=main&style=for-the-badge&label=bench&labelColor=0b1024)](https://github.com/juninmd/arbor/actions/workflows/bench.yml)
+[![Downloads](https://img.shields.io/github/downloads/juninmd/arbor/total?style=for-the-badge&color=8ff0c0&labelColor=0b1024)](https://github.com/juninmd/arbor/releases)
+<br/>
+[![Rust](https://img.shields.io/badge/Rust-nativo-dea584?style=for-the-badge&logo=rust&logoColor=white&labelColor=0b1024)](https://www.rust-lang.org)
+[![iced](https://img.shields.io/badge/iced-0.14-b9a2ff?style=for-the-badge&labelColor=0b1024)](https://iced.rs)
+[![Plataformas](https://img.shields.io/badge/Windows%20·%20Linux%20·%20macOS-eef1ff?style=for-the-badge&labelColor=0b1024)](#instalação)
+[![License: MIT](https://img.shields.io/github/license/juninmd/arbor?style=for-the-badge&color=8ff0c0&labelColor=0b1024)](LICENSE)
 
-## O que já faz
+<br/>
 
-- **Abertura instantânea**: primeiro lote de 256 itens sai antes do resto da pasta ser lido.
-- **Painel duplo e abas** (F3, Ctrl+T, Ctrl+W, Ctrl+Tab), com histórico por aba (Alt+← / Alt+→).
-- **Busca fuzzy**: é só digitar com a lista em foco. Usa o `nucleo` (a engine do Helix).
-- **Paleta de comandos** (Ctrl+Shift+P ou Ctrl+K) com todos os comandos e atalhos.
-- **Preview com Espaço**: imagens (todos os formatos do Vislo, com EXIF), texto e código, resumo de pastas. As setas trocam o arquivo com o preview aberto.
-- **Miniaturas** (Ctrl+G) geradas e cacheadas em disco pelo `vislo-core`.
-- **Cópia confiável**: grava em `.nome.arbor-part`, confere o tamanho e só então renomeia. Cancelar nunca deixa arquivo pela metade. Conflitos viram `nome (2).ext`.
-- **Desfazer** (Ctrl+Z) para copiar, mover, renomear, nova pasta e lixeira (restaurar da lixeira funciona no Windows e Linux; no macOS ainda não).
-- Teclas no estilo Total Commander: F2 renomear, F5 copiar e F6 mover para o outro painel, F7 nova pasta, F8/Delete lixeira.
-- Ctrl+C / Ctrl+X / Ctrl+V entre pastas, arrastar arquivos de outro app para dentro da janela, atualização automática quando a pasta muda no disco.
-- Duplo clique numa imagem abre o **Vislo**, se estiver instalado (procura no `PATH`, nos locais padrão de cada sistema ou em `ARBOR_VISLO`); senão, o app padrão do sistema.
-- Tema escuro e claro, arquivos ocultos (Ctrl+H), ordenação por nome, tamanho, data e tipo (Ctrl+1..4).
+<img src="docs/arbor.png" alt="arbor com painel duplo: uma pasta de 100 mil arquivos filtrada à esquerda e miniaturas de fotos à direita" width="920" />
 
-| Miniaturas | Preview |
+</div>
+
+> **Abra uma pasta com 100 mil arquivos e ela já está na tela.** O primeiro quadro sai em menos de 1 ms, a pasta inteira
+> chega ordenada em ~90 ms e o filtro fuzzy responde em ~1 ms por tecla. O número fica na tela, em cada pasta.
+
+---
+
+## O que é
+
+arbor é um explorer de arquivos nativo, escrito em Rust com [iced](https://iced.rs), para **Windows, Linux e macOS**.
+Ele ataca o que mais irrita nos explorers de hoje: a barra lateral que demora 10 s, a pasta grande que congela a janela,
+o F5 que não atualiza. A regra que guia tudo: **a interface nunca espera pelo disco.** Nada de I/O, decodificação ou
+ordenação de lista grande roda na thread de interface.
+
+O visual vem do protótipo *arbor Glass*: aurora ao fundo, cartões de vidro, uma cor por tipo de arquivo, a pílula de
+seleção em gelo e íris e a velocidade visível ("N itens em X ms"). O escopo é enxuto de propósito, a lição do
+Spacedrive: nada de nuvem, sincronização ou tags.
+
+## Índice
+
+[Funcionalidades](#funcionalidades) · [Desempenho](#desempenho) · [Instalação](#instalação) ·
+[Atualização automática](#atualização-automática) · [Atalhos](#atalhos) · [Arquitetura](#arquitetura) ·
+[Desenvolvimento](#desenvolvimento) · [Releases](#releases) · [Roteiro](#roteiro) · [Licença](#licença)
+
+## Funcionalidades
+
+* **Instantâneo.** A pasta é lida numa thread própria; os primeiros 256 itens aparecem ordenados antes do resto ser
+  lido, e a lista completa chega como um snapshot imutável. A lista é virtualizada: 200 mil arquivos custam o mesmo
+  que 50.
+* **Bonito em movimento.** Tema *Glass* com fontes Sora, Manrope e JetBrains Mono embutidas, ícones por tipo
+  (pasta, imagem, código, documento, áudio, vídeo, compactado), tema claro com os mesmos tokens.
+* **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
+  de fps com o pior quadro do último segundo.
+* **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`).
+* **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
+  anterior.
+* **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
+* **Preview com Espaço** de imagens (todos os formatos do [Vislo](https://github.com/juninmd/vislo), com EXIF),
+  texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) com cache em disco pelo `vislo-core`.
+* **Cópia confiável:** grava em `.nome.arbor-part`, confere o tamanho e só então renomeia. Cancelar nunca deixa
+  arquivo pela metade. **Desfazer** (`Ctrl+Z`) para copiar, mover, renomear, nova pasta e lixeira.
+* **Atualiza sozinho** a partir das releases deste repositório, com o SHA-256 conferido antes de trocar o executável.
+* Teclas no estilo Total Commander, arrastar arquivos para a janela, pasta atualizada sozinha quando muda no disco,
+  e duplo clique numa imagem abre o Vislo, se estiver instalado.
+
+| Paleta de comandos | Preview com Espaço |
 |---|---|
-| ![Miniaturas](docs/miniaturas.png) | ![Preview](docs/preview.png) |
+| ![Paleta de comandos filtrando por "atual"](docs/paleta.png) | ![Preview de uma foto com dimensões e formato](docs/preview.png) |
 
-## Rodar
+## Desempenho
+
+As metas do [plano](https://claude.ai/artifact/6pz11DwuP4WwtAohDcULDT) são testes: o workflow
+[`bench`](.github/workflows/bench.yml) roda o `arbor-bench suite --check` em Windows, Linux e macOS a cada PR e falha
+se uma meta for estourada. Os números abaixo são de um Linux de 4 núcleos com SSD, numa pasta com 100.064 itens
+gerada pelo próprio `arbor-bench gen` (nomes no estilo de uma pasta `target/` de Rust).
+
+| Medida | arbor | Meta |
+|---|---:|---:|
+| Primeiro quadro (256 itens ordenados) | **0,3 ms** | < 50 ms |
+| Pasta completa: listar, ler metadados e ordenar | **91 ms** | < 400 ms |
+| Reordenar 100 mil itens por tamanho | **15 ms** | < 50 ms |
+| Filtro fuzzy por tecla, 100 mil nomes | **1,1 ms** | < 8 ms (um quadro a 120 Hz) |
+
+### Contra as ferramentas de sempre
+
+Mesma pasta, mesma máquina, [hyperfine](https://github.com/sharkdp/hyperfine) com aquecimento
+([`scripts/bench-compare.sh`](scripts/bench-compare.sh)). Explorers gráficos não têm modo de linha de comando, então a
+comparação justa é com quem faz o mesmo trabalho: listar, ler tamanho e data de cada arquivo e ordenar.
+
+| Listar 100 mil arquivos | Tempo | |
+|:---|---:|---:|
+| **arbor** (listar + stat + ordem natural) | **91 ms** | 1,0× |
+| `fd` (só nomes, sem ler metadados) | 85 ms | 0,9× |
+| `find -printf` tamanho e data (sem ordenar) | 185 ms | 2,0× |
+| `ls -l --sort=version` (GNU) | 467 ms | 5,1× |
+| `eza -l` | 780 ms | 8,6× |
+
+| Filtrar 100 mil nomes por "vislo" | Tempo | |
+|:---|---:|---:|
+| **arbor** (`nucleo` em paralelo) | **12 ms** | 1,0× |
+| `fzf --filter` | 24 ms | 2,1× |
+
+O arbor lê metadados e ordena e mesmo assim empata com o `fd`, que só lê nomes. No Windows o workflow compara também
+com `dir` e `Get-ChildItem`; os números de cada plataforma ficam no resumo do job
+[bench](https://github.com/juninmd/arbor/actions/workflows/bench.yml).
+
+### Por que é rápido
+
+* **Metadados em paralelo.** Os nomes saem do disco num passe só (`getdents` / `FindNextFile`) e o `stat` de cada
+  arquivo roda em todos os núcleos (`rayon`). No Windows os metadados já vêm da enumeração.
+* **Ordem natural sem comparar texto.** Cada nome ganha uma chave em bytes, calculada uma vez, em que `img2` vem antes de
+  `img10`; ordenar 100 mil nomes vira `memcmp` em paralelo.
+* **mimalloc.** A listagem cria centenas de milhares de alocações pequenas em várias threads; com o alocador do sistema
+  elas disputam o mesmo lock e a mesma pasta levava 4× mais (360 ms contra 91 ms).
+* **Snapshots imutáveis.** A interface recebe um `Arc<Vec<Entry>>` pronto, nunca uma mensagem por arquivo; ao
+  atualizar uma pasta aberta, a lista antiga fica na tela até a nova estar completa.
+* **Gerações.** Cada listagem carrega a geração da aba; sair da pasta descarta o resultado e para a thread.
+
+## Instalação
+
+Baixe o arquivo da sua plataforma na [última release](https://github.com/juninmd/arbor/releases/latest):
+
+| Sistema | Arquivo | Como abrir |
+|---|---|---|
+| Windows 10/11 (x64) | `arbor-<versão>-windows-x86_64.zip` | descompacte e abra `arbor.exe` (portátil) |
+| macOS 11+ (Apple Silicon / Intel) | `arbor-<versão>-macos-aarch64.zip` / `-x86_64.zip` | arraste `arbor.app` para Aplicativos; na 1ª vez, botão direito → Abrir |
+| Linux (x64 / arm64) | `arbor-<versão>-linux-x86_64.tar.gz` / `-aarch64.tar.gz` | descompacte e rode `./arbor`; o `.desktop` e o ícone vêm junto |
+
+Cada release traz também os binários puros (`arbor-<versão>-<so>-<arq>`), que são o que a atualização automática
+baixa, e o `SHA256SUMS.txt`. A proveniência de cada binário é assinada no CI:
+
+```sh
+gh attestation verify arbor-0.2.0-linux-x86_64 --repo juninmd/arbor
+```
+
+No Linux, o sistema precisa das bibliotecas de janela de sempre (`libxkbcommon-x11`, Vulkan ou OpenGL). Para compilar:
 
 ```sh
 cargo run --release            # abre na pasta pessoal
 cargo run --release -- ~/Fotos # ou numa pasta específica
 ```
 
-No Linux, o sistema precisa das bibliotecas de janela de sempre (`libxkbcommon-x11`, Vulkan ou OpenGL).
+## Atualização automática
+
+O arbor se atualiza a partir das releases deste repositório, com a mesma abordagem do Vislo:
+
+```
+abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? ──► aviso "arbor X disponível"
+                                                                            │ Atualizar e reiniciar
+   arbor novo abre ◄── troca o executável ◄── SHA-256 confere? ◄── baixa arbor-X-<so>-<arq>
+```
+
+* A verificação roda alguns segundos depois da janela abrir, então nunca atrasa a abertura. A paleta tem
+  *Procurar atualizações* e *Ligar/desligar atualização automática*; `ARBOR_NO_UPDATE=1` também desliga.
+* Só HTTPS e só links de `github.com/juninmd/arbor/releases/download/`; o binário é comparado com o
+  `SHA256SUMS.txt` da release e descartado se não bater.
+* O download mostra o progresso e pode ser cancelado. Os arquivos ficam numa pasta própria com nome imprevisível no
+  cache do usuário, apagada ao fim (e as esquecidas, depois de 24 h).
+* A troca usa [`self-replace`](https://crates.io/crates/self-replace), que funciona com o executável aberto também no
+  Windows. Cópias em pastas sem permissão de escrita (instaladas pelo sistema) recebem o link da release em vez disso.
 
 ## Atalhos
 
 | Tecla | Ação |
 |---|---|
-| Enter / duplo clique | Abrir |
-| Shift+Enter | Abrir com o app do sistema |
-| Espaço | Preview |
-| Backspace, ← | Pasta acima |
-| digitar | Filtrar a pasta (Esc limpa) |
-| Ctrl+Shift+P, Ctrl+K | Paleta de comandos |
-| Ctrl+L (ou duplo clique no caminho) | Ir para caminho (aceita `~`) |
-| F3 / Tab | Painel duplo / trocar de painel |
-| F5 / F6 | Copiar / mover para o outro painel |
-| F2 / F7 / Delete | Renomear / nova pasta / lixeira |
-| Ctrl+Z | Desfazer |
-| Ctrl+G / Ctrl+H | Miniaturas / ocultos |
-| Ctrl+Shift+C | Copiar caminho |
-| Ctrl+' | Terminal nesta pasta |
+| `Enter` / duplo clique | Abrir |
+| `Shift+Enter` | Abrir com o app do sistema |
+| `Espaço` | Preview (as setas trocam o arquivo) |
+| `Backspace` | Pasta acima |
+| digitar | Filtrar a pasta (`Esc` limpa) |
+| `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
+| `Ctrl+L` (ou duplo clique no caminho) | Ir para caminho (aceita `~`) |
+| `F3` / `Tab` | Painel duplo / trocar de painel |
+| `F5` / `F6` | Copiar / mover para o outro painel |
+| `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
+| `Ctrl+Z` | Desfazer |
+| `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
+| `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
+| `F12` | Medidor de fps |
+| `Ctrl+Shift+C` | Copiar caminho |
+| ``Ctrl+' `` | Terminal nesta pasta |
 
-No macOS, Ctrl vira ⌘.
+No macOS, `Ctrl` vira `⌘`.
 
-## Estrutura
+## Arquitetura
 
-| Arquivo | Papel |
-|---|---|
-| `src/model.rs` | Entradas, listagem em lotes numa thread, ordenação natural |
-| `src/ops.rs` | Copiar, mover, lixeira, renomear, nova pasta e desfazer, com progresso e cancelamento |
-| `src/app.rs` | Estado e `update` (navegação, seleção, atalhos, tarefas) |
-| `src/view.rs` | Interface: lista virtualizada, grade de miniaturas, paleta, preview |
-| `src/media.rs` | Preview e miniaturas via `vislo-core` |
-| `src/launch.rs` | Abrir arquivos, achar o Vislo, terminal |
-| `src/watch.rs` | Atualização automática (`notify`) |
-| `src/fuzzy.rs` | Busca fuzzy (`nucleo-matcher`) |
-| `src/commands.rs` | Catálogo de comandos e atalhos |
+Um workspace em camadas. A regra: a interface só recebe snapshots prontos para desenhar.
 
-## Fora do escopo por enquanto
+```
+crates/arbor-core    sem interface, testável: listagem paralela, ordem natural, filtro fuzzy, operações e desfazer
+crates/arbor-bench   benchmarks reproduzíveis (gen, suite --check, list, filter)
+src/                 o app iced
+  app.rs             estado e update: navegação, seleção, atalhos, tarefas, atualização
+  view.rs            interface: lista virtualizada, grade de miniaturas, paleta, preview, doca
+  theme.rs           tokens do protótipo Glass: cores, fontes, raios, estilos e ícones
+  listing.rs         ponte entre a listagem do arbor-core e o iced
+  update/            atualização automática (GitHub Releases + SHA-256 + self-replace)
+  media.rs           preview e miniaturas via vislo-core
+  watch.rs           pasta atualizada sozinha (notify)
+  launch.rs          abrir arquivos, achar o Vislo, terminal
+  commands.rs        catálogo de comandos e atalhos
+```
 
-De propósito, para não repetir o Spacedrive: nada de nuvem, sincronização ou indexação global. Próximos passos naturais: arrastar entre painéis, menu de contexto, navegar dentro de .zip, busca recursiva e indexação opcional (MFT no Windows).
+Decisões tomadas a partir do plano: **ficar no iced** (o GPUI só entra se a meta de 120 fps falhar), **as três
+plataformas no mesmo ritmo** e **índice global desligado por padrão** quando ele chegar.
+
+## Desenvolvimento
+
+```sh
+cargo test --workspace                                  # núcleo, app e updater
+cargo clippy --workspace --all-targets -- -D warnings
+node --test scripts/*.test.mjs                          # planejador de versão
+cargo run --release -p arbor-bench -- suite /tmp/bench-100k --check
+scripts/bench-compare.sh /tmp/bench-100k                # contra ls, eza, find, fd, fzf
+```
+
+## Releases
+
+Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.github/workflows/release.yml)):
+
+1. O CI roda (fmt, clippy, testes nas três plataformas).
+2. A próxima versão sai dos [commits semânticos](https://www.conventionalcommits.org) desde a maior tag `vX.Y.Z`
+   (`feat` → minor, `fix` e demais → patch, `!` → major).
+3. Windows x64, Linux x64 e arm64, macOS Apple Silicon e Intel são construídos e empacotados; o `SHA256SUMS.txt` é
+   escrito e a proveniência é assinada.
+4. `chore(release): vX.Y.Z` é commitado e tagueado, e a release sai com notas agrupadas por tipo.
+5. As cópias abertas veem a release e oferecem *Atualizar e reiniciar*.
+
+## Roteiro
+
+| Fase | Entrega | Estado |
+|---|---|---|
+| 0. Base | workspace, `arbor-core`, benchmark de 100 mil arquivos no CI, tema do protótipo | ✅ |
+| 1. Velocidade | listagem paralela, ordem natural por bytes, filtro paralelo e incremental, mimalloc | ✅ |
+| 2. Beleza | tema Glass, fontes, ícones por tipo, selo de ms e medidor de fps; Mica/Acrylic e animações com mola | 🟡 |
+| 3. Poder | fila de operações com pausa, desfazer persistente, navegar em .zip/.7z/.tar, instância única | ⬜ |
+| 4. Busca global | índice opcional (MFT/USN no Windows, varredura + observador nos outros) | ⬜ |
+
+## Licença
+
+[MIT](LICENSE). As fontes em `assets/fonts` (Sora, Manrope, JetBrains Mono) são distribuídas sob a
+[SIL Open Font License](assets/fonts/OFL.txt).

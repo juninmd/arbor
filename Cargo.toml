@@ -1,33 +1,52 @@
-[package]
-name = "arbor"
+[workspace]
+members = ["crates/arbor-core", "crates/arbor-bench"]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
-description = "Explorer de arquivos rápido, multiplataforma, que nunca trava."
 license = "MIT"
 repository = "https://github.com/juninmd/arbor"
 
+[package]
+name = "arbor"
+description = "Explorer de arquivos rápido, bonito e multiplataforma, que nunca trava."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "arbor"
+
 [dependencies]
-iced = { version = "0.14", features = ["tokio", "image", "advanced"] }
+arbor-core = { path = "crates/arbor-core" }
+mimalloc = { version = "0.1", default-features = false }
+iced = { version = "0.14", features = ["tokio", "image", "svg", "advanced"] }
 tokio = { version = "1", features = ["rt", "fs", "sync", "time"] }
 vislo-core = { git = "https://github.com/juninmd/vislo" }
-nucleo-matcher = "0.3"
 notify = "8"
-trash = "5"
 open = "5"
 dirs = "6"
-natord = "1"
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 fast_image_resize = "6"
+# atualização automática (src/update): HTTPS só para as releases deste repositório, SHA-256 conferido
+ureq = "3"
+serde_json = "1"
+sha2 = "0.10"
+self-replace = "1"
 
 [dev-dependencies]
 tempfile = "3"
 
+[build-dependencies]
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 [profile.release]
 opt-level = 3
-lto = "thin"
+lto = "fat"
 codegen-units = 1
 strip = true
+panic = "abort"
 
 [profile.dev.package."*"]
 opt-level = 2

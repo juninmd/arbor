@@ -1,0 +1,66 @@
+name: bench
+
+# Desempenho medido em público: as metas do plano viram teste (--check) nas três plataformas, e o arbor é
+# comparado com ls, eza, find, fd e fzf (Linux/macOS) e dir/Get-ChildItem (Windows) na mesma pasta de
+# 100 mil arquivos. Os números vão para o resumo do job e para o artefato bench-<so>.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # runners compartilhados variam; a folga evita falso alarme sem esconder uma regressão de verdade
+  ARBOR_BENCH_SLACK: "2"
+
+jobs:
+  bench:
+    name: bench (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Concorrentes
+        run: |
+          case "$RUNNER_OS" in
+            Linux)   sudo apt-get update -qq && sudo apt-get install -y -qq hyperfine fd-find fzf eza ;;
+            macOS)   brew install hyperfine fd fzf eza coreutils ;;
+            Windows) choco install -y --no-progress hyperfine fzf fd ;;
+          esac
+      - run: cargo build --release --locked -p arbor-bench
+      - name: Metas do plano
+        run: |
+          target/release/arbor-bench gen "$RUNNER_TEMP/bench-100k"
+          target/release/arbor-bench suite "$RUNNER_TEMP/bench-100k" --check | tee suite.md
+      - name: Contra os concorrentes
+        run: |
+          [[ "$RUNNER_OS" == "macOS" ]] && export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
+          scripts/bench-compare.sh "$RUNNER_TEMP/bench-100k" compare.md
+      - name: Resumo
+        if: always()
+        run: |
+          { cat suite.md 2>/dev/null; echo; cat compare.md 2>/dev/null; } | tee "bench-${RUNNER_OS}.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-${{ runner.os }}
+          path: bench-${{ runner.os }}.md

@@ -81,8 +81,8 @@ pub fn load_preview(path: &Path) -> Preview {
     if let Some(p) = text(path) {
         return p;
     }
-    let mut info = vec![("Tamanho".into(), crate::model::human_size(meta.len()))];
-    info.push(("Modificado".into(), crate::model::human_time(meta.modified().ok())));
+    let mut info = vec![("Tamanho".into(), arbor_core::human_size(meta.len()))];
+    info.push(("Modificado".into(), arbor_core::human_time(meta.modified().ok())));
     Preview::Other { info }
 }
 
@@ -95,7 +95,7 @@ fn image(path: &Path) -> Result<Preview, String> {
     let mut info = vec![
         ("Formato".to_string(), meta.format.clone()),
         ("Dimensões".to_string(), format!("{} × {}", meta.width.unwrap_or(width), meta.height.unwrap_or(height))),
-        ("Tamanho".to_string(), crate::model::human_size(meta.size)),
+        ("Tamanho".to_string(), arbor_core::human_size(meta.size)),
     ];
     if let Some(c) = meta.color {
         info.push(("Cor".into(), c));
