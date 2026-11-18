@@ -20,7 +20,8 @@ have() { command -v "$1" >/dev/null 2>&1; }
 SHELL_OPT=(--shell bash)
 if [[ "${OS:-}" == "Windows_NT" ]]; then SHELL_OPT=(-N); fi
 wrap() {
-  if [[ "${OS:-}" == "Windows_NT" ]]; then printf 'bash -c %q' "$1"; else printf '%s' "$1"; fi
+  # caminho completo do bash do Git: só `bash` acharia o do WSL (System32) primeiro
+  if [[ "${OS:-}" == "Windows_NT" ]]; then printf '%q -c %q' "$(cygpath -m "$BASH")" "$1"; else printf '%s' "$1"; fi
 }
 FD=""; have fd && FD=fd; have fdfind && FD=fdfind
 
