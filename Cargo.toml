@@ -1,0 +1,33 @@
+[package]
+name = "arbor"
+version = "0.1.0"
+edition = "2021"
+description = "Explorer de arquivos rápido, multiplataforma, que nunca trava."
+license = "MIT"
+repository = "https://github.com/juninmd/arbor"
+
+[dependencies]
+iced = { version = "0.14", features = ["tokio", "image", "advanced"] }
+tokio = { version = "1", features = ["rt", "fs", "sync", "time"] }
+vislo-core = { git = "https://github.com/juninmd/vislo" }
+nucleo-matcher = "0.3"
+notify = "8"
+trash = "5"
+open = "5"
+dirs = "6"
+natord = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+fast_image_resize = "6"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 2
