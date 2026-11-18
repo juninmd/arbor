@@ -101,7 +101,6 @@ jobs:
       id-token: write # assina a proveniência do build
       attestations: write
     env:
-      GH_TOKEN: ${{ github.token }}
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v4
@@ -124,6 +123,8 @@ jobs:
         with:
           subject-path: out/arbor-*
       - name: Commit da versão, tag e release
+        env:
+          GH_TOKEN: ${{ github.token }} # só neste passo, que chama o gh; nenhuma action de terceiros o vê
         run: |
           V="$VERSION"
           node scripts/release.mjs stamp "$V"
