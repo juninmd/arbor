@@ -1,8 +1,7 @@
 //! Tokens visuais do protótipo "arbor Glass": cores, fontes, raios e os estilos de vidro.
 //!
-//! O protótipo HTML é a especificação; aqui ficam os mesmos valores para o iced. Vidro de verdade (Mica,
-//! NSVisualEffectView) depende do compositor; o app desenha uma aurora em gradiente atrás de painéis
-//! translúcidos, que dá o mesmo efeito sem custo de GPU.
+//! O protótipo HTML é a especificação; aqui ficam os mesmos valores para o iced. A aurora vem de
+//! `aurora.rs` e o vidro nativo do sistema (quando há) de `glass.rs`.
 
 use iced::widget::{button, container, svg, text};
 use iced::{border, gradient, Background, Border, Color, Font, Radians, Shadow, Theme, Vector};
@@ -53,7 +52,6 @@ pub struct Tokens {
     pub glass_hi: Color,
     pub accent: Color,
     pub accent2: Color,
-    pub aurora: [Color; 3],
     pub danger: Color,
     pub good: Color,
     pub warn: Color,
@@ -66,11 +64,10 @@ pub const DARK: Tokens = Tokens {
     ink3: rgba(0xdee4ff, 0.42),
     stroke: rgba(0xffffff, 0.12),
     stroke_hi: rgba(0xffffff, 0.26),
-    glass: rgba(0x161c38, 0.62),
+    glass: rgba(0xffffff, 0.10),
     glass_hi: rgba(0xffffff, 0.07),
     accent: ICE,
     accent2: IRIS,
-    aurora: [rgb(0x0b2140), rgb(0x060914), rgb(0x1b0f3a)],
     danger: rgb(0xff8a8a),
     good: MINT,
     warn: AMBER,
@@ -83,11 +80,10 @@ pub const LIGHT: Tokens = Tokens {
     ink3: rgba(0x1d2340, 0.5),
     stroke: rgba(0x1d2340, 0.12),
     stroke_hi: rgba(0x1d2340, 0.24),
-    glass: rgba(0xffffff, 0.72),
+    glass: rgba(0xffffff, 0.58),
     glass_hi: rgba(0x1d2340, 0.05),
     accent: rgb(0x0a8fc2),
     accent2: rgb(0x6c4fe0),
-    aurora: [rgb(0xdff3ff), rgb(0xf3f5fc), rgb(0xece6ff)],
     danger: rgb(0xc43d3d),
     good: rgb(0x1f9d63),
     warn: rgb(0xb7790e),
@@ -121,17 +117,14 @@ pub const R_CHIP: f32 = 8.0;
 
 // ---------- estilos ----------
 
-/// Fundo da janela: a "aurora" do protótipo, em gradiente.
-pub fn backdrop(t: &Theme) -> container::Style {
-    let k = tokens(t);
-    let g = gradient::Linear::new(Radians(2.4)).add_stop(0.0, k.aurora[0]).add_stop(0.5, k.aurora[1]).add_stop(1.0, k.aurora[2]);
-    container::Style { background: Some(Background::Gradient(g.into())), text_color: Some(k.ink), ..Default::default() }
-}
-
-/// Cartão de vidro: preenchimento translúcido, filete claro e sombra longa.
+/// Cartão de vidro, como no protótipo: `linear-gradient(140deg, branco 10%, 2,5% aos 55%, 5%)` sobre a
+/// aurora, filete claro e sombra longa.
 pub fn glass(t: &Theme, active: bool) -> container::Style {
     let k = tokens(t);
-    let g = gradient::Linear::new(Radians(2.0)).add_stop(0.0, alpha(k.glass, k.glass.a + 0.06)).add_stop(1.0, k.glass);
+    let g = gradient::Linear::new(Radians(2.44))
+        .add_stop(0.0, k.glass)
+        .add_stop(0.55, alpha(k.glass, k.glass.a * 0.25))
+        .add_stop(1.0, alpha(k.glass, k.glass.a * 0.5));
     container::Style {
         background: Some(Background::Gradient(g.into())),
         text_color: Some(k.ink),
@@ -149,7 +142,8 @@ pub fn glass(t: &Theme, active: bool) -> container::Style {
 pub fn sheet(t: &Theme) -> container::Style {
     let k = tokens(t);
     let dark = t.extended_palette().is_dark;
-    let (a, b) = if dark { (rgba(0x283056, 0.97), rgba(0x12162c, 0.97)) } else { (rgba(0xffffff, 0.98), rgba(0xf1f3fb, 0.98)) };
+    // o protótipo usa 60%/55% com desfoque; sem desfoque o conteúdo por trás atrapalharia a leitura
+    let (a, b) = if dark { (rgba(0x283056, 0.86), rgba(0x12162c, 0.84)) } else { (rgba(0xffffff, 0.9), rgba(0xf1f3fb, 0.88)) };
     container::Style {
         background: Some(Background::Gradient(gradient::Linear::new(Radians(2.2)).add_stop(0.0, a).add_stop(1.0, b).into())),
         text_color: Some(k.ink),

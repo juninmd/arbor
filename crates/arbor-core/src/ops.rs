@@ -26,11 +26,30 @@ pub enum Conflict {
 
 #[derive(Debug, Clone)]
 pub enum Op {
-    Copy { sources: Vec<PathBuf>, dest: PathBuf, conflict: Conflict },
-    Move { sources: Vec<PathBuf>, dest: PathBuf, conflict: Conflict },
-    Trash { paths: Vec<PathBuf> },
-    Rename { from: PathBuf, to: PathBuf },
-    Mkdir { path: PathBuf },
+    Copy {
+        sources: Vec<PathBuf>,
+        dest: PathBuf,
+        conflict: Conflict,
+    },
+    Move {
+        sources: Vec<PathBuf>,
+        dest: PathBuf,
+        conflict: Conflict,
+    },
+    Trash {
+        paths: Vec<PathBuf>,
+    },
+    Rename {
+        from: PathBuf,
+        to: PathBuf,
+    },
+    /// Renomear em lote: pares (origem, destino) já conferidos por [`crate::rename::plan`].
+    RenameMany {
+        pairs: Vec<(PathBuf, PathBuf)>,
+    },
+    Mkdir {
+        path: PathBuf,
+    },
     Undo(Undo),
 }
 
@@ -47,6 +66,7 @@ impl Op {
             Op::Move { sources, dest, .. } => format!("Movendo {} para {}", n(sources), name(dest)),
             Op::Trash { paths } => format!("Enviando {} para a lixeira", n(paths)),
             Op::Rename { from, .. } => format!("Renomeando {}", name(from)),
+            Op::RenameMany { pairs } => format!("Renomeando {}", count(pairs.len())),
             Op::Mkdir { path } => format!("Criando {}", name(path)),
             Op::Undo(_) => "Desfazendo".into(),
         }
@@ -62,6 +82,8 @@ pub enum Undo {
     Moved(Vec<(PathBuf, PathBuf)>),
     /// Itens enviados para a lixeira: desfazer restaura.
     Trashed(Vec<PathBuf>),
+    /// Renomeação em lote (origem, destino): desfazer renomeia de volta, em duas etapas.
+    Renamed(Vec<(PathBuf, PathBuf)>),
 }
 
 #[derive(Debug, Clone)]
@@ -200,6 +222,15 @@ pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
                 created: vec![to],
             })
         }
+        Op::RenameMany { pairs } => {
+            rename_all(&pairs, ctx)?;
+            let created = pairs.iter().map(|(_, to)| to.clone()).collect();
+            Ok(Outcome {
+                summary: format!("{} renomeado(s). Ctrl+Z desfaz.", count(pairs.len())),
+                undo: Some(Undo::Renamed(pairs)),
+                created,
+            })
+        }
         Op::Mkdir { path } => {
             fs::create_dir(&path)?;
             Ok(Outcome {
@@ -285,7 +316,56 @@ fn run_undo(undo: Undo, ctx: &mut Ctx) -> io::Result<Outcome> {
             Ok(Outcome { summary: format!("Desfeito: {} de volta", count(back.len())), undo: None, created: back })
         }
         Undo::Trashed(paths) => restore(paths),
+        Undo::Renamed(pairs) => {
+            let back: Vec<_> = pairs.into_iter().map(|(from, to)| (to, from)).collect();
+            rename_all(&back, ctx)?;
+            let created = back.iter().map(|(_, to)| to.clone()).collect();
+            Ok(Outcome { summary: format!("Desfeito: {} com o nome antigo", count(back.len())), undo: None, created })
+        }
     }
+}
+
+/// Renomeia em duas etapas (primeiro para nomes temporários, depois para os finais), para que trocas
+/// dentro do lote (a→b e b→a) funcionem. Se algo falha no meio, desfaz o que já tinha feito.
+fn rename_all(pairs: &[(PathBuf, PathBuf)], ctx: &mut Ctx) -> io::Result<()> {
+    ctx.total = pairs.len() as u64 * 2;
+    let tag = std::process::id();
+    let temps: Vec<PathBuf> =
+        pairs.iter().enumerate().map(|(i, (from, _))| from.with_file_name(format!(".arbor-rename-{tag}-{i}"))).collect();
+    let mut staged = 0;
+    let result = (|| {
+        for ((from, _), tmp) in pairs.iter().zip(&temps) {
+            fs::rename(from, tmp)?;
+            staged += 1;
+            ctx.advance(1, from);
+        }
+        Ok(())
+    })();
+    if let Err(e) = result {
+        for ((from, _), tmp) in pairs.iter().zip(&temps).take(staged) {
+            let _ = fs::rename(tmp, from);
+        }
+        return Err(e);
+    }
+    let mut done = 0;
+    let result = (|| {
+        for ((_, to), tmp) in pairs.iter().zip(&temps) {
+            if fs::symlink_metadata(to).is_ok() {
+                return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} já existe", name(to))));
+            }
+            fs::rename(tmp, to)?;
+            done += 1;
+            ctx.advance(1, to);
+        }
+        Ok(())
+    })();
+    if let Err(e) = result {
+        for (i, ((from, to), tmp)) in pairs.iter().zip(&temps).enumerate() {
+            let _ = if i < done { fs::rename(to, from) } else { fs::rename(tmp, from) };
+        }
+        return Err(e);
+    }
+    Ok(())
 }
 
 #[cfg(any(windows, all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))))]
