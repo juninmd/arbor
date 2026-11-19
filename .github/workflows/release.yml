@@ -65,27 +65,33 @@ jobs:
           - { name: Linux x64, os: ubuntu-22.04, arch: x86_64 } # glibc 2.35: roda em distros mais antigas
           - { name: Linux arm64, os: ubuntu-22.04-arm, arch: aarch64 }
           - { name: macOS Apple Silicon, os: macos-latest, arch: aarch64 }
-          - { name: macOS Intel, os: macos-13, arch: x86_64 }
+          # o runner macos-13 (Intel) foi aposentado: compila para x86_64 a partir do Apple Silicon
+          - { name: macOS Intel, os: macos-latest, arch: x86_64, target: x86_64-apple-darwin }
     defaults:
       run:
         shell: bash
     env:
       VERSION: ${{ needs.plan.outputs.version }}
+      TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Versão
         run: node scripts/release.mjs stamp "$VERSION"
       - name: Build
-        run: cargo build --release
+        run: cargo build --release ${TARGET:+--target "$TARGET"}
       - name: Empacotar
-        run: scripts/package.sh "$VERSION" "" "${{ matrix.arch }}"
+        run: scripts/package.sh "$VERSION" "$TARGET" "${{ matrix.arch }}"
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.os }}-${{ matrix.arch }}
