@@ -24,6 +24,7 @@ mod pins;
 mod pointer;
 mod props;
 mod session;
+mod shortcut;
 mod sysclip;
 mod theme;
 mod thumbs;

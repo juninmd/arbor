@@ -53,6 +53,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
                 Some(DeleteNow),
                 None,
                 Some(CopyPath),
+                Some(CreateShortcut),
             ]);
             if dir {
                 v.push(Some(Pin));
@@ -80,6 +81,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             None,
             Some(NewFolder),
             Some(NewTextFile),
+            Some(NewZip),
             None,
             Some(Terminal),
             Some(CopyPath),
@@ -89,7 +91,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Details),
         ],
         MenuKind::Sidebar => vec![Some(OpenInNewTab), Some(Pin)],
-        MenuKind::New => vec![Some(NewFolder), Some(NewTextFile)],
+        MenuKind::New => vec![Some(NewFolder), Some(NewTextFile), Some(NewZip)],
         MenuKind::Sort => vec![
             Some(SortName),
             Some(SortSize),
@@ -173,7 +175,8 @@ impl App {
             Cmd::DeleteNow => has_target && (!here || in_trash),
             Cmd::Copy | Cmd::CopyToOther | Cmd::Open | Cmd::OpenDefault | Cmd::OpenWith | Cmd::Preview if in_trash => false,
             Cmd::Cut | Cmd::Rename | Cmd::Trash | Cmd::MoveToOther => has_target && !here,
-            Cmd::NewFolder | Cmd::NewTextFile => !here,
+            Cmd::NewFolder | Cmd::NewTextFile | Cmd::NewZip => !here,
+            Cmd::CreateShortcut => has_target && !here,
             Cmd::Copy | Cmd::CopyToOther | Cmd::Open | Cmd::OpenDefault | Cmd::Preview => has_target,
             Cmd::OpenWith => self.tab().current().is_some_and(|e| !e.is_dir && !computer::is_virtual(&e.path)),
             _ => true,
