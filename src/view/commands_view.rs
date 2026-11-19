@@ -28,7 +28,7 @@ pub fn icon_of(cmd: Cmd) -> Option<Icon> {
         Cmd::SortName | Cmd::SortSize | Cmd::SortModified | Cmd::SortKind => Icon::Sort,
         Cmd::GroupNone | Cmd::GroupKind | Cmd::GroupModified | Cmd::GroupSize => Icon::Sort,
         Cmd::ToggleGrid => Icon::Grid,
-        Cmd::ToggleHidden | Cmd::Preview => Icon::Eye,
+        Cmd::ToggleHidden | Cmd::ToggleExtensions | Cmd::Preview => Icon::Eye,
         Cmd::Details | Cmd::Properties => Icon::Doc,
         Cmd::Pin => Icon::Pin,
         Cmd::Open | Cmd::OpenInNewTab => Icon::Folder,

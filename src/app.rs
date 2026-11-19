@@ -60,6 +60,8 @@ pub struct App {
     /// Abas numa coluna à esquerda em vez de na barra de título.
     pub vertical_tabs: bool,
     pub show_hidden: bool,
+    /// "Extensões de nomes de arquivos" do Explorer; desligado, a lista mostra só o nome.
+    pub hide_ext: bool,
     pub thumbs: HashMap<PathBuf, Option<Handle>>,
     modifiers: Modifiers,
     pub window: Size,
@@ -626,6 +628,7 @@ impl App {
             palette,
             vertical_tabs: crate::session::setting("vertical_tabs").as_deref() == Some("true"),
             show_hidden: false,
+            hide_ext: false,
             thumbs: HashMap::new(),
             modifiers: Modifiers::default(),
             window: Size::new(1280.0, 800.0),
@@ -1552,6 +1555,10 @@ impl App {
             Cmd::GoTo => {
                 let path = if here { String::new() } else { self.tab().path.to_string_lossy().into_owned() };
                 self.open_prompt(PromptKind::GoTo, path)
+            }
+            Cmd::ToggleExtensions => {
+                self.hide_ext = !self.hide_ext;
+                Task::none()
             }
             Cmd::ToggleHidden => {
                 self.show_hidden = !self.show_hidden;
