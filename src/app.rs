@@ -43,6 +43,10 @@ pub struct App {
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
+    /// Vidro nativo ativo (vibrancy/transparência): a aurora fica translúcida e o fundo da janela some.
+    pub glass: bool,
+    /// Textura da aurora para o tema e o vidro atuais.
+    pub aurora: iced::widget::image::Handle,
 }
 
 /// Estado da atualização automática mostrado no rodapé.
@@ -294,6 +298,7 @@ pub enum Message {
     DirChanged(PathBuf),
     Places(Vec<(String, PathBuf)>),
     Frame(Instant),
+    Glass(bool),
     UpdateCheck { manual: bool },
     UpdateChecked { manual: bool, result: Result<Option<update::Update>, String> },
     UpdateInstall,
@@ -336,8 +341,11 @@ impl App {
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
+            glass: false,
+            aurora: crate::aurora::render(true, 1.0),
         };
         let tasks = Task::batch([
+            window::oldest().and_then(|id| window::run(id, crate::glass::apply)).map(Message::Glass),
             app.load(0, start, false),
             app.load(1, second, false),
             Task::perform(async { tokio::task::spawn_blocking(drives).await.unwrap_or_default() }, Message::Places),
@@ -352,6 +360,11 @@ impl App {
 
     pub fn title(&self) -> String {
         format!("{} — arbor", self.tab().path.display())
+    }
+
+    /// Mais translúcida com vidro nativo, para o material do sistema aparecer; opaca sem ele.
+    fn refresh_aurora(&mut self) {
+        self.aurora = crate::aurora::render(self.dark, if self.glass { 0.62 } else { 1.0 });
     }
 
     pub fn tab(&self) -> &Tab {
@@ -802,6 +815,7 @@ impl App {
             Cmd::SortKind => self.sort_by(SortKey::Kind),
             Cmd::ToggleTheme => {
                 self.dark = !self.dark;
+                self.refresh_aurora();
                 Task::none()
             }
             Cmd::CopyPath => {
@@ -1148,6 +1162,11 @@ impl App {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Listed { tab, generation, snap } => self.on_listed(tab, generation, snap),
+            Message::Glass(on) => {
+                self.glass = on;
+                self.refresh_aurora();
+                Task::none()
+            }
             Message::Frame(at) => {
                 if let Some(fps) = &mut self.fps {
                     fps.push(at);

@@ -24,15 +24,23 @@ const GAP: f32 = 10.0;
 pub fn view(app: &App) -> Element<'_, Message> {
     let panes: Element<_> = if app.dual { row![pane(app, 0), pane(app, 1)].spacing(GAP).into() } else { pane(app, app.active) };
     let body = row![sidebar(app), container(panes).width(Fill).height(Fill)].spacing(GAP).height(Fill);
-    let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill).style(theme::backdrop);
+    let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill);
+    // a aurora fica atrás de tudo; os cartões de vidro deixam ela (e o vidro do sistema) aparecer
+    let aurora = image(app.aurora.clone()).width(Fill).height(Fill).content_fit(ContentFit::Fill);
     match overlay(app) {
-        Some(o) => stack![main, o].into(),
-        None => main.into(),
+        Some(o) => stack![aurora, main, o].into(),
+        None => stack![aurora, main].into(),
     }
 }
 
 pub fn theme(app: &App) -> Theme {
     theme::theme(app.dark)
+}
+
+/// Com vidro nativo o fundo da janela é transparente: quem pinta é a aurora translúcida sobre o sistema.
+pub fn style(app: &App, t: &Theme) -> iced::theme::Style {
+    let k = theme::tokens(t);
+    iced::theme::Style { background_color: if app.glass { Color::TRANSPARENT } else { k.void }, text_color: k.ink }
 }
 
 // ---------- barra lateral ----------
