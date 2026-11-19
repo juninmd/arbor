@@ -56,6 +56,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
   livre. Subir da raiz de um disco volta para lá. O que falta para a paridade está em
   [docs/inventario-explorer-windows.md](docs/inventario-explorer-windows.md).
+* **Início**: Acesso rápido (pastas fixadas e as mais visitadas) e Recentes (os últimos 30 arquivos abertos
+  pelo arbor, salvos na pasta de configuração do arbor).
 * **Barra de comandos e menu de contexto** como no Explorer (Nova pasta, recortar, copiar, colar, renomear,
   excluir, Classificar, Visualizar), com itens apagados quando não se aplicam. **Fixar pastas** na barra lateral.
 * **Agrupar por** tipo, data de modificação ("Hoje", "Ontem", "Semana passada"…) ou tamanho, pelo menu Classificar

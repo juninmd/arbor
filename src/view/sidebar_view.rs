@@ -79,7 +79,14 @@ pub fn sidebar(app: &App) -> Element<'_, Message> {
     .spacing(9)
     .align_y(Alignment::Center);
 
-    let mut col = Column::new().spacing(2).push(node(app, computer::TITLE.into(), &app.computer, Icon::Drive, theme::ICE, 0));
+    let mut col = Column::new().spacing(2).push(node(app, crate::home::TITLE.into(), &app.home, Icon::Home, theme::ICE, 0)).push(node(
+        app,
+        computer::TITLE.into(),
+        &app.computer,
+        Icon::Drive,
+        theme::ICE,
+        0,
+    ));
     if crate::trashbin::SUPPORTED {
         col = col.push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::STEEL, 0));
     }

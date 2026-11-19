@@ -25,6 +25,7 @@ mod commands_view;
 mod computer_view;
 mod crumbs;
 mod details_view;
+mod home_view;
 mod sidebar_view;
 
 const OVERSCAN: usize = 8;
@@ -96,7 +97,7 @@ fn engine(app: &App) -> Element<'_, Message> {
 
 fn place_icon(label: &str) -> (Icon, Color) {
     match label {
-        "Início" => (Icon::Home, theme::ICE),
+        "Pasta pessoal" => (Icon::Folder, theme::ICE),
         "Imagens" => (Icon::Image, theme::ROSE),
         "Documentos" => (Icon::Doc, theme::IRIS),
         "Downloads" => (Icon::Download, theme::STEEL),
@@ -215,8 +216,11 @@ fn breadcrumbs<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     let mut r = Row::new().spacing(1).align_y(Alignment::Center);
     let in_computer = computer::is(&tab.path);
     // Como no Explorer: todo caminho começa em "Este Computador".
-    if crate::trashbin::is(&tab.path) {
-        r = r.push(crumb(tab.id, crate::trashbin::TITLE.into(), tab.path.clone(), true));
+    if let Some(title) = [(crate::trashbin::is(&tab.path), crate::trashbin::TITLE), (crate::home::is(&tab.path), crate::home::TITLE)]
+        .into_iter()
+        .find_map(|(hit, t)| hit.then_some(t))
+    {
+        r = r.push(crumb(tab.id, title.into(), tab.path.clone(), true));
         return container(r).width(Fill).into();
     }
     r = r.push(crumb(tab.id, computer::TITLE.into(), computer::path(), in_computer));
@@ -271,7 +275,7 @@ fn body<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
         )
         .into();
     }
-    if tab.view.is_empty() {
+    if tab.view.is_empty() && !crate::home::is(&tab.path) {
         let (title, hint) = if tab.loading {
             ("Lendo a pasta…", "")
         } else if !tab.filter.is_empty() {
@@ -286,7 +290,9 @@ fn body<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
         );
         return column![if tab.grid { space().into() } else { header(app, tab) }, empty].into();
     }
-    if tab.grid {
+    if crate::home::is(&tab.path) {
+        home_view::body(app, tab, pane_active)
+    } else if tab.grid {
         grid(app, tab, pane_active)
     } else if computer::is(&tab.path) {
         computer_view::body(app, tab, pane_active)

@@ -45,7 +45,7 @@ pub fn body<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Me
         .into()
 }
 
-fn tile<'a>(tab: &'a Tab, i: usize, e: &'a Entry, drive: Option<&'a Drive>, pane_active: bool) -> Element<'a, Message> {
+pub(super) fn tile<'a>(tab: &'a Tab, i: usize, e: &'a Entry, drive: Option<&'a Drive>, pane_active: bool) -> Element<'a, Message> {
     let selected = tab.selected.contains(&e.path);
     let cursor = i == tab.cursor;
     let name = text(e.name.as_str()).size(13).wrapping(Wrapping::None).font(if selected || cursor { theme::UI_BOLD } else { theme::UI });

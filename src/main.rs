@@ -10,6 +10,7 @@ mod complete;
 mod computer;
 mod folder_views;
 mod glass;
+mod home;
 mod instance;
 mod keymap;
 mod launch;
