@@ -40,6 +40,8 @@ pub enum Cmd {
     ToggleFps,
     CheckUpdates,
     ToggleAutoUpdate,
+    EditKeys,
+    ReloadKeys,
     Palette,
 }
 
@@ -82,6 +84,8 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleFps,
     Cmd::CheckUpdates,
     Cmd::ToggleAutoUpdate,
+    Cmd::EditKeys,
+    Cmd::ReloadKeys,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -127,11 +131,18 @@ impl Cmd {
             Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
             Cmd::CheckUpdates => "Procurar atualizações",
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
+            Cmd::EditKeys => "Editar atalhos",
+            Cmd::ReloadKeys => "Recarregar atalhos",
             Cmd::Palette => "Paleta de comandos",
         }
     }
 
+    /// Atalho mostrado na interface: o personalizado (arquivo `keys`), se houver, senão o de fábrica.
     pub fn shortcut(self) -> String {
+        crate::keymap::custom(self).unwrap_or_else(|| self.default_shortcut())
+    }
+
+    pub fn default_shortcut(self) -> String {
         let m = MOD;
         match self {
             Cmd::Open => "Enter".into(),
@@ -170,7 +181,7 @@ impl Cmd {
             Cmd::Terminal => format!("{m}+'"),
             Cmd::Reveal => String::new(),
             Cmd::ToggleFps => "F12".into(),
-            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate => String::new(),
+            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate | Cmd::EditKeys | Cmd::ReloadKeys => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

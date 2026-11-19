@@ -4,6 +4,7 @@
 
 mod app;
 mod commands;
+mod keymap;
 mod launch;
 mod listing;
 mod media;
@@ -24,6 +25,7 @@ fn main() -> iced::Result {
         println!("arbor {}", update::CURRENT);
         return Ok(());
     }
+    keymap::reload();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)

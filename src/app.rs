@@ -2,7 +2,7 @@
 
 use crate::commands::{self, Cmd};
 use crate::media::{self, Preview};
-use crate::{launch, listing, update, watch};
+use crate::{keymap, launch, listing, update, watch};
 use arbor_core::ops::{self, JobEvent, Op, Undo};
 use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
@@ -832,6 +832,18 @@ impl App {
                     Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
                 }
             }
+            Cmd::EditKeys => match keymap::ensure_file().and_then(|f| launch::open_default(&f).map(|_| f)) {
+                Ok(f) => self.notify(format!("Editando {}. Salve e use \"Recarregar atalhos\".", f.display()), false),
+                Err(e) => self.notify(format!("Atalhos: {e}"), true),
+            },
+            Cmd::ReloadKeys => {
+                let (n, bad) = keymap::reload();
+                if bad.is_empty() {
+                    self.notify(format!("{n} atalho(s) personalizado(s) ativo(s)"), false)
+                } else {
+                    self.notify(format!("{n} atalho(s) ativo(s); linhas ignoradas: {}", bad.join(" | ")), true)
+                }
+            }
             Cmd::Palette => {
                 self.overlay = Overlay::Palette { query: String::new(), selected: 0 };
                 op::focus(PALETTE_INPUT)
@@ -1054,6 +1066,13 @@ impl App {
             Overlay::None => {}
         }
 
+        // Atalhos do usuário valem antes dos de fábrica. Num campo de texto, só os com Ctrl/Alt ou teclas F.
+        let is_f = matches!(&key, Key::Named(n) if format!("{n:?}").strip_prefix('F').is_some_and(|d| d.parse::<u8>().is_ok()));
+        if !captured || mods.command() || mods.alt() || is_f {
+            if let Some(cmd) = keymap::lookup(&key, mods) {
+                return self.run(cmd);
+            }
+        }
         let cmd_mod = mods.command();
         let grid = self.tab().grid;
         // Teclas que funcionam mesmo com o filtro focado.
