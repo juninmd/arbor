@@ -7,7 +7,7 @@
 use crate::app::{App, JumpKind, Message, Overlay, Pane, PromptKind, Tab, UpdateState, JUMP_INPUT, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
 use crate::columns::Col;
 use crate::commands::Cmd;
-use crate::computer::{self, Drive};
+use crate::computer::{self, Drive, Media};
 use crate::media::Preview;
 use crate::theme::{self, icon, Icon};
 use crate::update::{self, Progress};
@@ -1136,10 +1136,17 @@ fn drive_of<'a>(app: &'a App, tab: &Tab, e: &Entry) -> Option<&'a Drive> {
 }
 
 fn entry_kind(e: &Entry, drive: Option<&Drive>) -> Kind {
-    if drive.is_some() {
-        Kind::Drive
-    } else {
-        kind(e)
+    drive.map_or_else(|| kind(e), |d| Kind::Drive(d.media))
+}
+
+/// Ícone e cor de cada tipo de unidade, como o Explorer distingue sistema, USB, DVD e rede.
+pub(crate) fn drive_look(m: Media) -> (Icon, Color) {
+    match m {
+        Media::System => (Icon::DriveSystem, theme::ICE),
+        Media::Fixed => (Icon::Drive, theme::STEEL),
+        Media::Usb => (Icon::Usb, theme::AMBER),
+        Media::Optical => (Icon::Disc, theme::ROSE),
+        Media::Network => (Icon::Network, theme::IRIS),
     }
 }
 
@@ -1156,7 +1163,7 @@ fn kind_label(e: &Entry) -> String {
 #[derive(Clone, Copy)]
 enum Kind {
     Folder,
-    Drive,
+    Drive(Media),
     Image,
     Code,
     Archive,
@@ -1186,7 +1193,7 @@ fn kind(e: &Entry) -> Kind {
 fn kind_color(k: Kind) -> Color {
     match k {
         Kind::Folder => theme::ICE,
-        Kind::Drive => theme::STEEL,
+        Kind::Drive(m) => drive_look(m).1,
         Kind::Image => theme::ROSE,
         Kind::Code => theme::MINT,
         Kind::Doc => theme::IRIS,
@@ -1199,7 +1206,7 @@ fn kind_color(k: Kind) -> Color {
 fn kind_icon(k: Kind) -> Icon {
     match k {
         Kind::Folder => Icon::Folder,
-        Kind::Drive => Icon::Drive,
+        Kind::Drive(m) => drive_look(m).0,
         Kind::Image => Icon::Image,
         Kind::Code => Icon::Code,
         Kind::Doc => Icon::Doc,

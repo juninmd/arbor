@@ -99,7 +99,8 @@ pub fn sidebar(app: &App) -> Element<'_, Message> {
     if !app.drives.is_empty() {
         col = col.push(space().height(12)).push(heading("Discos"));
         for d in &app.drives {
-            col = branch(col, app, d.label.clone(), &d.path, Icon::Drive, theme::STEEL, 0);
+            let (icon, color) = super::drive_look(d.media);
+            col = branch(col, app, d.label.clone(), &d.path, icon, color, 0);
         }
     }
     let palette = button(
