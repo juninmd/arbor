@@ -4,7 +4,7 @@ use crate::commands::{self, Cmd};
 use crate::media::{self, Preview};
 use crate::{launch, listing, update, watch};
 use arbor_core::ops::{self, JobEvent, Op, Undo};
-use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
+use arbor_core::{fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
 use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget::image::Handle;
@@ -248,6 +248,8 @@ pub enum Overlay {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptKind {
     Rename,
+    /// F2 com vários itens selecionados: modelo ("Foto {n:3}") ou troca ("antigo => novo").
+    BatchRename,
     NewFolder,
     GoTo,
 }
@@ -256,6 +258,7 @@ impl PromptKind {
     pub fn title(self) -> &'static str {
         match self {
             PromptKind::Rename => "Renomear",
+            PromptKind::BatchRename => "Renomear em lote",
             PromptKind::NewFolder => "Nova pasta",
             PromptKind::GoTo => "Ir para",
         }
@@ -768,6 +771,7 @@ impl App {
                 tab.selected = tab.view.iter().map(|&i| tab.entries[i].path.clone()).collect();
                 Task::none()
             }
+            Cmd::Rename if self.tab().targets().len() > 1 => self.open_prompt(PromptKind::BatchRename, "{name}".into()),
             Cmd::Rename => match self.tab().current() {
                 Some(e) => {
                     let value = e.name.clone();
@@ -980,6 +984,25 @@ impl App {
         }
     }
 
+    /// Itens da renomeação em lote, na ordem em que aparecem na lista.
+    fn batch_items(&self) -> Vec<rename::Item> {
+        let tab = self.tab();
+        let targets: HashSet<PathBuf> = tab.targets().into_iter().collect();
+        tab.view
+            .iter()
+            .map(|&i| &tab.entries[i])
+            .filter(|e| targets.contains(&e.path))
+            .map(|e| rename::Item { path: e.path.clone(), modified: e.modified, is_dir: e.is_dir })
+            .collect()
+    }
+
+    /// Prévia mostrada enquanto o modelo é digitado: quantos mudam e os primeiros pares (antes, depois).
+    pub fn batch_preview(&self, pattern: &str) -> Result<(usize, Vec<(String, String)>), String> {
+        let pairs = rename::plan(pattern, &self.batch_items())?;
+        let first = pairs.iter().take(6).map(|(from, to)| (ops::name(from), ops::name(to))).collect();
+        Ok((pairs.len(), first))
+    }
+
     fn submit_prompt(&mut self) -> Task<Message> {
         let Overlay::Prompt { kind, value } = std::mem::replace(&mut self.overlay, Overlay::None) else { return Task::none() };
         let value = value.trim().to_string();
@@ -988,6 +1011,14 @@ impl App {
         }
         let dir = self.tab().path.clone();
         match kind {
+            PromptKind::BatchRename => match rename::plan(&value, &self.batch_items()) {
+                Ok(pairs) if pairs.is_empty() => self.notify("Nenhum nome muda com esse modelo", false),
+                Ok(pairs) => self.start(Op::RenameMany { pairs }),
+                Err(e) => {
+                    self.overlay = Overlay::Prompt { kind, value };
+                    self.notify(e, true)
+                }
+            },
             PromptKind::Rename => {
                 let Some(from) = self.tab().current().map(|e| e.path.clone()) else { return Task::none() };
                 if value.contains(['/', '\\']) {
