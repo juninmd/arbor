@@ -40,6 +40,8 @@ pub enum Cmd {
     ToggleFps,
     CheckUpdates,
     ToggleAutoUpdate,
+    SetDefault,
+    UnsetDefault,
     Palette,
 }
 
@@ -82,6 +84,8 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleFps,
     Cmd::CheckUpdates,
     Cmd::ToggleAutoUpdate,
+    Cmd::SetDefault,
+    Cmd::UnsetDefault,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -127,6 +131,8 @@ impl Cmd {
             Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
             Cmd::CheckUpdates => "Procurar atualizações",
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
+            Cmd::SetDefault => "Usar o arbor para abrir pastas (explorer padrão)",
+            Cmd::UnsetDefault => "Voltar a abrir pastas no gerenciador do sistema",
             Cmd::Palette => "Paleta de comandos",
         }
     }
@@ -170,7 +176,7 @@ impl Cmd {
             Cmd::Terminal => format!("{m}+'"),
             Cmd::Reveal => String::new(),
             Cmd::ToggleFps => "F12".into(),
-            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate => String::new(),
+            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate | Cmd::SetDefault | Cmd::UnsetDefault => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

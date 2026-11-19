@@ -2,7 +2,7 @@
 
 use crate::commands::{self, Cmd};
 use crate::media::{self, Preview};
-use crate::{launch, listing, update, watch};
+use crate::{instance, launch, listing, update, watch};
 use arbor_core::ops::{self, JobEvent, Op, Undo};
 use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
@@ -263,50 +263,97 @@ pub const PROMPT_INPUT: &str = "prompt-input";
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Listed { tab: u64, generation: u64, snap: Snapshot },
-    Key { key: Key, modifiers: Modifiers, text: Option<String>, captured: bool },
+    Listed {
+        tab: u64,
+        generation: u64,
+        snap: Snapshot,
+    },
+    Key {
+        key: Key,
+        modifiers: Modifiers,
+        text: Option<String>,
+        captured: bool,
+    },
     Modifiers(Modifiers),
     Resized(Size),
     Dropped(PathBuf),
     Run(Cmd),
-    Click { tab: u64, index: usize },
-    Activate { tab: u64, index: usize },
-    Scrolled { tab: u64, viewport: Viewport },
+    Click {
+        tab: u64,
+        index: usize,
+    },
+    Activate {
+        tab: u64,
+        index: usize,
+    },
+    Scrolled {
+        tab: u64,
+        viewport: Viewport,
+    },
     Navigate(PathBuf),
-    NavigateIn { tab: u64, path: PathBuf },
-    SelectTab { pane: usize, index: usize },
-    CloseTabAt { pane: usize, index: usize },
+    NavigateIn {
+        tab: u64,
+        path: PathBuf,
+    },
+    SelectTab {
+        pane: usize,
+        index: usize,
+    },
+    CloseTabAt {
+        pane: usize,
+        index: usize,
+    },
     NewTabIn(usize),
     FocusPane(usize),
-    SortBy { tab: u64, key: SortKey },
-    FilterChanged { tab: u64, value: String },
+    SortBy {
+        tab: u64,
+        key: SortKey,
+    },
+    FilterChanged {
+        tab: u64,
+        value: String,
+    },
     FilterSubmit,
     PaletteQuery(String),
     PaletteRun(usize),
     PromptChanged(String),
     PromptSubmit,
     CloseOverlay,
-    PreviewLoaded { path: PathBuf, content: Preview },
-    Thumb { path: PathBuf, handle: Option<Handle> },
-    Job { id: u64, event: JobEvent },
+    PreviewLoaded {
+        path: PathBuf,
+        content: Preview,
+    },
+    Thumb {
+        path: PathBuf,
+        handle: Option<Handle>,
+    },
+    Job {
+        id: u64,
+        event: JobEvent,
+    },
     CancelJob(u64),
     ToastExpired(u64),
     DirChanged(PathBuf),
     Places(Vec<(String, PathBuf)>),
     Frame(Instant),
-    UpdateCheck { manual: bool },
-    UpdateChecked { manual: bool, result: Result<Option<update::Update>, String> },
+    UpdateCheck {
+        manual: bool,
+    },
+    UpdateChecked {
+        manual: bool,
+        result: Result<Option<update::Update>, String>,
+    },
     UpdateInstall,
     UpdateProgress(update::Progress),
     UpdateRestart,
     UpdateDismiss,
+    /// Outra execução do arbor pediu esta pasta (ou só uma janela nova, se `None`).
+    Remote(Option<PathBuf>),
 }
 
 impl App {
     pub fn boot() -> (App, Task<Message>) {
-        let start = std::env::args_os()
-            .nth(1)
-            .map(PathBuf::from)
+        let start = instance::start_arg()
             .and_then(|p| std::fs::canonicalize(p).ok())
             .and_then(start_dir)
             .or_else(dirs::home_dir)
@@ -399,7 +446,8 @@ impl App {
         } else {
             Subscription::none()
         };
-        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates]))
+        let remote = Subscription::run(instance::requests).map(Message::Remote);
+        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates, remote]))
     }
 
     // ---------- navegação e listagem ----------
@@ -832,6 +880,10 @@ impl App {
                     Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
                 }
             }
+            Cmd::SetDefault | Cmd::UnsetDefault => match instance::set_default(cmd == Cmd::SetDefault) {
+                Ok(msg) => self.notify(msg, false),
+                Err(e) => self.notify(e, true),
+            },
             Cmd::Palette => {
                 self.overlay = Overlay::Palette { query: String::new(), selected: 0 };
                 op::focus(PALETTE_INPUT)
@@ -1320,11 +1372,36 @@ impl App {
                     .collect();
                 Task::batch(tasks)
             }
+            Message::Remote(target) => {
+                let pane = self.active;
+                let tab = self.new_tab(pane);
+                let go = match target.and_then(start_dir_keep) {
+                    Some((dir, file)) => {
+                        let task = self.navigate(pane, dir);
+                        let t = self.tab_mut();
+                        t.back.clear();
+                        t.focus_on_load = file.into_iter().collect();
+                        task
+                    }
+                    None => Task::none(),
+                };
+                let focus = window::latest().and_then(window::gain_focus);
+                Task::batch([tab, go, focus])
+            }
             Message::Places(drives) => {
                 self.drives = drives;
                 Task::none()
             }
         }
+    }
+}
+
+/// Como [`start_dir`], mas lembrando o arquivo pedido para selecioná-lo na pasta.
+fn start_dir_keep(p: PathBuf) -> Option<(PathBuf, Option<PathBuf>)> {
+    if p.is_dir() {
+        Some((p, None))
+    } else {
+        p.parent().map(|d| (d.to_path_buf(), Some(p.clone())))
     }
 }
 

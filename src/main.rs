@@ -4,6 +4,7 @@
 
 mod app;
 mod commands;
+mod instance;
 mod launch;
 mod listing;
 mod media;
@@ -24,6 +25,12 @@ fn main() -> iced::Result {
         println!("arbor {}", update::CURRENT);
         return Ok(());
     }
+    // Já tem uma janela aberta: manda a pasta para ela (vira uma aba nova) e sai.
+    let target = instance::start_arg().and_then(|p| std::fs::canonicalize(p).ok());
+    if instance::forward(target.as_deref()) {
+        return Ok(());
+    }
+    instance::listen();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)
