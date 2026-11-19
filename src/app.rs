@@ -59,6 +59,7 @@ pub struct App {
     pub drives: Vec<Drive>,
     pub pins: Vec<PathBuf>,
     views: crate::folder_views::FolderViews,
+    pub columns: crate::columns::Columns,
     /// Alvo do menu de onde o comando atual veio (fixar ou abrir uma pasta da barra lateral).
     menu_target: Option<PathBuf>,
     pub suggest: address::Suggest,
@@ -387,6 +388,8 @@ pub enum Message {
     },
     PointerMoved(iced::Point),
     PointerUp,
+    ColResizeStart(crate::columns::Col),
+    HeaderMenu,
     DragOver(Option<PathBuf>),
     DragLeave {
         from: PathBuf,
@@ -502,6 +505,7 @@ impl App {
             drives: vec![],
             pins: pins::load(pins::file().as_deref()),
             views: crate::folder_views::FolderViews::load(crate::folder_views::FolderViews::default_file()),
+            columns: crate::columns::Columns::load(crate::columns::Columns::file().as_deref()),
             menu_target: None,
             suggest: Default::default(),
             details_on: false,
@@ -1125,6 +1129,10 @@ impl App {
                     t.rebuild(show)
                 });
                 self.notify(if show { "Mostrando ocultos" } else { "Ocultos escondidos" }, false)
+            }
+            Cmd::ColKind | Cmd::ColSize | Cmd::ColModified => {
+                self.columns.toggle(column_of(cmd).expect("comando de coluna"));
+                self.save_columns()
             }
             Cmd::ToggleGrid => {
                 let tab = self.tab_mut();
@@ -1774,6 +1782,8 @@ impl App {
             Message::BandMove { tab, at } => self.band_move(tab, at),
             Message::PointerMoved(at) => self.pointer_moved(at),
             Message::PointerUp => self.pointer_up(),
+            Message::ColResizeStart(col) => self.resize_start(col),
+            Message::HeaderMenu => self.open_menu(MenuKind::Columns, None),
             Message::DragOver(target) => self.drag_over(target),
             Message::DragLeave { from, back } => self.drag_leave(from, back),
             Message::DetailsLoaded { path, preview, props } => self.on_details(path, preview, props),
@@ -1885,6 +1895,17 @@ fn scan_trash() -> Task<Message> {
 
 /// Pendrive entrou ou saiu: o Explorer percebe em segundos, sem F5.
 const DRIVES_EVERY: Duration = Duration::from_secs(4);
+
+/// Coluna que um comando "Coluna …" mostra ou oculta.
+pub fn column_of(cmd: Cmd) -> Option<crate::columns::Col> {
+    use crate::columns::Col;
+    match cmd {
+        Cmd::ColKind => Some(Col::Kind),
+        Cmd::ColSize => Some(Col::Size),
+        Cmd::ColModified => Some(Col::Modified),
+        _ => None,
+    }
+}
 
 fn scan_drives() -> Task<Message> {
     Task::perform(async { tokio::task::spawn_blocking(computer::drives).await.unwrap_or_default() }, Message::Places)

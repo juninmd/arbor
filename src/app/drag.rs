@@ -3,6 +3,7 @@
 //! faz a assinatura de eventos mandar movimentos e o soltar do botão; fora disso, nenhuma mensagem.
 
 use super::{App, Message, ROW_H};
+use crate::columns::{Col, Columns};
 use crate::{computer, pointer};
 use arbor_core::ops::Op;
 use iced::{Point, Rectangle, Task};
@@ -28,6 +29,12 @@ pub enum Gesture {
         paths: Vec<PathBuf>,
         at: Point,
         over: Option<PathBuf>,
+    },
+    /// Arrastando a borda de uma coluna do cabeçalho: a largura acompanha o mouse.
+    Resize {
+        col: Col,
+        from_x: f32,
+        start_w: f32,
     },
     /// Coordenadas do conteúdo da lista/grade; `start` chega no primeiro movimento.
     Band {
@@ -192,6 +199,11 @@ impl App {
                 self.gesture = Gesture::Drag { paths, at, over: None };
             }
             Gesture::Drag { at: pos, .. } => *pos = at,
+            // A alça fica à esquerda da coluna (alinhadas à direita): puxar para a esquerda alarga.
+            Gesture::Resize { col, from_x, start_w } => {
+                let (col, w) = (*col, *start_w + *from_x - at.x);
+                self.columns.set_width(col, w);
+            }
             _ => {}
         }
         Task::none()
@@ -221,7 +233,21 @@ impl App {
                 let copy = self.drag_copies(&paths, &dest);
                 self.start(if copy { Op::Copy { sources: paths, dest } } else { Op::Move { sources: paths, dest } })
             }
+            Gesture::Resize { .. } => self.save_columns(),
             _ => Task::none(),
+        }
+    }
+
+    pub(super) fn resize_start(&mut self, col: Col) -> Task<Message> {
+        self.gesture = Gesture::Resize { col, from_x: pointer::get().x, start_w: self.columns.width(col) };
+        pointer::arm(true);
+        Task::none()
+    }
+
+    pub(super) fn save_columns(&mut self) -> Task<Message> {
+        match self.columns.save(Columns::file().as_deref()) {
+            Ok(()) => Task::none(),
+            Err(e) => self.notify(format!("Não salvou as colunas: {e}"), true),
         }
     }
 }

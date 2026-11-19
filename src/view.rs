@@ -5,6 +5,7 @@
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
 use crate::app::{App, JumpKind, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
+use crate::columns::Col;
 use crate::commands::Cmd;
 use crate::computer::{self, Drive};
 use crate::media::Preview;
@@ -258,21 +259,22 @@ fn body<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
                 .spacing(6)
                 .align_x(Alignment::Center),
         );
-        return column![if tab.grid { space().into() } else { header(tab) }, empty].into();
+        return column![if tab.grid { space().into() } else { header(app, tab) }, empty].into();
     }
     if tab.grid {
         grid(app, tab, pane_active)
     } else if computer::is(&tab.path) {
         computer_view::body(app, tab, pane_active)
     } else {
-        column![header(tab), list(app, tab, pane_active)].into()
+        column![header(app, tab), list(app, tab, pane_active)].into()
     }
 }
 
-fn header(tab: &Tab) -> Element<'_, Message> {
+fn header<'a>(app: &'a App, tab: &'a Tab) -> Element<'a, Message> {
     let id = tab.id;
     let disks = computer::is(&tab.path);
-    let col = |label: &'static str, key: SortKey, width: Length, right: bool| -> Element<'_, Message> {
+    let cols = &app.columns;
+    let col = |label: &'static str, key: SortKey, width: Length, right: bool| -> Element<'a, Message> {
         let arrow = match (tab.sort.key == key, tab.sort.desc) {
             (true, true) => " ↓",
             (true, false) => " ↑",
@@ -289,30 +291,27 @@ fn header(tab: &Tab) -> Element<'_, Message> {
         let t = if right { t.width(Fill).align_x(Alignment::End) } else { t };
         button(t).padding([3, 0]).width(width).on_press(Message::SortBy { tab: id, key }).style(theme::ghost).into()
     };
-    container(
-        row![
-            space().width(28),
-            col("Nome", SortKey::Name, Fill, false),
-            col("Tipo", SortKey::Kind, Length::Fixed(64.0), false),
-            col(if disks { "Total" } else { "Tamanho" }, SortKey::Size, Length::Fixed(80.0), true),
-            col(
-                if disks {
-                    "Livre"
-                } else if crate::trashbin::is(&tab.path) {
-                    "Excluído em"
-                } else {
-                    "Modificado"
-                },
-                SortKey::Modified,
-                Length::Fixed(118.0),
-                false,
-            ),
-        ]
-        .spacing(10)
-        .align_y(Alignment::Center),
-    )
-    .padding([2, 18])
-    .into()
+    let modified = if disks {
+        "Livre"
+    } else if crate::trashbin::is(&tab.path) {
+        "Excluído em"
+    } else {
+        "Modificado"
+    };
+    let specs = [
+        (Col::Kind, "Tipo", SortKey::Kind, false),
+        (Col::Size, if disks { "Total" } else { "Tamanho" }, SortKey::Size, true),
+        (Col::Modified, modified, SortKey::Modified, false),
+    ];
+    let mut r = row![space().width(34), col("Nome", SortKey::Name, Fill, false)].align_y(Alignment::Center);
+    for (c, label, key, right) in specs.into_iter().filter(|s| cols.shown(s.0)) {
+        // Alça de 10 px entre as colunas (o espaçamento): arrastar muda a largura da coluna à direita.
+        let grip = mouse_area(container(text("│").size(10).style(theme::ink3)).width(10).center_x(10))
+            .interaction(iced::mouse::Interaction::ResizingHorizontally)
+            .on_press(Message::ColResizeStart(c));
+        r = r.push(grip).push(col(label, key, Length::Fixed(cols.width(c)), right));
+    }
+    mouse_area(container(r).padding([2, 18])).on_right_press(Message::HeaderMenu).into()
 }
 
 fn list<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Message> {
@@ -353,15 +352,19 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
         .width(Fill)
         .font(if strong { theme::UI_BOLD } else { theme::UI })
         .style(move |t: &Theme| if dim { theme::ink3(t) } else { text::Style { color: Some(theme::tokens(t).ink) } });
-    let line = row![
-        chip(entry_kind(e, drive), 24.0),
-        name,
-        text(if drive.is_some() { "Disco".into() } else { kind_label(e) }).size(11.5).width(64).wrapping(Wrapping::None).style(theme::ink3),
-        text(size).font(theme::MONO).size(11).width(80).align_x(Alignment::End).style(theme::ink3),
-        text(when).font(theme::MONO).size(11).width(118).wrapping(Wrapping::None).style(theme::ink3),
-    ]
-    .spacing(10)
-    .align_y(Alignment::Center);
+    let cols = &app.columns;
+    let mut line = row![chip(entry_kind(e, drive), 24.0), name].spacing(10).align_y(Alignment::Center);
+    if cols.shown(Col::Kind) {
+        let kind = if drive.is_some() { "Disco".into() } else { kind_label(e) };
+        line = line.push(text(kind).size(11.5).width(cols.width(Col::Kind)).wrapping(Wrapping::None).style(theme::ink3));
+    }
+    if cols.shown(Col::Size) {
+        line = line.push(text(size).font(theme::MONO).size(11).width(cols.width(Col::Size)).align_x(Alignment::End).style(theme::ink3));
+    }
+    if cols.shown(Col::Modified) {
+        line =
+            line.push(text(when).font(theme::MONO).size(11).width(cols.width(Col::Modified)).wrapping(Wrapping::None).style(theme::ink3));
+    }
     let cell = container(line)
         .height(ROW_H)
         .padding([0, 10])
