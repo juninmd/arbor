@@ -6,7 +6,7 @@ use crate::media::Preview;
 use crate::theme;
 use arbor_core::{human_count, human_size};
 use iced::widget::text::Wrapping;
-use iced::widget::{center, column, container, image, row, scrollable, text, Column};
+use iced::widget::{button, center, column, container, image, row, scrollable, text, Column};
 use iced::{Alignment, ContentFit, Element, Fill, Theme};
 
 pub const WIDTH: f32 = 300.0;
@@ -60,6 +60,22 @@ pub fn panel(app: &App) -> Element<'_, Message> {
                 for (k, v) in info.iter().filter(|(k, _)| !d.props.iter().any(|(p, _)| p == k)) {
                     table = table.push(column![text(k.as_str()).size(11).style(theme::ink3), text(v.as_str()).size(12.5)].spacing(2));
                 }
+            }
+            if !e.is_dir {
+                table = table.push(match &d.hash {
+                    Some(h) => column![
+                        text("SHA-256").size(11).style(theme::ink3),
+                        text(h.as_str()).font(theme::MONO).size(11).wrapping(Wrapping::Glyph)
+                    ]
+                    .spacing(2)
+                    .into(),
+                    None => Element::from(
+                        button(text("Calcular SHA-256").size(12))
+                            .on_press(Message::HashFile(d.path.clone()))
+                            .padding([6, 10])
+                            .style(theme::ghost),
+                    ),
+                });
             }
             col = col.push(table);
         }

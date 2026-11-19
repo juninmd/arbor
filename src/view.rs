@@ -29,6 +29,7 @@ mod sidebar_view;
 
 const OVERSCAN: usize = 8;
 const GAP: f32 = 10.0;
+pub const DETAILS_W: f32 = details_view::WIDTH;
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let panes: Element<_> = if app.dual { row![pane(app, 0), pane(app, 1)].spacing(GAP).into() } else { pane(app, app.active) };
