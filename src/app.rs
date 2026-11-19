@@ -56,6 +56,7 @@ pub struct App {
     pub places: Vec<(String, PathBuf)>,
     pub drives: Vec<Drive>,
     pub pins: Vec<PathBuf>,
+    views: crate::folder_views::FolderViews,
     /// Alvo do menu de onde o comando atual veio (fixar ou abrir uma pasta da barra lateral).
     menu_target: Option<PathBuf>,
     pub suggest: address::Suggest,
@@ -407,6 +408,7 @@ impl App {
             places: computer::places(),
             drives: vec![],
             pins: pins::load(pins::file().as_deref()),
+            views: crate::folder_views::FolderViews::load(crate::folder_views::FolderViews::default_file()),
             menu_target: None,
             suggest: Default::default(),
             details_on: false,
@@ -535,7 +537,12 @@ impl App {
 
     /// Lista `path` na aba ativa do painel `pane`. `refresh` mantém os itens atuais até a nova lista chegar.
     fn load(&mut self, pane: usize, path: PathBuf, refresh: bool) -> Task<Message> {
+        let view = (!refresh).then(|| self.views.get(&path));
         let tab = self.panes[pane].tab_mut();
+        if let Some(v) = view {
+            tab.sort = v.sort;
+            tab.grid = v.grid;
+        }
         Self::load_tab(tab, path, refresh)
     }
 
@@ -1022,8 +1029,9 @@ impl App {
                 tab.scroll_y = 0.0;
                 let id = tab.id;
                 let scroll = op::scroll_to(tab.scroll_id(), AbsoluteOffset { x: 0.0, y: 0.0 });
+                let saved = self.remember_view(id);
                 let reveal = self.reveal_cursor(id);
-                Task::batch([scroll, reveal, self.request_thumbs(id)])
+                Task::batch([scroll, reveal, saved, self.request_thumbs(id)])
             }
             Cmd::SortName => self.sort_by(SortKey::Name),
             Cmd::SortSize => self.sort_by(SortKey::Size),
@@ -1149,7 +1157,21 @@ impl App {
         tab.sort = if tab.sort.key == key { Sort { key, desc: !tab.sort.desc } } else { Sort { key, desc: key != SortKey::Name } };
         let sort = tab.sort;
         tab.edit_entries(show, |entries| sort_entries(Arc::<Vec<Entry>>::make_mut(entries), sort));
-        self.reveal_cursor(id)
+        let saved = self.remember_view(id);
+        Task::batch([saved, self.reveal_cursor(id)])
+    }
+
+    /// Grava ordenação e modo da pasta da aba para a próxima visita.
+    fn remember_view(&mut self, id: u64) -> Task<Message> {
+        let Some(tab) = self.find_tab(id) else { return Task::none() };
+        let (path, view) = (tab.path.clone(), crate::folder_views::View { sort: tab.sort, grid: tab.grid });
+        if computer::is_virtual(&path) {
+            return Task::none();
+        }
+        match self.views.set(&path, view) {
+            Err(e) => self.notify(format!("Não salvou a visão da pasta: {e}"), true),
+            Ok(()) => Task::none(),
+        }
     }
 
     fn open_prompt(&mut self, kind: PromptKind, value: String) -> Task<Message> {

@@ -6,6 +6,7 @@ mod app;
 mod commands;
 mod complete;
 mod computer;
+mod folder_views;
 mod launch;
 mod listing;
 mod media;
