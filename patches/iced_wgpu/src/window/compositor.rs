@@ -128,7 +128,14 @@ impl Compositor {
 
                 log::info!("Available alpha modes: {alpha_modes:#?}");
 
-                let preferred_alpha = if alpha_modes
+                // arbor: a swapchain de DirectComposition (DX12 + Visual) só aceita alpha
+                // pré-multiplicado; PostMultiplied vira DXGI_ALPHA_MODE_STRAIGHT e o
+                // CreateSwapChainForComposition falha com DXGI_ERROR_INVALID_CALL.
+                let preferred_alpha = if cfg!(target_os = "windows")
+                    && alpha_modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied)
+                {
+                    wgpu::CompositeAlphaMode::PreMultiplied
+                } else if alpha_modes
                     .contains(&wgpu::CompositeAlphaMode::PostMultiplied)
                 {
                     wgpu::CompositeAlphaMode::PostMultiplied
