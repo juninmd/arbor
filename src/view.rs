@@ -33,10 +33,12 @@ pub fn view(app: &App) -> Element<'_, Message> {
     if app.details_on {
         body = body.push(details_view::panel(app));
     }
-    let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill).style(theme::backdrop);
+    let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill);
+    // a aurora fica atrás de tudo; os cartões de vidro deixam ela (e o vidro do sistema) aparecer
+    let aurora = image(app.aurora.clone()).width(Fill).height(Fill).content_fit(ContentFit::Fill);
     let main: Element<_> = match overlay(app) {
-        Some(o) => stack![main, o].into(),
-        None => main.into(),
+        Some(o) => stack![aurora, main, o].into(),
+        None => stack![aurora, main].into(),
     };
     match drag_ghost(app) {
         Some(g) => stack![main, g].into(),
@@ -46,6 +48,12 @@ pub fn view(app: &App) -> Element<'_, Message> {
 
 pub fn theme(app: &App) -> Theme {
     theme::theme(app.dark)
+}
+
+/// Com vidro nativo o fundo da janela é transparente: quem pinta é a aurora translúcida sobre o sistema.
+pub fn style(app: &App, t: &Theme) -> iced::theme::Style {
+    let k = theme::tokens(t);
+    iced::theme::Style { background_color: if app.glass { Color::TRANSPARENT } else { k.void }, text_color: k.ink }
 }
 
 // ---------- barra lateral ----------
@@ -671,11 +679,13 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
                 .size(14)
                 .style(theme::input);
             let suggestions = suggestions(app, *kind);
+            let hint: Option<Element<_>> = (*kind == PromptKind::BatchRename).then(|| batch_hint(app, value));
             sheet(
                 column![
                     text(kind.title()).font(theme::DISPLAY).size(16),
                     input,
                     suggestions,
+                    hint,
                     row![
                         kbd("Enter".into()),
                         text("confirma").size(11.5).style(theme::ink3),
@@ -750,6 +760,30 @@ fn drag_ghost(app: &App) -> Option<Element<'_, Message>> {
         .padding([6, 10])
         .style(theme::tooltip);
     Some(container(tag).padding(Padding::new(0.0).left(at.x + 14.0).top(at.y + 14.0)).into())
+}
+
+/// Ajuda e prévia ao vivo da renomeação em lote.
+fn batch_hint<'a>(app: &'a App, value: &str) -> Element<'a, Message> {
+    let help = text("{name} nome · {n} ou {n:3} contador · {ext} extensão · {date} data · {upper} {lower} · antigo => novo")
+        .size(11.5)
+        .style(theme::ink3);
+    let preview: Element<_> = match app.batch_preview(value) {
+        Ok((n, pairs)) => {
+            let rows = pairs.into_iter().map(|(from, to)| {
+                row![
+                    text(shorten(&from, 28)).size(12).font(theme::MONO).style(theme::ink3).width(Fill),
+                    text("→").size(12).style(theme::ink3),
+                    text(shorten(&to, 28)).size(12).font(theme::MONO).width(Fill)
+                ]
+                .spacing(8)
+                .into()
+            });
+            let more = (n > 6).then(|| text(format!("… e mais {}", n - 6)).size(11.5).style(theme::ink3));
+            column![text(format!("{n} item(ns) mudam de nome")).size(12), column(rows).spacing(3), more].spacing(6).into()
+        }
+        Err(e) => text(e).size(12).style(theme::danger).into(),
+    };
+    column![help, preview].spacing(8).into()
 }
 
 fn scrim<'a>() -> Element<'a, Message> {
