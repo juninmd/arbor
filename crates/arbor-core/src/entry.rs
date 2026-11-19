@@ -207,6 +207,11 @@ pub fn human_size(bytes: u64) -> String {
         v /= 1024.0;
         i += 1;
     }
+    // 1023.6 KB arredonda para "1024 KB": já é 1 MB.
+    if v >= 1023.5 && i < UNITS.len() - 1 {
+        v /= 1024.0;
+        i += 1;
+    }
     if v < 10.0 {
         format!("{v:.1} {}", UNITS[i])
     } else {
@@ -294,6 +299,9 @@ mod tests {
         assert_eq!(human_size(512), "512 B");
         assert_eq!(human_size(1536), "1.5 KB");
         assert_eq!(human_size(50 * 1024 * 1024), "50 MB");
+        assert_eq!(human_size(1_048_575), "1.0 MB", "não mostra 1024 KB");
+        assert_eq!(human_size(1_048_064), "1.0 MB");
+        assert_eq!(human_size(1_047_000), "1022 KB");
         assert_eq!(human_count(100_000), "100.000");
         assert_eq!(human_count(999), "999");
     }
