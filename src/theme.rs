@@ -332,6 +332,21 @@ pub fn progress(t: &Theme) -> iced::widget::progress_bar::Style {
     }
 }
 
+/// Retângulo de seleção: preenchimento leve e borda na cor de destaque.
+pub fn band(t: &Theme) -> container::Style {
+    let k = tokens(t);
+    container::Style {
+        background: Some(alpha(k.accent, 0.12).into()),
+        border: Border { color: alpha(k.accent, 0.6), width: 1.0, radius: 3.0.into() },
+        ..Default::default()
+    }
+}
+
+/// Disco quase cheio: mesma barra, em vermelho.
+pub fn progress_full(t: &Theme) -> iced::widget::progress_bar::Style {
+    iced::widget::progress_bar::Style { bar: Background::Color(tokens(t).danger), ..progress(t) }
+}
+
 pub fn scrollbar(t: &Theme, status: iced::widget::scrollable::Status) -> iced::widget::scrollable::Style {
     use iced::widget::scrollable::{Rail, Scroller, Status};
     let k = tokens(t);
@@ -384,11 +399,21 @@ pub enum Icon {
     Left,
     Right,
     Up,
+    Down,
     Plus,
     List,
     Grid,
     Drive,
     Download,
+    Cut,
+    Copy,
+    Paste,
+    Rename,
+    Trash,
+    Sort,
+    Eye,
+    More,
+    Pin,
     Logo,
 }
 
@@ -413,6 +438,7 @@ impl Icon {
             Icon::Left => r#"<path d="m15 6-6 6 6 6"/>"#,
             Icon::Right => r#"<path d="m9 6 6 6-6 6"/>"#,
             Icon::Up => r#"<path d="m6 15 6-6 6 6"/>"#,
+            Icon::Down => r#"<path d="m6 9 6 6 6-6"/>"#,
             Icon::Plus => r#"<path d="M12 5v14M5 12h14"/>"#,
             Icon::List => r#"<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>"#,
             Icon::Grid => {
@@ -420,6 +446,21 @@ impl Icon {
             }
             Icon::Drive => r#"<rect x="3" y="13" width="18" height="7" rx="2"/><path d="M5 13 7.5 5h9L19 13M17 16.5h.01"/>"#,
             Icon::Download => r#"<path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/>"#,
+            Icon::Cut => {
+                r#"<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>"#
+            }
+            Icon::Copy => {
+                r#"<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>"#
+            }
+            Icon::Paste => {
+                r#"<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>"#
+            }
+            Icon::Rename => r#"<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 7.5l3 3"/>"#,
+            Icon::Trash => r#"<path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>"#,
+            Icon::Sort => r#"<path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/>"#,
+            Icon::Eye => r#"<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>"#,
+            Icon::More => r#"<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/>"#,
+            Icon::Pin => r#"<path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z"/>"#,
             Icon::Logo => "",
         }
     }
