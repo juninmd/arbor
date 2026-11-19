@@ -461,9 +461,7 @@ fn dock(app: &App) -> Element<'_, Message> {
     let mut col = Column::new().spacing(6);
     for job in &app.jobs {
         let pct = if job.total > 0 { job.done as f32 / job.total as f32 } else { 0.0 };
-        let detail = if job.paused && job.queued {
-            format!("pausado  {} (na fila)", job.current)
-        } else if job.queued {
+        let detail = if job.queued {
             "na fila".to_string()
         } else if job.paused {
             format!("pausado  {}", job.current)
@@ -477,7 +475,7 @@ fn dock(app: &App) -> Element<'_, Message> {
                 text(job.label.as_str()).font(theme::UI_BOLD).size(12).width(Length::FillPortion(2)).wrapping(Wrapping::None),
                 progress_bar(0.0..=1.0, pct).length(Fill).girth(5).style(theme::progress),
                 text(detail).font(theme::MONO).size(10.5).style(theme::ink3).width(Length::FillPortion(2)).wrapping(Wrapping::None),
-                (!job.queued && !job.paused).then(|| {
+                (!job.queued).then(|| {
                     button(text(if job.paused { "Continuar" } else { "Pausar" }).size(11))
                         .padding([3, 9])
                         .on_press(Message::PauseJob(job.id))

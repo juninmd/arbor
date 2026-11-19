@@ -84,7 +84,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleFps,
     Cmd::CheckUpdates,
     Cmd::ToggleAutoUpdate,
-    Cmd::Redo,
+];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
 
