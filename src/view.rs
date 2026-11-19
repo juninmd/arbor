@@ -161,7 +161,8 @@ fn toolbar<'a>(app: &'a App, tab: &'a Tab) -> Element<'a, Message> {
         .padding(Padding::from([6, 10]).left(30.0))
         .width(if tab.filter.is_empty() { 150 } else { 210 })
         .style(theme::input);
-    let filter = stack![filter, container(icon(Icon::Search, 13.0, theme::now().ink3)).padding(Padding::new(0.0).left(10.0)).center_y(Fill)];
+    let filter =
+        stack![filter, container(icon(Icon::Search, 13.0, theme::now().ink3)).padding(Padding::new(0.0).left(10.0)).center_y(Fill)];
     let filter = container(filter).height(30);
     let bar = row![nav, breadcrumbs(app, tab)].spacing(8).align_y(Alignment::Center);
     bar.push(filter).push(view_switch(tab)).padding([6, 10]).into()
