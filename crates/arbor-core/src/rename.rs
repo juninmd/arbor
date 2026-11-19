@@ -5,6 +5,7 @@
 //!   `{upper}` / `{lower}` (o nome em maiúsculas / minúsculas), `{ext}` (extensão), `{n}` (contador a partir
 //!   de 1; `{n:3}` completa com zeros), `{date}` (data de modificação, `AAAA-MM-DD`). Se o modelo não usa
 //!   `{ext}`, a extensão original é mantida.
+//!   Um nome simples sem marcadores, com vários itens, vira `nome (1)`, `nome (2)`... como no Explorer.
 //! * **Trocar texto**: `antigo => novo` troca todas as ocorrências no nome inteiro.
 
 use chrono::{DateTime, Local};
@@ -33,6 +34,14 @@ pub fn plan(pattern: &str, items: &[Item]) -> Result<Vec<(PathBuf, PathBuf)>, St
             return Err("Diga o texto a trocar antes de =>".into());
         }
     }
+    // Como o F2 do Explorer em vários itens: "foto" vira "foto (1)", "foto (2)"...
+    let numbered;
+    let pattern = if replace.is_none() && items.len() > 1 && !pattern.contains('{') {
+        numbered = format!("{pattern} ({{n}})");
+        numbered.as_str()
+    } else {
+        pattern
+    };
     let mut pairs = Vec::new();
     let mut targets = HashSet::new();
     let sources: HashSet<&Path> = items.iter().map(|i| i.path.as_path()).collect();
@@ -163,6 +172,14 @@ mod tests {
     }
 
     #[test]
+    fn nome_simples_em_lote_numera_como_o_explorer() {
+        let d = tempfile::tempdir().unwrap();
+        let it = items(d.path(), &["IMG_1.jpg", "IMG_2.png"]);
+        assert_eq!(names(&plan("foto", &it).unwrap()), ["foto (1).jpg", "foto (2).png"]);
+        assert_eq!(names(&plan("foto", &it[..1]).unwrap()), ["foto.jpg"], "um item só não ganha número");
+    }
+
+    #[test]
     fn trocar_texto() {
         let d = tempfile::tempdir().unwrap();
         let it = items(d.path(), &["a_b_c.txt", "x.txt"]);
@@ -174,7 +191,7 @@ mod tests {
     fn recusa_nomes_repetidos_e_existentes() {
         let d = tempfile::tempdir().unwrap();
         let it = items(d.path(), &["a.txt", "b.txt"]);
-        assert!(plan("igual", &it).unwrap_err().contains("{n}"));
+        assert!(plan("x{ext}", &it).unwrap_err().contains("{n}"));
         std::fs::write(d.path().join("c.txt"), "").unwrap();
         assert!(plan("c", &it[..1]).unwrap_err().contains("já existe"));
         assert!(plan("{oops}", &it).is_err());
