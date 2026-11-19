@@ -1,0 +1,13 @@
+[package]
+name = "arbor-bench"
+description = "Benchmarks reproduzíveis do arbor: pasta com 100 mil arquivos, ordenação, filtro fuzzy."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+arbor-core = { path = "../arbor-core" }
+natord = "1"
+mimalloc = { version = "0.1", default-features = false }

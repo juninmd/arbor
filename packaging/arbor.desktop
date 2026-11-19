@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=arbor
+GenericName=File Manager
+Comment=Explorer de arquivos rápido e bonito
+Exec=arbor %U
+Icon=arbor
+Terminal=false
+Categories=System;FileTools;FileManager;Utility;
+MimeType=inode/directory;
+StartupWMClass=arbor

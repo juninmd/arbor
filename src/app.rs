@@ -2,9 +2,9 @@
 
 use crate::commands::{self, Cmd};
 use crate::media::{self, Preview};
-use crate::model::{self, Entry, ListEvent, Sort, SortKey};
-use crate::ops::{self, JobEvent, Op, Undo};
-use crate::{fuzzy, launch, watch};
+use crate::{launch, listing, update, watch};
+use arbor_core::ops::{self, JobEvent, Op, Undo};
+use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
 use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget::image::Handle;
@@ -15,12 +15,12 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-pub const ROW_H: f32 = 28.0;
-pub const CELL_W: f32 = 132.0;
-pub const CELL_H: f32 = 150.0;
-pub const SIDEBAR_W: f32 = 200.0;
+pub const ROW_H: f32 = 34.0;
+pub const CELL_W: f32 = 142.0;
+pub const CELL_H: f32 = 168.0;
+pub const SIDEBAR_W: f32 = 216.0;
 
 pub struct App {
     pub panes: [Pane; 2],
@@ -41,6 +41,42 @@ pub struct App {
     pub places: Vec<(String, PathBuf)>,
     pub drives: Vec<(String, PathBuf)>,
     next_tab: u64,
+    pub update: UpdateState,
+    pub fps: Option<Fps>,
+}
+
+/// Estado da atualização automática mostrado no rodapé.
+#[derive(Debug, Clone)]
+pub enum UpdateState {
+    Idle,
+    Available(update::Update),
+    Working(update::Progress),
+}
+
+/// Medidor de quadros: instantes dos quadros do último segundo.
+#[derive(Debug, Default)]
+pub struct Fps {
+    frames: std::collections::VecDeque<Instant>,
+}
+
+impl Fps {
+    fn push(&mut self, at: Instant) {
+        self.frames.push_back(at);
+        while self.frames.front().is_some_and(|f| at.duration_since(*f) > Duration::from_secs(1)) {
+            self.frames.pop_front();
+        }
+    }
+
+    /// Quadros no último segundo e o pior intervalo entre dois quadros, em ms.
+    pub fn stats(&self) -> (usize, f32) {
+        let worst = self
+            .frames
+            .iter()
+            .zip(self.frames.iter().skip(1))
+            .map(|(a, b)| b.duration_since(*a).as_secs_f32() * 1000.0)
+            .fold(0.0, f32::max);
+        (self.frames.len(), worst)
+    }
 }
 
 pub struct Pane {
@@ -60,8 +96,12 @@ impl Pane {
 pub struct Tab {
     pub id: u64,
     pub path: PathBuf,
-    pub entries: Vec<Entry>,
-    incoming: Vec<Entry>,
+    /// Snapshot imutável vindo da listagem; só é copiado se a ordenação mudar enquanto ainda é compartilhado.
+    pub entries: Arc<Vec<Entry>>,
+    /// Itens e tempo da última listagem completa: o "N itens em X ms" do cabeçalho.
+    pub listed: Option<(usize, Duration)>,
+    /// Filtro que gerou `view`; se o novo filtro só acrescenta letras, filtra só o resultado anterior.
+    view_filter: String,
     /// Índices de `entries` visíveis (após ocultos e filtro), na ordem de exibição.
     pub view: Vec<usize>,
     pub cursor: usize,
@@ -87,8 +127,9 @@ impl Tab {
         Tab {
             id,
             path,
-            entries: vec![],
-            incoming: vec![],
+            entries: Arc::default(),
+            listed: None,
+            view_filter: String::new(),
             view: vec![],
             cursor: 0,
             selected: HashSet::new(),
@@ -138,10 +179,11 @@ impl Tab {
     }
 
     /// Troca ou reordena `entries` mantendo o cursor no mesmo arquivo.
-    fn edit_entries(&mut self, show_hidden: bool, f: impl FnOnce(&mut Vec<Entry>)) {
+    fn edit_entries(&mut self, show_hidden: bool, f: impl FnOnce(&mut Arc<Vec<Entry>>)) {
         let keep = self.current().map(|e| e.path.clone());
         f(&mut self.entries);
         self.view.clear();
+        self.view_filter.clear();
         self.rebuild(show_hidden);
         if let Some(i) = keep.and_then(|p| self.position(&p)) {
             self.cursor = i;
@@ -150,16 +192,20 @@ impl Tab {
 
     fn rebuild(&mut self, show_hidden: bool) {
         let keep = self.current().map(|e| e.path.clone());
-        let visible = self.entries.iter().enumerate().filter(|(_, e)| show_hidden || !e.hidden);
-        self.view = if self.filter.is_empty() {
-            visible.map(|(i, _)| i).collect()
+        // Digitar mais uma letra só pode reduzir o resultado: filtra o que já passou em vez da pasta toda.
+        let narrowing = !self.view_filter.is_empty() && self.filter.starts_with(&self.view_filter) && !self.view.is_empty();
+        let candidates: Vec<usize> = if narrowing {
+            std::mem::take(&mut self.view)
         } else {
-            let candidates: Vec<usize> = visible.map(|(i, _)| i).collect();
-            fuzzy::rank(&self.filter, candidates.iter().map(|&i| self.entries[i].name.as_str()))
-                .into_iter()
-                .map(|k| candidates[k])
-                .collect()
+            self.entries.iter().enumerate().filter(|(_, e)| show_hidden || !e.hidden).map(|(i, _)| i).collect()
         };
+        self.view = if self.filter.is_empty() {
+            candidates
+        } else {
+            let entries = &self.entries;
+            fuzzy::rank_slice(&self.filter, &candidates, |&i| entries[i].name.as_str()).into_iter().map(|k| candidates[k]).collect()
+        };
+        self.view_filter.clone_from(&self.filter);
         if !self.filter.is_empty() {
             self.cursor = 0;
         } else if let Some(p) = keep {
@@ -217,7 +263,7 @@ pub const PROMPT_INPUT: &str = "prompt-input";
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Listed { tab: u64, generation: u64, event: ListEvent },
+    Listed { tab: u64, generation: u64, snap: Snapshot },
     Key { key: Key, modifiers: Modifiers, text: Option<String>, captured: bool },
     Modifiers(Modifiers),
     Resized(Size),
@@ -247,6 +293,13 @@ pub enum Message {
     ToastExpired(u64),
     DirChanged(PathBuf),
     Places(Vec<(String, PathBuf)>),
+    Frame(Instant),
+    UpdateCheck { manual: bool },
+    UpdateChecked { manual: bool, result: Result<Option<update::Update>, String> },
+    UpdateInstall,
+    UpdateProgress(update::Progress),
+    UpdateRestart,
+    UpdateDismiss,
 }
 
 impl App {
@@ -280,11 +333,18 @@ impl App {
             places: places(),
             drives: vec![],
             next_tab: 2,
+            update: UpdateState::Idle,
+            fps: None,
         };
         let tasks = Task::batch([
             app.load(0, start, false),
             app.load(1, second, false),
             Task::perform(async { tokio::task::spawn_blocking(drives).await.unwrap_or_default() }, Message::Places),
+            if update::auto_enabled() {
+                Task::perform(tokio::time::sleep(update::FIRST_CHECK), |_| Message::UpdateCheck { manual: false })
+            } else {
+                Task::none()
+            },
         ]);
         (app, tasks)
     }
@@ -315,7 +375,8 @@ impl App {
 
     pub fn grid_cols(&self) -> usize {
         let panes = if self.dual { 2.0 } else { 1.0 };
-        let width = (self.window.width - SIDEBAR_W) / panes - 24.0;
+        // margens da janela, espaço entre os cartões e o recuo da grade
+        let width = (self.window.width - SIDEBAR_W - 30.0 - 10.0 * (panes - 1.0)) / panes - 20.0;
         ((width / CELL_W).floor() as usize).max(1)
     }
 
@@ -331,7 +392,13 @@ impl App {
         });
         let visible = if self.dual { &self.panes[..] } else { &self.panes[self.active..=self.active] };
         let watchers = visible.iter().map(|p| Subscription::run_with(p.tab().path.clone(), watch::watch).map(Message::DirChanged));
-        Subscription::batch(std::iter::once(keys).chain(watchers))
+        let fps = if self.fps.is_some() { window::frames().map(Message::Frame) } else { Subscription::none() };
+        let updates = if update::auto_enabled() {
+            iced::time::every(update::EVERY).map(|_| Message::UpdateCheck { manual: false })
+        } else {
+            Subscription::none()
+        };
+        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates]))
     }
 
     // ---------- navegação e listagem ----------
@@ -346,21 +413,22 @@ impl App {
         tab.generation += 1;
         tab.loading = true;
         tab.refreshing = refresh;
-        tab.incoming.clear();
         if !refresh {
             tab.focus_on_load.retain(|p| p.parent() == Some(path.as_path()));
             tab.path = path.clone();
-            tab.entries.clear();
+            tab.entries = Arc::default();
             tab.view.clear();
+            tab.view_filter.clear();
+            tab.listed = None;
             tab.selected.clear();
             tab.cursor = 0;
             tab.scroll_y = 0.0;
             tab.filter.clear();
             tab.error = None;
         }
-        let (id, generation) = (tab.id, tab.generation);
+        let (id, generation, sort) = (tab.id, tab.generation, tab.sort);
         let scroll = if refresh { Task::none() } else { op::scroll_to(tab.scroll_id(), AbsoluteOffset { x: 0.0, y: 0.0 }) };
-        Task::batch([Task::run(model::list(path), move |event| Message::Listed { tab: id, generation, event }), scroll])
+        Task::batch([Task::run(listing::list(path, sort), move |snap| Message::Listed { tab: id, generation, snap }), scroll])
     }
 
     fn navigate(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
@@ -410,40 +478,33 @@ impl App {
         }
     }
 
-    fn on_listed(&mut self, id: u64, generation: u64, event: ListEvent) -> Task<Message> {
+    fn on_listed(&mut self, id: u64, generation: u64, snap: Snapshot) -> Task<Message> {
         let show_hidden = self.show_hidden;
         let Some(tab) = self.find_tab(id) else { return Task::none() };
         if tab.generation != generation {
             return Task::none();
         }
-        match event {
-            ListEvent::Batch(batch) => {
-                if tab.refreshing {
-                    tab.incoming.extend(batch);
-                    return Task::none();
-                }
-                let sort = tab.sort;
-                tab.edit_entries(show_hidden, |entries| {
-                    entries.extend(batch);
-                    entries.sort_by(|a, b| model::compare(a, b, sort));
-                });
+        // Ao atualizar uma pasta já aberta, os itens antigos ficam na tela até a lista nova estar completa.
+        if tab.refreshing && !snap.complete {
+            return Task::none();
+        }
+        // A ordenação pode ter mudado enquanto a lista era lida; o snapshot veio na ordem antiga.
+        let sort = tab.sort;
+        tab.edit_entries(show_hidden, |entries| {
+            *entries = snap.entries;
+            if !entries.is_sorted_by(|a, b| arbor_core::compare(a, b, sort).is_le()) {
+                sort_entries(Arc::<Vec<Entry>>::make_mut(entries), sort);
             }
-            ListEvent::Done(result) => {
-                tab.loading = false;
-                if tab.refreshing {
-                    let (incoming, sort) = (std::mem::take(&mut tab.incoming), tab.sort);
-                    tab.edit_entries(show_hidden, |entries| {
-                        *entries = incoming;
-                        entries.sort_by(|a, b| model::compare(a, b, sort));
-                    });
-                    let alive: HashSet<PathBuf> = tab.entries.iter().map(|e| e.path.clone()).collect();
-                    tab.selected.retain(|p| alive.contains(p));
-                    tab.refreshing = false;
-                }
-                if let Err(e) = result {
-                    tab.error = Some(e);
-                }
+        });
+        if snap.complete {
+            tab.loading = false;
+            tab.listed = Some((tab.entries.len(), snap.elapsed));
+            if tab.refreshing {
+                let alive: HashSet<&Path> = tab.entries.iter().map(|e| e.path.as_path()).collect();
+                tab.selected.retain(|p| alive.contains(p.as_path()));
+                tab.refreshing = false;
             }
+            tab.error = snap.error;
         }
         let tab = self.find_tab(id).expect("aba existe");
         let mut task = Task::none();
@@ -719,7 +780,10 @@ impl App {
             Cmd::ToggleHidden => {
                 self.show_hidden = !self.show_hidden;
                 let show = self.show_hidden;
-                self.panes.iter_mut().flat_map(|p| p.tabs.iter_mut()).for_each(|t| t.rebuild(show));
+                self.panes.iter_mut().flat_map(|p| p.tabs.iter_mut()).for_each(|t| {
+                    t.view_filter.clear();
+                    t.rebuild(show)
+                });
                 self.notify(if show { "Mostrando ocultos" } else { "Ocultos escondidos" }, false)
             }
             Cmd::ToggleGrid => {
@@ -755,10 +819,90 @@ impl App {
                     Err(e) => self.notify(e, true),
                 }
             }
+            Cmd::ToggleFps => {
+                self.fps = if self.fps.is_some() { None } else { Some(Fps::default()) };
+                Task::none()
+            }
+            Cmd::CheckUpdates => self.update(Message::UpdateCheck { manual: true }),
+            Cmd::ToggleAutoUpdate => {
+                let on = !update::auto_enabled();
+                match update::set_auto_enabled(on) {
+                    Ok(()) => self.notify(if on { "Atualização automática ligada" } else { "Atualização automática desligada" }, false),
+                    Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
+                }
+            }
             Cmd::Palette => {
                 self.overlay = Overlay::Palette { query: String::new(), selected: 0 };
                 op::focus(PALETTE_INPUT)
             }
+        }
+    }
+
+    fn on_update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::UpdateCheck { manual } => {
+                if matches!(self.update, UpdateState::Working(_)) {
+                    return Task::none();
+                }
+                let toast = if manual { self.notify("Procurando atualizações…", false) } else { Task::none() };
+                let check = Task::perform(
+                    async { tokio::task::spawn_blocking(update::check).await.map_err(|e| e.to_string()).and_then(|r| r) },
+                    move |result| Message::UpdateChecked { manual, result },
+                );
+                Task::batch([toast, check])
+            }
+            Message::UpdateChecked { manual, result } => match result {
+                Ok(Some(u)) => {
+                    self.update = UpdateState::Available(u);
+                    Task::none()
+                }
+                Ok(None) if manual => self.notify(format!("O arbor {} já é a versão mais nova", update::CURRENT), false),
+                Err(e) if manual => self.notify(format!("Atualização: {e}"), true),
+                _ => Task::none(),
+            },
+            Message::UpdateInstall => {
+                let UpdateState::Available(u) = &self.update else { return Task::none() };
+                if !update::can_self_update() {
+                    let page = u.page.clone();
+                    return match open::that_detached(&page) {
+                        Ok(()) => self.notify("Esta cópia não pode se trocar sozinha; abri a página da release", false),
+                        Err(e) => self.notify(format!("Abra {page}: {e}"), true),
+                    };
+                }
+                let u = u.clone();
+                self.update = UpdateState::Working(update::Progress::Downloading { received: 0, total: None });
+                let (tx, rx) = iced::futures::channel::mpsc::unbounded();
+                std::thread::spawn(move || {
+                    let progress = tx.clone();
+                    if let Err(e) = update::install(&u, &mut |p| {
+                        let _ = progress.unbounded_send(p);
+                    }) {
+                        let _ = tx.unbounded_send(update::Progress::Failed(e));
+                    }
+                });
+                Task::run(rx, Message::UpdateProgress)
+            }
+            Message::UpdateProgress(p) => {
+                if let update::Progress::Failed(e) = &p {
+                    let text = format!("A atualização falhou: {e}");
+                    self.update = UpdateState::Idle;
+                    return self.notify(text, true);
+                }
+                self.update = UpdateState::Working(p);
+                Task::none()
+            }
+            Message::UpdateRestart => match update::restart() {
+                Ok(()) => iced::exit(),
+                Err(e) => self.notify(format!("Reabra o arbor para usar a versão nova ({e})"), true),
+            },
+            Message::UpdateDismiss => {
+                if matches!(self.update, UpdateState::Working(update::Progress::Downloading { .. })) {
+                    update::cancel();
+                }
+                self.update = UpdateState::Idle;
+                Task::none()
+            }
+            _ => Task::none(),
         }
     }
 
@@ -772,7 +916,7 @@ impl App {
         let Some(tab) = self.find_tab(id) else { return Task::none() };
         tab.sort = if tab.sort.key == key { Sort { key, desc: !tab.sort.desc } } else { Sort { key, desc: key != SortKey::Name } };
         let sort = tab.sort;
-        tab.edit_entries(show, |entries| entries.sort_by(|a, b| model::compare(a, b, sort)));
+        tab.edit_entries(show, |entries| sort_entries(Arc::<Vec<Entry>>::make_mut(entries), sort));
         self.reveal_cursor(id)
     }
 
@@ -933,6 +1077,7 @@ impl App {
             Some(Named::F6) => return self.run(Cmd::MoveToOther),
             Some(Named::F7) => return self.run(Cmd::NewFolder),
             Some(Named::F8) => return self.run(Cmd::Trash),
+            Some(Named::F12) => return self.run(Cmd::ToggleFps),
             _ => {}
         }
         if cmd_mod {
@@ -1001,7 +1146,19 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Listed { tab, generation, event } => self.on_listed(tab, generation, event),
+            Message::Listed { tab, generation, snap } => self.on_listed(tab, generation, snap),
+            Message::Frame(at) => {
+                if let Some(fps) = &mut self.fps {
+                    fps.push(at);
+                }
+                Task::none()
+            }
+            m @ (Message::UpdateCheck { .. }
+            | Message::UpdateChecked { .. }
+            | Message::UpdateInstall
+            | Message::UpdateProgress(_)
+            | Message::UpdateRestart
+            | Message::UpdateDismiss) => self.on_update(m),
             Message::Key { key, modifiers, text, captured } => self.on_key(key, modifiers, text, captured),
             Message::Modifiers(m) => {
                 self.modifiers = m;
@@ -1221,34 +1378,25 @@ mod tests {
     use super::*;
 
     fn entry(name: &str) -> Entry {
-        Entry {
-            name: name.into(),
-            path: PathBuf::from(name),
-            is_dir: false,
-            is_link: false,
-            hidden: false,
-            size: 0,
-            modified: None,
-            ext: String::new(),
-        }
+        Entry::synthetic(name, false, 0)
     }
 
     #[test]
     fn trocar_entradas_mantem_cursor_e_nao_estoura() {
         let mut tab = Tab::new(0, PathBuf::from("/"));
-        tab.edit_entries(false, |e| *e = ["a", "b", "c", "d", "e"].map(entry).to_vec());
+        tab.edit_entries(false, |e| *e = ["a", "b", "c", "d", "e"].map(entry).to_vec().into());
         tab.cursor = 4;
         // Atualização com menos itens (um arquivo apagado): antes isso estourava o índice.
-        tab.edit_entries(false, |e| *e = ["a", "e"].map(entry).to_vec());
+        tab.edit_entries(false, |e| *e = ["a", "e"].map(entry).to_vec().into());
         assert_eq!(tab.current().unwrap().name, "e");
-        tab.edit_entries(false, |e| *e = vec![entry("a")]);
+        tab.edit_entries(false, |e| *e = vec![entry("a")].into());
         assert_eq!(tab.cursor, 0);
     }
 
     #[test]
     fn filtro_fuzzy_na_aba() {
         let mut tab = Tab::new(0, PathBuf::from("/"));
-        tab.edit_entries(false, |e| *e = ["Cargo.toml", "README.md", "src"].map(entry).to_vec());
+        tab.edit_entries(false, |e| *e = ["Cargo.toml", "README.md", "src"].map(entry).to_vec().into());
         tab.filter = "rdm".into();
         tab.rebuild(false);
         assert_eq!(tab.view.len(), 1);

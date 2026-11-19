@@ -37,6 +37,9 @@ pub enum Cmd {
     CopyPath,
     Terminal,
     Reveal,
+    ToggleFps,
+    CheckUpdates,
+    ToggleAutoUpdate,
     Palette,
 }
 
@@ -76,6 +79,9 @@ pub const ALL: &[Cmd] = &[
     Cmd::CopyPath,
     Cmd::Terminal,
     Cmd::Reveal,
+    Cmd::ToggleFps,
+    Cmd::CheckUpdates,
+    Cmd::ToggleAutoUpdate,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -118,6 +124,9 @@ impl Cmd {
             Cmd::CopyPath => "Copiar caminho",
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
+            Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
+            Cmd::CheckUpdates => "Procurar atualizações",
+            Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
             Cmd::Palette => "Paleta de comandos",
         }
     }
@@ -160,6 +169,8 @@ impl Cmd {
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::Terminal => format!("{m}+'"),
             Cmd::Reveal => String::new(),
+            Cmd::ToggleFps => "F12".into(),
+            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

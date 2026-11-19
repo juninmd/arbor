@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420">
+  <defs>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="70"/></filter>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1a3a"/><stop offset=".55" stop-color="#060914"/><stop offset="1" stop-color="#170c33"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fe6ff"/><stop offset="1" stop-color="#b9a2ff"/></linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#eef1ff"/><stop offset=".6" stop-color="#d6f6ff"/><stop offset="1" stop-color="#cbbcff"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".11"/><stop offset=".55" stop-color="#ffffff" stop-opacity=".03"/><stop offset="1" stop-color="#ffffff" stop-opacity=".06"/>
+    </linearGradient>
+    <linearGradient id="pill" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8fe6ff" stop-opacity=".26"/><stop offset="1" stop-color="#b9a2ff" stop-opacity=".12"/></linearGradient>
+    <clipPath id="clip"><rect width="1280" height="420" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#clip)">
+    <rect width="1280" height="420" fill="url(#bg)"/>
+    <g filter="url(#blur)" opacity=".8">
+      <circle cx="210" cy="120" r="190" fill="#1fc8ff" opacity=".55"/>
+      <circle cx="1080" cy="70" r="200" fill="#7b54ff" opacity=".6"/>
+      <circle cx="760" cy="430" r="190" fill="#ff3f9e" opacity=".32"/>
+      <circle cx="70" cy="400" r="150" fill="#13f0b2" opacity=".3"/>
+    </g>
+
+    <!-- marca -->
+    <g transform="translate(96 108)">
+      <rect width="112" height="112" rx="28" fill="#0a1024" fill-opacity=".55" stroke="#ffffff" stroke-opacity=".18"/>
+      <g transform="translate(14 10) scale(3.5)">
+        <circle cx="12" cy="8" r="5.2" fill="url(#leaf)"/>
+        <circle cx="7" cy="12" r="3.6" fill="url(#leaf)" opacity=".82"/>
+        <circle cx="17" cy="12" r="3.6" fill="url(#leaf)" opacity=".82"/>
+        <path d="M12 11v10M12 15l-3-2M12 17l3-2.5" stroke="#eef1ff" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+      </g>
+    </g>
+    <text x="236" y="190" font-family="Sora" font-weight="700" font-size="96" letter-spacing="-3" fill="url(#title)">arbor</text>
+    <text x="98" y="272" font-family="Manrope" font-weight="600" font-size="27" fill="#eef1ff" fill-opacity=".9">O explorer de arquivos que nunca espera pelo disco.</text>
+    <text x="98" y="310" font-family="Manrope" font-weight="500" font-size="19" fill="#dee4ff" fill-opacity=".62">Rust nativo · Windows, Linux e macOS · se atualiza sozinho</text>
+
+    <g font-family="JetBrains Mono" font-size="15" font-weight="500">
+      <g transform="translate(98 342)">
+        <rect width="206" height="34" rx="10" fill="#8ff0c0" fill-opacity=".1" stroke="#8ff0c0" stroke-opacity=".35"/>
+        <text x="14" y="22" fill="#8ff0c0">100 mil itens · 91 ms</text>
+      </g>
+      <g transform="translate(316 342)">
+        <rect width="196" height="34" rx="10" fill="#8fe6ff" fill-opacity=".1" stroke="#8fe6ff" stroke-opacity=".35"/>
+        <text x="14" y="22" fill="#8fe6ff">filtro fuzzy · 1 ms</text>
+      </g>
+      <g transform="translate(524 342)">
+        <rect width="184" height="34" rx="10" fill="#b9a2ff" fill-opacity=".1" stroke="#b9a2ff" stroke-opacity=".35"/>
+        <text x="14" y="22" fill="#b9a2ff">5× o ls -l (GNU)</text>
+      </g>
+    </g>
+
+    <!-- janela de vidro -->
+    <g transform="translate(790 64)">
+      <rect width="420" height="292" rx="22" fill="url(#glass)" stroke="#ffffff" stroke-opacity=".16"/>
+      <circle cx="26" cy="26" r="6" fill="#ff6b8b"/><circle cx="46" cy="26" r="6" fill="#ffcf6b"/><circle cx="66" cy="26" r="6" fill="#6bf0b0"/>
+      <rect x="250" y="15" width="150" height="22" rx="7" fill="#8ff0c0" fill-opacity=".1" stroke="#8ff0c0" stroke-opacity=".3"/>
+      <text x="262" y="31" font-family="JetBrains Mono" font-size="11.5" fill="#8ff0c0">100.064 · 91 ms</text>
+      <g font-family="Manrope" font-size="14" font-weight="500" fill="#eef1ff">
+        <g transform="translate(16 56)">
+          <rect width="388" height="38" rx="11" fill="url(#pill)" stroke="#8fe6ff" stroke-opacity=".45"/>
+          <rect x="10" y="7" width="24" height="24" rx="7" fill="#8fe6ff" fill-opacity=".16"/>
+          <path transform="translate(14 11) scale(.66)" d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" fill="none" stroke="#8fe6ff" stroke-width="2"/>
+          <text x="46" y="24" font-weight="700">Projetos</text>
+          <text x="300" y="24" font-family="JetBrains Mono" font-size="11" fill="#dee4ff" fill-opacity=".45">pasta</text>
+        </g>
+        <g transform="translate(16 100)">
+          <rect x="10" y="7" width="24" height="24" rx="7" fill="#ff94c9" fill-opacity=".16"/>
+          <rect x="16" y="13" width="12" height="12" rx="2.5" fill="none" stroke="#ff94c9" stroke-width="1.6"/>
+          <text x="46" y="24">aurora-lofoten.jpg</text>
+          <text x="300" y="24" font-family="JetBrains Mono" font-size="11" fill="#dee4ff" fill-opacity=".45">8,0 MB</text>
+        </g>
+        <g transform="translate(16 144)">
+          <rect x="10" y="7" width="24" height="24" rx="7" fill="#8ff0c0" fill-opacity=".16"/>
+          <path transform="translate(14 11) scale(.66)" d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5.5l-3 13" fill="none" stroke="#8ff0c0" stroke-width="2" stroke-linecap="round"/>
+          <text x="46" y="24">main.rs</text>
+          <text x="300" y="24" font-family="JetBrains Mono" font-size="11" fill="#dee4ff" fill-opacity=".45">1,2 KB</text>
+        </g>
+        <g transform="translate(16 188)">
+          <rect x="10" y="7" width="24" height="24" rx="7" fill="#ffd08a" fill-opacity=".16"/>
+          <circle cx="22" cy="22" r="4" fill="none" stroke="#ffd08a" stroke-width="1.6"/>
+          <text x="46" y="24">trilha-foco.flac</text>
+          <text x="300" y="24" font-family="JetBrains Mono" font-size="11" fill="#dee4ff" fill-opacity=".45">30 MB</text>
+        </g>
+        <g transform="translate(16 232)">
+          <rect x="10" y="7" width="24" height="24" rx="7" fill="#b9a2ff" fill-opacity=".16"/>
+          <rect x="17" y="12" width="10" height="14" rx="2" fill="none" stroke="#b9a2ff" stroke-width="1.6"/>
+          <text x="46" y="24">relatorio-explorers.pdf</text>
+          <text x="300" y="24" font-family="JetBrains Mono" font-size="11" fill="#dee4ff" fill-opacity=".45">1,3 MB</text>
+        </g>
+      </g>
+    </g>
+  </g>
+  <rect x=".5" y=".5" width="1279" height="419" rx="27.5" fill="none" stroke="#ffffff" stroke-opacity=".1"/>
+</svg>

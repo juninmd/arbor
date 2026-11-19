@@ -1,10 +1,12 @@
-name: CI
+name: ci
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call: # o release roda as mesmas verificações em main antes de publicar
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,37 +14,53 @@ env:
 
 jobs:
   lint:
-    name: fmt + clippy
+    name: fmt + clippy + scripts
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Testes do planejador de release
+        run: node --test scripts/*.test.mjs
 
-  build:
-    name: ${{ matrix.name }}
+  test:
+    name: test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: Linux, os: ubuntu-latest, bin: arbor }
-          - { name: macOS, os: macos-latest, bin: arbor }
-          - { name: Windows, os: windows-latest, bin: arbor.exe }
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Testes
-        run: cargo test --locked
-      - name: Build release
-        run: cargo build --release --locked
+      - run: cargo test --workspace --locked
+      - run: cargo build --release --locked
+      - name: Tamanho do binário
+        shell: bash
+        run: |
+          f=target/release/arbor; [[ -f $f.exe ]] && f=$f.exe
+          echo "### ${{ matrix.name }}: $(du -h "$f" | cut -f1) ($f)" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: arbor-${{ runner.os }}
-          path: target/release/${{ matrix.bin }}
+          path: |
+            target/release/arbor
+            target/release/arbor.exe
           if-no-files-found: error

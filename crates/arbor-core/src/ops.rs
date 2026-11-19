@@ -3,8 +3,8 @@
 //! A cópia é feita num arquivo temporário `.nome.arbor-part`, conferida pelo tamanho e só então renomeada
 //! para o nome final: uma falha ou cancelamento nunca deixa um arquivo pela metade com o nome certo.
 
-use iced::futures::channel::mpsc;
-use iced::futures::Stream;
+use futures_channel::mpsc;
+use futures_core::Stream;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
