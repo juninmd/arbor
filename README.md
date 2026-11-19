@@ -173,7 +173,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `F3` / `Tab` | Painel duplo / trocar de painel |
 | `F5` / `F6` | Copiar / mover para o outro painel |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
-| `Ctrl+Z` | Desfazer |
+| `Ctrl+Z` / `Ctrl+Y` | Desfazer / refazer |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
 | `F12` | Medidor de fps |

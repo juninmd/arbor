@@ -3,7 +3,7 @@
 use crate::commands::{self, Cmd};
 use crate::media::{self, Preview};
 use crate::{launch, listing, update, watch};
-use arbor_core::ops::{self, JobEvent, Op, Undo};
+use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
 use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
 use iced::keyboard::{key::Named, Key, Modifiers};
@@ -29,7 +29,10 @@ pub struct App {
     pub overlay: Overlay,
     pub jobs: Vec<Job>,
     next_job: u64,
-    undo: Vec<Undo>,
+    /// Desfazer: o que reverte cada operação e a própria operação (para o refazer).
+    undo: Vec<(Undo, Op)>,
+    /// Operações desfeitas que Ctrl+Y refaz. Uma operação nova limpa a pilha.
+    redo: Vec<Op>,
     clip: Option<(bool, Vec<PathBuf>)>,
     pub toast: Option<Toast>,
     next_toast: u64,
@@ -225,7 +228,21 @@ pub struct Job {
     pub done: u64,
     pub total: u64,
     pub current: String,
+    /// Esperando outra cópia/movimentação terminar (a fila roda uma transferência por vez).
+    pub queued: bool,
+    pub paused: bool,
     cancel: Arc<AtomicBool>,
+    pause: Arc<AtomicBool>,
+    op: Op,
+    kind: JobKind,
+}
+
+enum JobKind {
+    Normal,
+    /// Um desfazer; se der certo, `redo` vai para a pilha do Ctrl+Y.
+    Undo {
+        redo: Op,
+    },
 }
 
 pub struct Toast {
@@ -236,9 +253,23 @@ pub struct Toast {
 
 pub enum Overlay {
     None,
-    Palette { query: String, selected: usize },
-    Prompt { kind: PromptKind, value: String },
-    Preview { path: PathBuf, content: Option<Preview> },
+    /// Itens com o mesmo nome no destino: substituir, pular ou manter os dois.
+    Conflict {
+        op: Op,
+        names: Vec<String>,
+    },
+    Palette {
+        query: String,
+        selected: usize,
+    },
+    Prompt {
+        kind: PromptKind,
+        value: String,
+    },
+    Preview {
+        path: PathBuf,
+        content: Option<Preview>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -263,39 +294,89 @@ pub const PROMPT_INPUT: &str = "prompt-input";
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Listed { tab: u64, generation: u64, snap: Snapshot },
-    Key { key: Key, modifiers: Modifiers, text: Option<String>, captured: bool },
+    Listed {
+        tab: u64,
+        generation: u64,
+        snap: Snapshot,
+    },
+    Key {
+        key: Key,
+        modifiers: Modifiers,
+        text: Option<String>,
+        captured: bool,
+    },
     Modifiers(Modifiers),
     Resized(Size),
     Dropped(PathBuf),
     Run(Cmd),
-    Click { tab: u64, index: usize },
-    Activate { tab: u64, index: usize },
-    Scrolled { tab: u64, viewport: Viewport },
+    Click {
+        tab: u64,
+        index: usize,
+    },
+    Activate {
+        tab: u64,
+        index: usize,
+    },
+    Scrolled {
+        tab: u64,
+        viewport: Viewport,
+    },
     Navigate(PathBuf),
-    NavigateIn { tab: u64, path: PathBuf },
-    SelectTab { pane: usize, index: usize },
-    CloseTabAt { pane: usize, index: usize },
+    NavigateIn {
+        tab: u64,
+        path: PathBuf,
+    },
+    SelectTab {
+        pane: usize,
+        index: usize,
+    },
+    CloseTabAt {
+        pane: usize,
+        index: usize,
+    },
     NewTabIn(usize),
     FocusPane(usize),
-    SortBy { tab: u64, key: SortKey },
-    FilterChanged { tab: u64, value: String },
+    SortBy {
+        tab: u64,
+        key: SortKey,
+    },
+    FilterChanged {
+        tab: u64,
+        value: String,
+    },
     FilterSubmit,
     PaletteQuery(String),
     PaletteRun(usize),
     PromptChanged(String),
     PromptSubmit,
     CloseOverlay,
-    PreviewLoaded { path: PathBuf, content: Preview },
-    Thumb { path: PathBuf, handle: Option<Handle> },
-    Job { id: u64, event: JobEvent },
+    PreviewLoaded {
+        path: PathBuf,
+        content: Preview,
+    },
+    Thumb {
+        path: PathBuf,
+        handle: Option<Handle>,
+    },
+    Job {
+        id: u64,
+        event: JobEvent,
+    },
     CancelJob(u64),
+    PauseJob(u64),
+    /// Resposta do diálogo de conflito; `None` cancela.
+    ResolveConflict(Option<Conflict>),
     ToastExpired(u64),
     DirChanged(PathBuf),
     Places(Vec<(String, PathBuf)>),
     Frame(Instant),
-    UpdateCheck { manual: bool },
-    UpdateChecked { manual: bool, result: Result<Option<update::Update>, String> },
+    UpdateCheck {
+        manual: bool,
+    },
+    UpdateChecked {
+        manual: bool,
+        result: Result<Option<update::Update>, String>,
+    },
     UpdateInstall,
     UpdateProgress(update::Progress),
     UpdateRestart,
@@ -323,6 +404,7 @@ impl App {
             jobs: vec![],
             next_job: 0,
             undo: vec![],
+            redo: vec![],
             clip: None,
             toast: None,
             next_toast: 0,
@@ -639,12 +721,52 @@ impl App {
 
     // ---------- operações ----------
 
+    /// Uma operação nova do usuário: limpa o refazer.
     fn start(&mut self, op: Op) -> Task<Message> {
+        self.redo.clear();
+        self.start_job(op, JobKind::Normal)
+    }
+
+    /// Copiar/mover: pergunta antes se algum nome já existe no destino.
+    fn transfer(&mut self, op: Op) -> Task<Message> {
+        let (Op::Copy { sources, dest, .. } | Op::Move { sources, dest, .. }) = &op else { return self.start(op) };
+        let names = ops::conflicts(sources, dest);
+        if names.is_empty() {
+            return self.start(op);
+        }
+        self.overlay = Overlay::Conflict { op, names };
+        Task::none()
+    }
+
+    fn start_job(&mut self, op: Op, kind: JobKind) -> Task<Message> {
         let id = self.next_job;
         self.next_job += 1;
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.jobs.push(Job { id, label: op.label(), done: 0, total: 0, current: String::new(), cancel: cancel.clone() });
-        Task::run(ops::spawn(op, cancel), move |event| Message::Job { id, event })
+        let queued = op.is_transfer() && self.jobs.iter().any(|j| j.op.is_transfer() && !j.queued);
+        let (cancel, pause) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
+        let label = op.label();
+        self.jobs.push(Job { id, label, done: 0, total: 0, current: String::new(), queued, paused: false, cancel, pause, op, kind });
+        if queued {
+            return Task::none();
+        }
+        self.spawn_job(id)
+    }
+
+    fn spawn_job(&mut self, id: u64) -> Task<Message> {
+        let Some(job) = self.jobs.iter_mut().find(|j| j.id == id) else { return Task::none() };
+        job.queued = false;
+        let stream = ops::spawn(job.op.clone(), job.cancel.clone(), job.pause.clone());
+        Task::run(stream, move |event| Message::Job { id, event })
+    }
+
+    /// Depois de uma transferência terminar, começa a próxima da fila.
+    fn next_queued(&mut self) -> Task<Message> {
+        if self.jobs.iter().any(|j| j.op.is_transfer() && !j.queued) {
+            return Task::none();
+        }
+        match self.jobs.iter().find(|j| j.queued).map(|j| j.id) {
+            Some(id) => self.spawn_job(id),
+            None => Task::none(),
+        }
     }
 
     fn notify(&mut self, text: impl Into<String>, error: bool) -> Task<Message> {
@@ -724,7 +846,12 @@ impl App {
                 if sources.is_empty() {
                     return Task::none();
                 }
-                self.start(if cmd == Cmd::CopyToOther { Op::Copy { sources, dest } } else { Op::Move { sources, dest } })
+                let conflict = Conflict::KeepBoth;
+                self.transfer(if cmd == Cmd::CopyToOther {
+                    Op::Copy { sources, dest, conflict }
+                } else {
+                    Op::Move { sources, dest, conflict }
+                })
             }
             Cmd::Copy | Cmd::Cut => {
                 let items = self.tab().targets();
@@ -739,16 +866,21 @@ impl App {
             Cmd::Paste => {
                 let Some((cut, sources)) = self.clip.clone() else { return Task::none() };
                 let dest = self.tab().path.clone();
+                let conflict = Conflict::KeepBoth;
                 if cut {
                     self.clip = None;
-                    self.start(Op::Move { sources, dest })
+                    self.transfer(Op::Move { sources, dest, conflict })
                 } else {
-                    self.start(Op::Copy { sources, dest })
+                    self.transfer(Op::Copy { sources, dest, conflict })
                 }
             }
             Cmd::Undo => match self.undo.pop() {
-                Some(u) => self.start(Op::Undo(u)),
+                Some((u, op)) => self.start_job(Op::Undo(u), JobKind::Undo { redo: op }),
                 None => self.notify("Nada para desfazer", false),
+            },
+            Cmd::Redo => match self.redo.pop() {
+                Some(op) => self.start_job(op, JobKind::Normal),
+                None => self.notify("Nada para refazer", false),
             },
             Cmd::SelectAll => {
                 let tab = self.tab_mut();
@@ -1028,6 +1160,20 @@ impl App {
                 }
                 return Task::none();
             }
+            Overlay::Conflict { .. } => {
+                let choice = match (&key, named) {
+                    (_, Some(Named::Escape)) => Some(None),
+                    (_, Some(Named::Enter)) => Some(Some(Conflict::KeepBoth)),
+                    (Key::Character(c), _) => match c.to_lowercase().as_str() {
+                        "s" => Some(Some(Conflict::Replace)),
+                        "p" => Some(Some(Conflict::Skip)),
+                        "m" => Some(Some(Conflict::KeepBoth)),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                return choice.map_or_else(Task::none, |c| self.update(Message::ResolveConflict(c)));
+            }
             Overlay::Prompt { .. } => {
                 if named == Some(Named::Escape) {
                     self.overlay = Overlay::None;
@@ -1106,6 +1252,7 @@ impl App {
                     ("x", false) if !captured => Some(Cmd::Cut),
                     ("v", false) if !captured => Some(Cmd::Paste),
                     ("z", false) if !captured => Some(Cmd::Undo),
+                    ("z", true) | ("y", false) if !captured => Some(Cmd::Redo),
                     ("a", false) if !captured => Some(Cmd::SelectAll),
                     _ => None,
                 };
@@ -1175,7 +1322,7 @@ impl App {
                 if path.parent() == Some(dest.as_path()) {
                     return Task::none();
                 }
-                self.start(Op::Copy { sources: vec![path], dest })
+                self.transfer(Op::Copy { sources: vec![path], dest, conflict: Conflict::KeepBoth })
             }
             Message::Run(cmd) => self.run(cmd),
             Message::Click { tab, index } => self.click(tab, index),
@@ -1280,15 +1427,21 @@ impl App {
                     Task::none()
                 }
                 JobEvent::Finished(result) => {
-                    self.jobs.retain(|j| j.id != id);
+                    let Some(pos) = self.jobs.iter().position(|j| j.id == id) else { return Task::none() };
+                    let job = self.jobs.remove(pos);
                     let refresh = self.refresh_all();
+                    let next = self.next_queued();
                     let toast = match result {
                         Ok(outcome) => {
-                            if let Some(u) = outcome.undo {
-                                self.undo.push(u);
-                                if self.undo.len() > 100 {
-                                    self.undo.remove(0);
+                            match (outcome.undo, job.kind) {
+                                (Some(u), JobKind::Normal) => {
+                                    self.undo.push((u, job.op));
+                                    if self.undo.len() > 100 {
+                                        self.undo.remove(0);
+                                    }
                                 }
+                                (_, JobKind::Undo { redo }) => self.redo.push(redo),
+                                _ => {}
                             }
                             let tab = self.tab_mut();
                             tab.focus_on_load = outcome.created.into_iter().filter(|p| p.parent() == Some(tab.path.as_path())).collect();
@@ -1296,14 +1449,34 @@ impl App {
                         }
                         Err(e) => self.notify(format!("Erro: {e}"), true),
                     };
-                    Task::batch([refresh, toast])
+                    Task::batch([refresh, next, toast])
                 }
             },
             Message::CancelJob(id) => {
-                if let Some(j) = self.jobs.iter().find(|j| j.id == id) {
+                // Na fila, ainda não começou: basta tirar.
+                if self.jobs.iter().any(|j| j.id == id && j.queued) {
+                    self.jobs.retain(|j| j.id != id);
+                } else if let Some(j) = self.jobs.iter().find(|j| j.id == id) {
                     j.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
                 Task::none()
+            }
+            Message::PauseJob(id) => {
+                if let Some(j) = self.jobs.iter_mut().find(|j| j.id == id && !j.queued) {
+                    j.paused = !j.paused;
+                    j.pause.store(j.paused, std::sync::atomic::Ordering::Relaxed);
+                }
+                Task::none()
+            }
+            Message::ResolveConflict(choice) => {
+                let Overlay::Conflict { op, .. } = std::mem::replace(&mut self.overlay, Overlay::None) else { return Task::none() };
+                let Some(conflict) = choice else { return Task::none() };
+                let op = match op {
+                    Op::Copy { sources, dest, .. } => Op::Copy { sources, dest, conflict },
+                    Op::Move { sources, dest, .. } => Op::Move { sources, dest, conflict },
+                    other => other,
+                };
+                self.start(op)
             }
             Message::ToastExpired(id) => {
                 if self.toast.as_ref().is_some_and(|t| t.id == id) {
