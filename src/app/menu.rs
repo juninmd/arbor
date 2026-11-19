@@ -21,6 +21,8 @@ pub enum MenuKind {
     New,
     /// Botão direito no cabeçalho da lista.
     Columns,
+    /// Botão de tema na barra de título.
+    Themes,
 }
 
 pub struct Menu {
@@ -113,8 +115,14 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             None,
             Some(Details),
             Some(ToggleDual),
+            Some(VerticalTabs),
             Some(ToggleTheme),
         ],
+        MenuKind::Themes => {
+            let mut v: Vec<Option<Cmd>> = crate::palettes::ALL.iter().map(|p| Some(p.cmd())).collect();
+            v.extend([None, Some(VerticalTabs)]);
+            v
+        }
         MenuKind::Columns => vec![Some(ColKind), Some(ColSize), Some(ColModified)],
     };
     // Em "Este Computador" não há pasta real para fixar, colar ou abrir terminal.
@@ -141,6 +149,12 @@ impl App {
     /// Comandos que não fariam nada agora aparecem apagados, como no Explorer.
     /// Itens liga/desliga do menu que estão ligados (mostram ✓).
     pub fn checked(&self, cmd: Cmd) -> bool {
+        if let Some(p) = crate::palettes::Palette::of_cmd(cmd) {
+            return self.palette == p;
+        }
+        if cmd == Cmd::VerticalTabs {
+            return self.vertical_tabs;
+        }
         if let Some(by) = super::group_of(cmd) {
             return self.tab().group == by;
         }

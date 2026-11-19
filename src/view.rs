@@ -21,6 +21,7 @@ use iced::widget::{
 use iced::{Alignment, Color, ContentFit, Element, Fill, Length, Padding, Theme};
 use std::path::{Component, Path, PathBuf};
 
+mod chrome_view;
 mod commands_view;
 mod computer_view;
 mod crumbs;
@@ -29,30 +30,46 @@ mod home_view;
 mod sidebar_view;
 
 const OVERSCAN: usize = 8;
-const GAP: f32 = 10.0;
 pub const DETAILS_W: f32 = details_view::WIDTH;
 
 pub fn view(app: &App) -> Element<'_, Message> {
-    let panes: Element<_> = if app.dual { row![pane(app, 0), pane(app, 1)].spacing(GAP).into() } else { pane(app, app.active) };
-    let mut body = row![sidebar_view::sidebar(app), container(panes).width(Fill).height(Fill)].spacing(GAP).height(Fill);
-    if app.details_on {
-        body = body.push(details_view::panel(app));
+    let panes: Element<_> = if app.dual { row![pane(app, 0), separator_v(), pane(app, 1)].into() } else { pane(app, app.active) };
+    let mut body = Row::new().height(Fill);
+    if app.vertical_tabs {
+        body = body.push(chrome_view::vertical_tabs(app)).push(separator_v());
     }
-    let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill);
+    body = body.push(sidebar_view::sidebar(app)).push(separator_v()).push(container(panes).width(Fill).height(Fill));
+    if app.details_on {
+        body = body.push(separator_v()).push(details_view::panel(app));
+    }
+    // faixa da cor da aba ativa: endereço (quando há um painel só) e a barra de comandos
+    let mut band = Column::new();
+    if !app.dual {
+        band = band.push(toolbar(app, app.tab()));
+    }
+    let band = container(band.push(commands_view::bar(app))).width(Fill).style(theme::surface);
+    let main: Element<_> = column![chrome_view::titlebar(app), band, separator(), body].width(Fill).height(Fill).into();
+    let main: Element<_> = match notices(app) {
+        Some(n) => stack![main, container(n).align_right(Fill).align_bottom(Fill).padding(14)].into(),
+        None => main,
+    };
     // a aurora fica atrás de tudo; os cartões de vidro deixam ela (e o vidro do sistema) aparecer
     let aurora = image(app.aurora.clone()).width(Fill).height(Fill).content_fit(ContentFit::Fill);
-    let main: Element<_> = match overlay(app) {
-        Some(o) => stack![aurora, main, o].into(),
-        None => stack![aurora, main].into(),
-    };
-    match drag_ghost(app) {
-        Some(g) => stack![main, g].into(),
-        None => main,
+    let mut layers = stack![aurora, main];
+    if crate::window_chrome::custom() {
+        layers = layers.push(chrome_view::resize_edges());
     }
+    if let Some(o) = overlay(app) {
+        layers = layers.push(o);
+    }
+    if let Some(g) = drag_ghost(app) {
+        layers = layers.push(g);
+    }
+    layers.into()
 }
 
 pub fn theme(app: &App) -> Theme {
-    theme::theme(app.dark)
+    theme::theme(app.palette)
 }
 
 /// Com vidro nativo o fundo da janela é transparente: quem pinta é a aurora translúcida sobre o sistema.
@@ -62,38 +79,6 @@ pub fn style(app: &App, t: &Theme) -> iced::theme::Style {
 }
 
 // ---------- barra lateral ----------
-
-/// O cartão "motor" do protótipo: o que o arbor acabou de fazer, em números.
-fn engine(app: &App) -> Element<'_, Message> {
-    let tab = app.tab();
-    let line = match tab.listed {
-        Some((n, ms)) => format!("{} itens em {}", human_count(n), fmt_ms(ms.as_secs_f64() * 1000.0)),
-        None if tab.loading => "lendo a pasta…".into(),
-        None => "pronto".into(),
-    };
-    let title = row![
-        container(space()).width(7).height(7).style(|t: &Theme| container::Style {
-            background: Some(theme::tokens(t).good.into()),
-            border: iced::border::rounded(4),
-            ..Default::default()
-        }),
-        text("Motor").font(theme::UI_BOLD).size(12)
-    ]
-    .spacing(7)
-    .align_y(Alignment::Center);
-    container(column![title, text(line).font(theme::MONO).size(11).style(theme::ink2)].spacing(4))
-        .padding(10)
-        .width(Fill)
-        .style(|t: &Theme| {
-            let k = theme::tokens(t);
-            container::Style {
-                background: Some(k.glass_hi.into()),
-                border: iced::Border { color: k.stroke, width: 1.0, radius: 12.0.into() },
-                ..Default::default()
-            }
-        })
-        .into()
-}
 
 fn place_icon(label: &str) -> (Icon, Color) {
     match label {
@@ -118,13 +103,20 @@ fn pane(app: &App, index: usize) -> Element<'_, Message> {
     let p = &app.panes[index];
     let tab = p.tab();
     let is_active = app.active == index;
-    let bar: Element<_> = if is_active { commands_view::bar(app) } else { space().height(0).into() };
     let mut body = mouse_area(body(app, tab, is_active)).on_right_press(Message::ContextMenu { tab: tab.id, index: None });
     if app.dragging().is_some() {
         body = body.on_enter(Message::DragOver(Some(tab.path.clone())));
     }
-    let content = column![tabs_bar(p, index, is_active), toolbar(app, tab), bar, body, status_line(app, tab)];
-    let framed = container(content).width(Fill).height(Fill).clip(true).style(move |t: &Theme| theme::glass(t, is_active && app.dual));
+    // com dois painéis cada um tem as próprias abas (se não estiverem na coluna) e o próprio endereço
+    let mut content = Column::new();
+    if app.dual {
+        if !app.vertical_tabs {
+            content = content.push(tabs_bar(p, index, is_active));
+        }
+        content = content.push(toolbar(app, tab));
+    }
+    let framed =
+        container(content.push(body)).width(Fill).height(Fill).clip(true).style(move |t: &Theme| theme::glass(t, is_active && app.dual));
     mouse_area(framed).on_press(Message::FocusPane(index)).into()
 }
 
@@ -132,7 +124,7 @@ fn tabs_bar(p: &Pane, pane: usize, pane_active: bool) -> Element<'_, Message> {
     let mut r = Row::new().spacing(4).align_y(Alignment::Center);
     for (i, tab) in p.tabs.iter().enumerate() {
         let selected = i == p.active;
-        let color = if selected { theme::ICE } else { theme::DARK.ink3 };
+        let color = if selected { theme::ICE } else { theme::now().ink3 };
         let mut label = row![icon(Icon::Folder, 14.0, color), text(shorten(&tab.title(), 24)).size(12).wrapping(Wrapping::None)]
             .spacing(7)
             .align_y(Alignment::Center);
@@ -169,12 +161,10 @@ fn toolbar<'a>(app: &'a App, tab: &'a Tab) -> Element<'a, Message> {
         .padding(Padding::from([6, 10]).left(30.0))
         .width(if tab.filter.is_empty() { 150 } else { 210 })
         .style(theme::input);
-    let filter = stack![filter, container(icon(Icon::Search, 13.0, theme::DARK.ink3)).padding(Padding::new(0.0).left(10.0)).center_y(Fill)];
+    let filter =
+        stack![filter, container(icon(Icon::Search, 13.0, theme::now().ink3)).padding(Padding::new(0.0).left(10.0)).center_y(Fill)];
     let filter = container(filter).height(30);
-    let mut bar = row![nav, breadcrumbs(app, tab)].spacing(8).align_y(Alignment::Center);
-    if let Some(badge) = latency_badge(tab) {
-        bar = bar.push(badge);
-    }
+    let bar = row![nav, breadcrumbs(app, tab)].spacing(8).align_y(Alignment::Center);
     bar.push(filter).push(view_switch(tab)).padding([6, 10]).into()
 }
 
@@ -195,7 +185,7 @@ fn latency_badge(tab: &Tab) -> Option<Element<'_, Message>> {
 
 fn view_switch(tab: &Tab) -> Element<'_, Message> {
     let seg = |ic: Icon, on: bool| -> Element<'_, Message> {
-        button(icon(ic, 14.0, if on { theme::DARK.ink } else { theme::DARK.ink3 }))
+        button(icon(ic, 14.0, if on { theme::now().ink } else { theme::now().ink3 }))
             .padding([5, 7])
             .on_press_maybe((!on).then_some(Message::Run(Cmd::ToggleGrid)))
             .style(move |t: &Theme, s| {
@@ -248,11 +238,16 @@ fn breadcrumbs<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
         segments.push((label, acc.clone()));
     }
     // Largura que sobra para os degraus: painel menos botões, filtro, selo de tempo e "Este Computador".
-    let panes = if app.dual { 2.0 } else { 1.0 };
-    let details = if app.details_on { details_view::WIDTH + GAP } else { 0.0 };
-    let pane_w = (app.window.width - crate::app::SIDEBAR_W - 3.0 * GAP - details) / panes;
+    // Um painel: a faixa ocupa a janela toda. Dois: cada painel tem a sua metade da área de arquivos.
+    let width = if app.dual {
+        let vtabs = if app.vertical_tabs { crate::app::VTABS_W + 1.0 } else { 0.0 };
+        let details = if app.details_on { details_view::WIDTH + 1.0 } else { 0.0 };
+        (app.window.width - crate::app::SIDEBAR_W - 2.0 - vtabs - details) / 2.0
+    } else {
+        app.window.width
+    };
     let filter_w = if tab.filter.is_empty() { 150.0 } else { 210.0 };
-    let budget = pane_w - 430.0 - filter_w - crumbs::crumb_width(computer::TITLE);
+    let budget = width - 230.0 - filter_w - crumbs::crumb_width(computer::TITLE);
     let widths: Vec<f32> = segments.iter().map(|(l, _)| crumbs::crumb_width(l)).collect();
     let first = crumbs::first_visible(&widths, budget - 30.0);
     if first > 0 {
@@ -581,7 +576,8 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
         .into()
 }
 
-fn status_line<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
+/// Resumo à direita da barra de comandos: itens, seleção e o tempo de listagem (a barra de status de baixo saiu).
+fn status<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     let show_hidden = app.show_hidden;
     let mut parts = vec![format!("{} itens", human_count(tab.view.len()))];
     if !tab.filter.is_empty() {
@@ -596,8 +592,15 @@ fn status_line<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
         parts.push(format!("lendo… {}", human_count(tab.entries.len())));
     }
     // O modo aparece ao trocar com Ctrl+roda, como o Explorer mostra o botão de visualização ativo.
-    parts.push(if tab.grid { app.mode().name } else { "Detalhes" }.to_string());
-    container(text(parts.join("  ·  ")).size(11.5).style(theme::ink3)).padding([6, 16]).into()
+    if tab.grid {
+        parts.push(app.mode().name.to_string());
+    }
+    let mut r =
+        row![text(parts.join("  ·  ")).size(11.5).style(theme::ink3).wrapping(Wrapping::None)].spacing(8).align_y(Alignment::Center);
+    if let Some(badge) = latency_badge(tab) {
+        r = r.push(badge);
+    }
+    r.into()
 }
 
 /// "›" entre os degraus: clicar lista as subpastas daquele nível, como no Explorer.
@@ -626,10 +629,13 @@ fn crumb<'a>(tab: u64, label: String, path: PathBuf, last: bool) -> Element<'a, 
         .into()
 }
 
-// ---------- doca: atalhos, operações, avisos, fps e atualização ----------
+// ---------- avisos: operações, atualização, mensagens e fps, num cartão flutuante só quando há algo ----------
 
-fn dock(app: &App) -> Element<'_, Message> {
-    let mut col = Column::new().spacing(6);
+fn notices(app: &App) -> Option<Element<'_, Message>> {
+    if app.jobs.is_empty() && app.toast.is_none() && app.fps.is_none() && matches!(app.update, UpdateState::Idle) {
+        return None;
+    }
+    let mut col = Column::new().spacing(8);
     for job in &app.jobs {
         let pct = if job.total > 0 { job.done as f32 / job.total as f32 } else { 0.0 };
         let detail = if job.queued {
@@ -641,78 +647,49 @@ fn dock(app: &App) -> Element<'_, Message> {
         } else {
             job.current.clone()
         };
-        col = col.push(
-            row![
-                text(job.label.as_str()).font(theme::UI_BOLD).size(12).width(Length::FillPortion(2)).wrapping(Wrapping::None),
-                progress_bar(0.0..=1.0, pct).length(Fill).girth(5).style(theme::progress),
-                text(detail).font(theme::MONO).size(10.5).style(theme::ink3).width(Length::FillPortion(2)).wrapping(Wrapping::None),
-                (!job.queued).then(|| {
-                    button(text(if job.paused { "Continuar" } else { "Pausar" }).size(11))
-                        .padding([3, 9])
-                        .on_press(Message::PauseJob(job.id))
-                        .style(theme::ghost)
-                }),
-                button(text(if job.queued { "Tirar da fila" } else { "Cancelar" }).size(11))
+        let actions = row![
+            text(detail).font(theme::MONO).size(10.5).style(theme::ink3).width(Fill).wrapping(Wrapping::None),
+            (!job.queued).then(|| {
+                button(text(if job.paused { "Continuar" } else { "Pausar" }).size(11))
                     .padding([3, 9])
-                    .on_press(Message::CancelJob(job.id))
-                    .style(theme::ghost),
+                    .on_press(Message::PauseJob(job.id))
+                    .style(theme::ghost)
+            }),
+            button(text(if job.queued { "Tirar da fila" } else { "Cancelar" }).size(11))
+                .padding([3, 9])
+                .on_press(Message::CancelJob(job.id))
+                .style(theme::ghost),
+        ]
+        .spacing(6)
+        .align_y(Alignment::Center);
+        col = col.push(
+            column![
+                text(job.label.as_str()).font(theme::UI_BOLD).size(12).wrapping(Wrapping::None),
+                progress_bar(0.0..=1.0, pct).length(Fill).girth(5).style(theme::progress),
+                actions
             ]
-            .spacing(12)
-            .align_y(Alignment::Center),
+            .spacing(5),
         );
     }
     if let Some(u) = update_banner(app) {
         col = col.push(u);
     }
-
-    let status: Element<_> = if let Some(t) = &app.toast {
+    if let Some(t) = &app.toast {
         let err = t.error;
-        text(t.text.as_str())
-            .size(12)
-            .width(Fill)
-            .wrapping(Wrapping::None)
-            .style(move |th: &Theme| if err { theme::danger(th) } else { theme::ink2(th) })
-            .into()
-    } else {
-        let tab = app.tab();
-        let where_ = tab.title();
-        row![
-            text(where_).font(theme::UI_BOLD).size(12),
-            text(format!("·  {} itens", human_count(tab.view.len()))).size(12).style(theme::ink3)
-        ]
-        .spacing(8)
-        .width(Fill)
-        .into()
-    };
-    let mut bottom = row![status].spacing(14).align_y(Alignment::Center);
+        col = col.push(text(t.text.as_str()).size(12).style(move |th: &Theme| if err { theme::danger(th) } else { theme::ink2(th) }));
+    }
     if let Some(fps) = &app.fps {
         let (frames, worst) = fps.stats();
         let slow = worst > 16.7;
         let label = format!("{frames} fps · pior {worst:.1} ms");
-        bottom = bottom
-            .push(container(text(label).font(theme::MONO).size(10.5)).padding([3, 8]).style(move |t: &Theme| theme::latency(t, slow)));
+        col = col.push(container(text(label).font(theme::MONO).size(10.5)).padding([3, 8]).style(move |t: &Theme| theme::latency(t, slow)));
     }
-    let keys = [
-        ("Espaço", "Preview", Cmd::Preview),
-        ("F2", "Renomear", Cmd::Rename),
-        ("F3", "Duplo", Cmd::ToggleDual),
-        ("F5", "Copiar", Cmd::CopyToOther),
-        ("F6", "Mover", Cmd::MoveToOther),
-        ("F7", "Pasta", Cmd::NewFolder),
-        ("Del", "Lixeira", Cmd::Trash),
-    ];
-    let mut dock_keys = Row::new().spacing(4);
-    for (k, label, cmd) in keys {
-        dock_keys = dock_keys.push(
-            button(row![kbd(k.to_string()), text(label).size(11.5)].spacing(6).align_y(Alignment::Center))
-                .padding([4, 8])
-                .on_press(Message::Run(cmd))
-                .style(theme::ghost),
-        );
-    }
-    bottom = bottom.push(dock_keys);
-    col = col.push(bottom);
-    container(col).padding([7, 12]).width(Fill).style(|t| theme::glass(t, false)).into()
+    Some(opaque(container(col).padding([10, 12]).width(380).style(|t: &Theme| {
+        let mut s = theme::glass(t, false);
+        s.background = Some(theme::tokens(t).surface.into());
+        s.border.radius = 12.0.into();
+        s
+    })))
 }
 
 fn update_banner(app: &App) -> Option<Element<'_, Message>> {
@@ -1162,7 +1139,7 @@ fn kbd<'a>(label: String) -> Element<'a, Message> {
 }
 
 fn icon_button<'a>(ic: Icon, cmd: Cmd, msg: Message) -> Element<'a, Message> {
-    let b = button(icon(ic, 15.0, theme::DARK.ink2)).padding([5, 7]).on_press(msg).style(theme::ghost);
+    let b = button(icon(ic, 15.0, theme::now().ink2)).padding([5, 7]).on_press(msg).style(theme::ghost);
     let sc = cmd.shortcut();
     let tip = if sc.is_empty() { cmd.label().to_string() } else { format!("{}  {sc}", cmd.label()) };
     tooltip(b, text(tip).size(12), tooltip::Position::Bottom).padding(8).style(theme::tooltip).into()

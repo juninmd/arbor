@@ -60,6 +60,13 @@ pub enum Cmd {
     GroupModified,
     GroupSize,
     ToggleTheme,
+    ThemeAurora,
+    ThemeLight,
+    ThemeMidnight,
+    ThemeGraphite,
+    ThemeOcean,
+    ThemeSunset,
+    VerticalTabs,
     CopyPath,
     Terminal,
     Reveal,
@@ -139,6 +146,13 @@ pub const ALL: &[Cmd] = &[
     Cmd::GroupModified,
     Cmd::GroupSize,
     Cmd::ToggleTheme,
+    Cmd::ThemeAurora,
+    Cmd::ThemeLight,
+    Cmd::ThemeMidnight,
+    Cmd::ThemeGraphite,
+    Cmd::ThemeOcean,
+    Cmd::ThemeSunset,
+    Cmd::VerticalTabs,
     Cmd::CopyPath,
     Cmd::Terminal,
     Cmd::Reveal,
@@ -220,7 +234,14 @@ impl Cmd {
             Cmd::GroupKind => "Agrupar por tipo",
             Cmd::GroupModified => "Agrupar por data de modificação",
             Cmd::GroupSize => "Agrupar por tamanho",
-            Cmd::ToggleTheme => "Alternar tema claro/escuro",
+            Cmd::ToggleTheme => "Próximo tema",
+            Cmd::ThemeAurora => "Tema: Aurora",
+            Cmd::ThemeLight => "Tema: Claro",
+            Cmd::ThemeMidnight => "Tema: Meia-noite",
+            Cmd::ThemeGraphite => "Tema: Grafite",
+            Cmd::ThemeOcean => "Tema: Oceano",
+            Cmd::ThemeSunset => "Tema: Pôr do sol",
+            Cmd::VerticalTabs => "Abas verticais",
             Cmd::CopyPath => "Copiar caminho",
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
@@ -294,7 +315,14 @@ impl Cmd {
             Cmd::SortSize => format!("{m}+2"),
             Cmd::SortModified => format!("{m}+3"),
             Cmd::SortKind => format!("{m}+4"),
-            Cmd::ToggleTheme => String::new(),
+            Cmd::ToggleTheme
+            | Cmd::ThemeAurora
+            | Cmd::ThemeLight
+            | Cmd::ThemeMidnight
+            | Cmd::ThemeGraphite
+            | Cmd::ThemeOcean
+            | Cmd::ThemeSunset
+            | Cmd::VerticalTabs => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::Terminal => format!("{m}+'"),
             Cmd::Reveal

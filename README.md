@@ -50,7 +50,13 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   lido, e a lista completa chega como um snapshot imutável. A lista é virtualizada: 200 mil arquivos custam o mesmo
   que 50.
 * **Bonito em movimento.** Tema *Glass* com fontes Sora, Manrope e JetBrains Mono embutidas, ícones por tipo
-  (pasta, imagem, código, documento, áudio, vídeo, compactado), tema claro com os mesmos tokens.
+  (pasta, imagem, código, documento, áudio, vídeo, compactado).
+* **Temas:** Aurora, Claro, Meia-noite, Grafite, Oceano e Pôr do sol, cada um com a própria aurora atrás do vidro.
+  Escolha pelo botão de paleta na barra de título ou pela paleta de comandos ("Tema: …", "Próximo tema"); fica
+  salvo em `~/.config/arbor/settings`.
+* **Janela própria**, no jeito do Explorer do Windows 11: abas na barra de título, faixa com endereço e barra de
+  comandos, minimizar/maximizar/fechar, arrastar e redimensionar pelas bordas (`ARBOR_NATIVE_FRAME=1` volta para
+  a moldura do sistema). **Abas verticais** opcionais (menu do tema ou "Abas verticais" na paleta).
 * **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
   de fps com o pior quadro do último segundo.
 * **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
@@ -81,6 +87,11 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Atualiza sozinho** a partir das releases deste repositório, com o SHA-256 conferido antes de trocar o executável.
 * Teclas no estilo Total Commander, arrastar arquivos para a janela, pasta atualizada sozinha quando muda no disco,
   e duplo clique numa imagem abre o Vislo, se estiver instalado.
+
+| Aurora | Claro, com abas verticais |
+|---|---|
+| ![Tema Aurora com abas na barra de título](docs/temas/aurora.png) | ![Tema Claro com abas verticais](docs/temas/claro-abas-verticais.png) |
+| ![Tema Oceano com abas verticais](docs/temas/oceano-abas-verticais.png) | ![Tema Grafite em painel duplo](docs/temas/grafite-painel-duplo.png) |
 
 | Paleta de comandos | Preview com Espaço |
 |---|---|

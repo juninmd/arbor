@@ -36,7 +36,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub const ROW_H: f32 = 34.0;
-pub const SIDEBAR_W: f32 = 216.0;
+pub const SIDEBAR_W: f32 = 236.0;
+/// Coluna das abas verticais.
+pub const VTABS_W: f32 = 200.0;
+pub use crate::window_chrome::WindowAction;
 
 pub struct App {
     pub panes: [Pane; 2],
@@ -53,7 +56,9 @@ pub struct App {
     sysclip: crate::sysclip::SysClip,
     pub toast: Option<Toast>,
     next_toast: u64,
-    pub dark: bool,
+    pub palette: crate::palettes::Palette,
+    /// Abas numa coluna à esquerda em vez de na barra de título.
+    pub vertical_tabs: bool,
     pub show_hidden: bool,
     pub thumbs: HashMap<PathBuf, Option<Handle>>,
     modifiers: Modifiers,
@@ -572,6 +577,8 @@ pub enum Message {
     DirChanged(PathBuf),
     Places(Vec<Drive>),
     Glass(bool),
+    /// Janela sem moldura do sistema: arrastar, redimensionar e os três botões vêm da barra de título.
+    Window(WindowAction),
     Frame(Instant),
     UpdateCheck {
         manual: bool,
@@ -594,6 +601,8 @@ impl App {
         let second = dirs::download_dir().filter(|d| d.is_dir()).unwrap_or_else(|| start.clone());
         let has_arg = std::env::args_os().nth(1).is_some();
         let restore = session::restore_enabled();
+        let palette = crate::palettes::load();
+        crate::palettes::set(palette);
         let restored = if !has_arg && restore { Session::load() } else { None };
         let mut app = App {
             panes: [
@@ -614,7 +623,8 @@ impl App {
             sysclip: Default::default(),
             toast: None,
             next_toast: 0,
-            dark: true,
+            palette,
+            vertical_tabs: crate::session::setting("vertical_tabs").as_deref() == Some("true"),
             show_hidden: false,
             thumbs: HashMap::new(),
             modifiers: Modifiers::default(),
@@ -630,7 +640,8 @@ impl App {
             details: None,
             zoom: crate::view_modes::DEFAULT,
             gesture: Gesture::None,
-            tree: Default::default(),
+            // "Este Computador" começa aberto na barra lateral, mostrando os discos
+            tree: tree::Tree { open: [computer::path()].into(), ..Default::default() },
             computer: computer::path(),
             trash: trashbin::path(),
             home: home::path(),
@@ -641,7 +652,7 @@ impl App {
             fps: None,
             frecency: load_frecency(),
             glass: false,
-            aurora: crate::aurora::render(true, 1.0),
+            aurora: crate::aurora::render(palette, 1.0),
         };
         let lists = match restored {
             Some(session) => app.restore(session),
@@ -700,9 +711,19 @@ impl App {
         format!("{} — arbor", self.tab().title())
     }
 
+    fn set_palette(&mut self, p: crate::palettes::Palette) -> Task<Message> {
+        self.palette = p;
+        crate::palettes::set(p);
+        self.refresh_aurora();
+        match crate::palettes::save(p) {
+            Ok(()) => Task::none(),
+            Err(e) => self.notify(format!("Não salvou o tema: {e}"), true),
+        }
+    }
+
     /// Mais translúcida com vidro nativo, para o material do sistema aparecer; opaca sem ele.
     fn refresh_aurora(&mut self) {
-        self.aurora = crate::aurora::render(self.dark, if self.glass { 0.62 } else { 1.0 });
+        self.aurora = crate::aurora::render(self.palette, if self.glass { 0.62 } else { 1.0 });
     }
 
     pub fn tab(&self) -> &Tab {
@@ -732,9 +753,10 @@ impl App {
     fn grid_width(&self) -> f32 {
         let panes = if self.dual { 2.0 } else { 1.0 };
         // Painel de detalhes aberto tira largura da grade; sem isso a última coluna sai cortada.
-        let details = if self.details_on { crate::view::DETAILS_W + 10.0 } else { 0.0 };
-        // margens da janela, espaço entre os cartões e o recuo da grade
-        (self.window.width - SIDEBAR_W - 30.0 - details - 10.0 * (panes - 1.0)) / panes - 20.0
+        let details = if self.details_on { crate::view::DETAILS_W + 1.0 } else { 0.0 };
+        let vtabs = if self.vertical_tabs { VTABS_W + 1.0 } else { 0.0 };
+        // painéis encostados (filete de 1 px entre eles) e o recuo da grade
+        (self.window.width - SIDEBAR_W - 1.0 - vtabs - details - (panes - 1.0)) / panes - 20.0
     }
 
     pub fn mode(&self) -> &'static crate::view_modes::Mode {
@@ -1567,10 +1589,16 @@ impl App {
                 let id = tab.id;
                 self.reveal_cursor(id)
             }
-            Cmd::ToggleTheme => {
-                self.dark = !self.dark;
-                self.refresh_aurora();
-                Task::none()
+            Cmd::ToggleTheme => self.set_palette(self.palette.next()),
+            Cmd::ThemeAurora | Cmd::ThemeLight | Cmd::ThemeMidnight | Cmd::ThemeGraphite | Cmd::ThemeOcean | Cmd::ThemeSunset => {
+                self.set_palette(crate::palettes::Palette::of_cmd(cmd).expect("comando de tema"))
+            }
+            Cmd::VerticalTabs => {
+                self.vertical_tabs = !self.vertical_tabs;
+                match crate::session::set_setting("vertical_tabs", if self.vertical_tabs { "true" } else { "false" }) {
+                    Ok(()) => Task::none(),
+                    Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
+                }
             }
             Cmd::CopyPath => {
                 let text = self.tab().targets().iter().map(|p| p.to_string_lossy().into_owned()).collect::<Vec<_>>().join("\n");
@@ -2166,6 +2194,7 @@ impl App {
     fn handle(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Listed { tab, generation, snap } => self.on_listed(tab, generation, snap),
+            Message::Window(action) => crate::window_chrome::run(action),
             Message::Glass(on) => {
                 self.glass = on;
                 self.refresh_aurora();
