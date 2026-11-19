@@ -8,6 +8,7 @@ mod columns;
 mod commands;
 mod complete;
 mod computer;
+mod discovery;
 mod folder_views;
 mod glass;
 mod home;

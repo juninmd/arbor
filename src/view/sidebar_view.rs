@@ -122,6 +122,7 @@ pub fn sidebar(app: &App) -> Element<'_, Message> {
             col = drive(col, app, d);
         }
     }
+    col = col.push(node(app, crate::discovery::TITLE.into(), &app.network, Icon::Network, theme::IRIS, 0));
     if crate::trashbin::SUPPORTED {
         col = col.push(rule()).push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::STEEL, 0));
     }

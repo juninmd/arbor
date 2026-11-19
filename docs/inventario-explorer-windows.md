@@ -22,7 +22,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Fixar pastas na barra lateral (arrastar para fixar, desafixar) | ✅ (pelo menu, ou arrastando pastas para "Solte para fixar", que aparece em Fixados durante o arrasto) | P0 |
 | Galeria (fotos de todas as pastas de imagens por data) | ❌ | P3 |
 | OneDrive/nuvem com estado de sincronização | ❌ (fora do escopo, ver plano) | — |
-| Locais de rede, compartilhamentos SMB, mapear unidade | 🟡 (`\\servidor` na barra de endereço lista os compartilhamentos no Windows; "Mapear unidade de rede…" em Este Computador; montagens smb/sftp do GVFS aparecem como unidades de rede no Linux; sem descoberta automática de computadores na rede) | P2 |
+| Locais de rede, compartilhamentos SMB, mapear unidade | ✅ (`\\servidor` na barra de endereço lista os compartilhamentos no Windows; "Mapear unidade de rede…" em Este Computador; montagens smb/sftp do GVFS aparecem como unidades de rede no Linux; "Rede" na barra lateral lista os computadores: `NetServerEnum` no Windows, `avahi-browse` no Linux, que também lista compartilhamentos com `smbclient` e monta pelo `gio`) | P2 |
 | Lixeira como local navegável (restaurar, esvaziar) | ✅ (Windows e Linux; no macOS o sistema não deixa listar) | P1 |
 | Nova janela (Ctrl+N), restaurar janelas/abas ao abrir | ✅ (Ctrl+N; restaurar abas ao abrir, liga/desliga pela paleta) | P1 |
 

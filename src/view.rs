@@ -206,16 +206,23 @@ fn breadcrumbs<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     let mut r = Row::new().spacing(1).align_y(Alignment::Center);
     let in_computer = computer::is(&tab.path);
     // Como no Explorer: todo caminho começa em "Este Computador".
-    if let Some(title) = [(crate::trashbin::is(&tab.path), crate::trashbin::TITLE), (crate::home::is(&tab.path), crate::home::TITLE)]
-        .into_iter()
-        .find_map(|(hit, t)| hit.then_some(t))
+    if let Some(title) = [
+        (crate::trashbin::is(&tab.path), crate::trashbin::TITLE),
+        (crate::home::is(&tab.path), crate::home::TITLE),
+        (crate::discovery::is(&tab.path), crate::discovery::TITLE),
+    ]
+    .into_iter()
+    .find_map(|(hit, t)| hit.then_some(t))
     {
         r = r.push(crumb(tab.id, title.into(), tab.path.clone(), true));
         return container(r).width(Fill).into();
     }
-    r = r.push(crumb(tab.id, computer::TITLE.into(), computer::path(), in_computer));
+    // Caminhos \\servidor começam em "Rede", como no Explorer.
+    let unc = crate::network::server_root(&tab.path).is_some() || crate::network::share_parent(&tab.path).is_some();
+    let (root_title, root) = if unc { (crate::discovery::TITLE, crate::discovery::path()) } else { (computer::TITLE, computer::path()) };
+    r = r.push(crumb(tab.id, root_title.into(), root.clone(), in_computer));
     let parts: Vec<_> = if in_computer { vec![] } else { tab.path.components().collect() };
-    r = r.push(chevron(computer::path()));
+    r = r.push(chevron(root));
     for (i, c) in parts.iter().enumerate() {
         acc.push(c.as_os_str());
         let label = match c {
@@ -275,6 +282,8 @@ fn body<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
             ("Lendo a pasta…", "")
         } else if !tab.filter.is_empty() {
             ("Nada corresponde ao filtro", "Esc limpa o filtro")
+        } else if crate::discovery::is(&tab.path) {
+            ("Nenhum computador encontrado", "Digite \\\\nome na barra de endereço (Ctrl+L) para abrir um servidor")
         } else {
             ("Pasta vazia", "F7 cria uma nova pasta aqui")
         };
