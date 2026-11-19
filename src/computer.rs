@@ -18,6 +18,22 @@ pub fn is(p: &Path) -> bool {
     p.as_os_str() == SENTINEL
 }
 
+/// Nome mostrado no lugar do caminho para os locais virtuais.
+pub fn virtual_title(p: &Path) -> Option<&'static str> {
+    if is(p) {
+        Some(TITLE)
+    } else if crate::trashbin::is(p) {
+        Some(crate::trashbin::TITLE)
+    } else {
+        None
+    }
+}
+
+/// Locais que não são pastas de verdade ("Este Computador" e "Lixeira"): sem escrever, colar ou soltar.
+pub fn is_virtual(p: &Path) -> bool {
+    is(p) || crate::trashbin::is(p)
+}
+
 #[derive(Debug, Clone)]
 pub struct Drive {
     pub label: String,

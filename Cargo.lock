@@ -161,6 +161,7 @@ dependencies = [
  "sha2",
  "tempfile",
  "tokio",
+ "trash",
  "ureq",
  "vislo-core",
  "windows-sys 0.61.2",

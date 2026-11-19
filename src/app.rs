@@ -5,6 +5,7 @@ mod address;
 mod details;
 mod drag;
 mod menu;
+mod trash_view;
 mod tree;
 
 pub use details::Details;
@@ -13,7 +14,7 @@ pub use menu::{Menu, MenuKind};
 
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
-use crate::{launch, listing, pins, pointer, update, watch};
+use crate::{launch, listing, pins, pointer, trashbin, update, watch};
 use arbor_core::ops::{self, JobEvent, Op, Undo};
 use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
@@ -66,6 +67,7 @@ pub struct App {
     pub tree: tree::Tree,
     /// Caminho-sentinela de "Este Computador", guardado para a barra lateral poder emprestá-lo.
     pub computer: PathBuf,
+    pub trash: PathBuf,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -176,8 +178,8 @@ impl Tab {
     }
 
     pub fn title(&self) -> String {
-        if computer::is(&self.path) {
-            return computer::TITLE.into();
+        if let Some(t) = computer::virtual_title(&self.path) {
+            return t.into();
         }
         self.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| self.path.to_string_lossy().into_owned())
     }
@@ -265,10 +267,24 @@ pub struct Toast {
 
 pub enum Overlay {
     None,
-    Palette { query: String, selected: usize },
-    Prompt { kind: PromptKind, value: String },
-    Preview { path: PathBuf, content: Option<Preview> },
+    Palette {
+        query: String,
+        selected: usize,
+    },
+    Prompt {
+        kind: PromptKind,
+        value: String,
+    },
+    Preview {
+        path: PathBuf,
+        content: Option<Preview>,
+    },
     Menu(Menu),
+    /// Pergunta antes do que não tem volta (excluir de vez, esvaziar a Lixeira).
+    Confirm {
+        text: String,
+        action: trash_view::Irreversible,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -311,6 +327,9 @@ pub enum Message {
     Zoom(bool),
     Created(Result<PathBuf, String>),
     TreeToggle(PathBuf),
+    TrashListed(Result<Vec<Entry>, String>),
+    TrashDone(Result<String, String>),
+    Confirmed,
     TreeLoaded { path: PathBuf, dirs: Vec<PathBuf> },
     PressItem { tab: u64, index: usize },
     PressEmpty(u64),
@@ -393,6 +412,7 @@ impl App {
             gesture: Gesture::None,
             tree: Default::default(),
             computer: computer::path(),
+            trash: trashbin::path(),
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -411,7 +431,7 @@ impl App {
     }
 
     pub fn title(&self) -> String {
-        format!("{} — arbor", if computer::is(&self.tab().path) { computer::TITLE.into() } else { self.tab().path.display().to_string() })
+        format!("{} — arbor", self.tab().title())
     }
 
     pub fn tab(&self) -> &Tab {
@@ -497,7 +517,7 @@ impl App {
         let visible = if self.dual { &self.panes[..] } else { &self.panes[self.active..=self.active] };
         let watchers = visible
             .iter()
-            .filter(|p| !computer::is(&p.tab().path))
+            .filter(|p| !computer::is_virtual(&p.tab().path))
             .map(|p| Subscription::run_with(p.tab().path.clone(), watch::watch).map(Message::DirChanged));
         let fps = if self.fps.is_some() { window::frames().map(Message::Frame) } else { Subscription::none() };
         let updates = if update::auto_enabled() {
@@ -538,6 +558,9 @@ impl App {
         if computer::is(&path) {
             return Task::batch([scan_drives(), scroll]);
         }
+        if trashbin::is(&path) {
+            return Task::batch([scan_trash(), scroll]);
+        }
         Task::batch([Task::run(listing::list(path, sort), move |snap| Message::Listed { tab: id, generation, snap }), scroll])
     }
 
@@ -555,7 +578,7 @@ impl App {
     fn go_up(&mut self) -> Task<Message> {
         let tab = self.tab();
         // Acima da raiz de um disco fica "Este Computador", como no Explorer.
-        if computer::is(&tab.path) {
+        if computer::is_virtual(&tab.path) {
             return Task::none();
         }
         let parent = tab.path.parent().map(Path::to_path_buf).unwrap_or_else(computer::path);
@@ -782,8 +805,11 @@ impl App {
     fn run(&mut self, cmd: Cmd) -> Task<Message> {
         let pane = self.active;
         // "Este Computador" é virtual: renomear, apagar ou colar ali agiria nas pastas e discos de verdade.
-        let here = computer::is(&self.tab().path);
-        let there = self.dual && computer::is(&self.panes[self.other_pane()].tab().path);
+        let here = computer::is_virtual(&self.tab().path);
+        let there = self.dual && computer::is_virtual(&self.panes[self.other_pane()].tab().path);
+        if trashbin::is(&self.tab().path) && matches!(cmd, Cmd::Open | Cmd::OpenDefault | Cmd::Copy | Cmd::CopyToOther | Cmd::Preview) {
+            return self.notify("Restaure o item para abrir ou copiar", false);
+        }
         let writes_here =
             matches!(cmd, Cmd::Paste | Cmd::Trash | Cmd::Rename | Cmd::NewFolder | Cmd::NewTextFile | Cmd::Cut | Cmd::MoveToOther);
         if (here && writes_here) || (there && matches!(cmd, Cmd::CopyToOther | Cmd::MoveToOther)) {
@@ -819,7 +845,7 @@ impl App {
             Cmd::Pin => {
                 let current_dir = self.tab().current().filter(|e| e.is_dir).map(|e| e.path.clone());
                 let path = self.menu_target.clone().or(current_dir).unwrap_or_else(|| self.tab().path.clone());
-                if computer::is(&path) {
+                if computer::is_virtual(&path) {
                     return Task::none();
                 }
                 let pinned = pins::toggle(&mut self.pins, &path);
@@ -844,6 +870,7 @@ impl App {
             }
             Cmd::ZoomIn => self.zoom(true),
             Cmd::ZoomOut => self.zoom(false),
+            Cmd::Restore | Cmd::Purge | Cmd::EmptyTrash | Cmd::DeleteNow => self.trash_cmd(cmd),
             Cmd::Up => self.go_up(),
             Cmd::Back => self.history(true),
             Cmd::Forward => self.history(false),
@@ -1250,6 +1277,16 @@ impl App {
                 };
             }
             Overlay::Menu(_) => return self.menu_key(named),
+            Overlay::Confirm { .. } => {
+                return match named {
+                    Some(Named::Enter) => self.confirmed(),
+                    Some(Named::Escape) => {
+                        self.overlay = Overlay::None;
+                        Task::none()
+                    }
+                    _ => Task::none(),
+                };
+            }
             Overlay::None => {}
         }
 
@@ -1332,6 +1369,8 @@ impl App {
             Some(Named::Enter) => return self.run(if mods.shift() { Cmd::OpenDefault } else { Cmd::Open }),
             Some(Named::Space) => return self.run(Cmd::Preview),
             Some(Named::Backspace) => return self.go_up(),
+            Some(Named::Delete) if mods.shift() => return self.run(Cmd::DeleteNow),
+            Some(Named::Delete) if trashbin::is(&self.tab().path) => return self.run(Cmd::Purge),
             Some(Named::Delete) => return self.run(Cmd::Trash),
             Some(Named::Tab) => return self.run(Cmd::SwitchPane),
             Some(Named::Home) => return self.move_cursor(isize::MIN, mods.shift()),
@@ -1390,7 +1429,7 @@ impl App {
             }
             Message::Dropped(path) => {
                 let dest = self.tab().path.clone();
-                if computer::is(&dest) || path.parent() == Some(dest.as_path()) {
+                if computer::is_virtual(&dest) || path.parent() == Some(dest.as_path()) {
                     return Task::none();
                 }
                 self.start(Op::Copy { sources: vec![path], dest })
@@ -1511,6 +1550,9 @@ impl App {
             Message::SuggestPick(i) => self.accept_suggestion(Some(i)),
             Message::Zoom(larger) => self.zoom(larger),
             Message::TreeToggle(path) => self.tree_toggle(path),
+            Message::TrashListed(result) => self.on_trash_listed(result),
+            Message::TrashDone(result) => self.on_trash_done(result),
+            Message::Confirmed => self.confirmed(),
             Message::TreeLoaded { path, dirs } => {
                 self.tree.children.insert(path, dirs);
                 Task::none()
@@ -1617,6 +1659,10 @@ fn start_dir(p: PathBuf) -> Option<PathBuf> {
     } else {
         p.parent().map(Path::to_path_buf)
     }
+}
+
+fn scan_trash() -> Task<Message> {
+    Task::perform(async { tokio::task::spawn_blocking(trashbin::list).await.unwrap_or_else(|e| Err(e.to_string())) }, Message::TrashListed)
 }
 
 fn scan_drives() -> Task<Message> {

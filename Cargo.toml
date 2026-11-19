@@ -27,6 +27,8 @@ notify = "8"
 open = "5"
 # arquivos na área de transferência do sistema (CF_HDROP, NSPasteboard, text/uri-list)
 arboard = { version = "3.7", default-features = false }
+# Lixeira navegável (listar, restaurar, esvaziar); mesma versão que o arbor-core já usa
+trash = "5"
 dirs = "6"
 image = { version = "0.25", default-features = false, features = ["png"] }
 fast_image_resize = "6"

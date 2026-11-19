@@ -14,6 +14,7 @@ mod pointer;
 mod props;
 mod sysclip;
 mod theme;
+mod trashbin;
 mod update;
 mod view;
 mod watch;

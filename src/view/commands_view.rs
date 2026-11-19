@@ -21,7 +21,8 @@ pub fn icon_of(cmd: Cmd) -> Option<Icon> {
         Cmd::Copy | Cmd::CopyPath => Icon::Copy,
         Cmd::Paste => Icon::Paste,
         Cmd::Rename => Icon::Rename,
-        Cmd::Trash => Icon::Trash,
+        Cmd::Trash | Cmd::DeleteNow | Cmd::Purge | Cmd::EmptyTrash => Icon::Trash,
+        Cmd::Restore => Icon::Up,
         Cmd::SortName | Cmd::SortSize | Cmd::SortModified | Cmd::SortKind => Icon::Sort,
         Cmd::ToggleGrid => Icon::Grid,
         Cmd::ToggleHidden | Cmd::Preview => Icon::Eye,
@@ -36,6 +37,9 @@ pub fn icon_of(cmd: Cmd) -> Option<Icon> {
 }
 
 pub fn bar(app: &App) -> Element<'_, Message> {
+    if crate::trashbin::is(&app.tab().path) {
+        return trash_bar(app);
+    }
     let action = |cmd: Cmd| -> Element<'_, Message> {
         let ic = icon_of(cmd).expect("ícone do comando");
         let on = app.enabled(cmd);
@@ -114,4 +118,17 @@ pub fn menu<'a>(app: &'a App, m: &'a Menu) -> Element<'a, Message> {
     let catcher =
         mouse_area(container(space()).width(Fill).height(Fill)).on_press(Message::CloseOverlay).on_right_press(Message::CloseOverlay);
     stack![catcher, container(opaque(card)).padding(Padding::new(0.0).left(x).top(y))].into()
+}
+
+/// Na Lixeira a barra troca para o que faz sentido ali, como no Explorer.
+fn trash_bar(app: &App) -> Element<'_, Message> {
+    let b = |ic: Icon, cmd: Cmd| -> Element<'_, Message> {
+        let content = row![icon(ic, 14.0, theme::DARK.ink2), text(cmd.label()).size(12.5)].spacing(6).align_y(Alignment::Center);
+        button(content).padding([5, 9]).on_press_maybe(app.enabled(cmd).then_some(Message::Run(cmd))).style(theme::ghost).into()
+    };
+    row![b(Icon::Up, Cmd::Restore), b(Icon::Trash, Cmd::Purge), separator_v(), b(Icon::Trash, Cmd::EmptyTrash)]
+        .spacing(2)
+        .align_y(Alignment::Center)
+        .padding(Padding::from([0, 10]).bottom(4.0))
+        .into()
 }

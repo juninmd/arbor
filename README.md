@@ -182,6 +182,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | botões laterais do mouse | Voltar / avançar |
 | `F5` / `F6` | Copiar / mover para o outro painel |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
+| `Shift+Delete` | Excluir permanentemente (pede confirmação) |
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
 | `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Ícones maiores / menores |

@@ -200,6 +200,10 @@ fn breadcrumbs(tab: &Tab) -> Element<'_, Message> {
     let mut r = Row::new().spacing(1).align_y(Alignment::Center);
     let in_computer = computer::is(&tab.path);
     // Como no Explorer: todo caminho começa em "Este Computador".
+    if crate::trashbin::is(&tab.path) {
+        r = r.push(crumb(tab.id, crate::trashbin::TITLE.into(), tab.path.clone(), true));
+        return container(r).width(Fill).into();
+    }
     r = r.push(crumb(tab.id, computer::TITLE.into(), computer::path(), in_computer));
     let parts: Vec<_> = if in_computer { vec![] } else { tab.path.components().collect() };
     if !parts.is_empty() {
@@ -281,7 +285,18 @@ fn header(tab: &Tab) -> Element<'_, Message> {
             col("Nome", SortKey::Name, Fill, false),
             col("Tipo", SortKey::Kind, Length::Fixed(64.0), false),
             col(if disks { "Total" } else { "Tamanho" }, SortKey::Size, Length::Fixed(80.0), true),
-            col(if disks { "Livre" } else { "Modificado" }, SortKey::Modified, Length::Fixed(118.0), false),
+            col(
+                if disks {
+                    "Livre"
+                } else if crate::trashbin::is(&tab.path) {
+                    "Excluído em"
+                } else {
+                    "Modificado"
+                },
+                SortKey::Modified,
+                Length::Fixed(118.0),
+                false,
+            ),
         ]
         .spacing(10)
         .align_y(Alignment::Center),
@@ -667,6 +682,20 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         }
         Overlay::Preview { path, content } => preview(app, path, content.as_ref()),
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
+        Overlay::Confirm { text: question, .. } => sheet(
+            column![
+                text("Confirmar").font(theme::DISPLAY).size(16),
+                text(question.as_str()).size(13.5),
+                row![
+                    space().width(Fill),
+                    button(text("Cancelar").size(13)).padding([7, 14]).on_press(Message::CloseOverlay).style(theme::ghost),
+                    button(text("Excluir").size(13)).padding([7, 14]).on_press(Message::Confirmed).style(theme::primary),
+                ]
+                .spacing(8)
+            ]
+            .spacing(14),
+            420.0,
+        ),
     };
     Some(stack![scrim(), center(opaque(card)).padding(40)].into())
 }

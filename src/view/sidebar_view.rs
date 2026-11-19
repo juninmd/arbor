@@ -19,7 +19,7 @@ const MAX_DEPTH: usize = 24;
 fn node<'a>(app: &'a App, label: String, path: &Path, ic: Icon, color: Color, depth: usize) -> Element<'a, Message> {
     let active = app.tab().path == path;
     let open = app.tree.open.contains(path);
-    let chevron: Element<_> = if computer::is(path) {
+    let chevron: Element<_> = if computer::is_virtual(path) {
         space().width(16).into()
     } else {
         button(icon(if open { Icon::Down } else { Icon::Right }, 12.0, theme::DARK.ink3))
@@ -79,10 +79,11 @@ pub fn sidebar(app: &App) -> Element<'_, Message> {
     .spacing(9)
     .align_y(Alignment::Center);
 
-    let mut col = Column::new()
-        .spacing(2)
-        .push(node(app, computer::TITLE.into(), &app.computer, Icon::Drive, theme::ICE, 0))
-        .push(space().height(12));
+    let mut col = Column::new().spacing(2).push(node(app, computer::TITLE.into(), &app.computer, Icon::Drive, theme::ICE, 0));
+    if crate::trashbin::SUPPORTED {
+        col = col.push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::STEEL, 0));
+    }
+    col = col.push(space().height(12));
     col = col.push(heading("Locais"));
     for (label, path) in &app.places {
         let (ic, color) = place_icon(label);

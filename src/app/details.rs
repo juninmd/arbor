@@ -20,6 +20,22 @@ impl App {
         if !self.details_on {
             return Task::none();
         }
+        // Na Lixeira o arquivo não está no caminho original: mostra o que a própria lista sabe.
+        if crate::trashbin::is(&self.tab().path) {
+            let Some(e) = self.tab().current() else {
+                self.details = None;
+                return Task::none();
+            };
+            if self.details.as_ref().is_none_or(|d| d.path != e.path) {
+                let parent = e.path.parent().map(|p| p.display().to_string()).unwrap_or_default();
+                let mut props = vec![("Local original".to_string(), parent), ("Excluído em".into(), arbor_core::human_time(e.modified))];
+                if !e.is_dir {
+                    props.push(("Tamanho".into(), arbor_core::human_size(e.size)));
+                }
+                self.details = Some(Details { path: e.path.clone(), preview: Some(Preview::Other { info: vec![] }), props });
+            }
+            return Task::none();
+        }
         let want = self.tab().current().map(|e| e.path.clone());
         match (want, &self.details) {
             (Some(w), Some(d)) if d.path == w => Task::none(),

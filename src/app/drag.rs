@@ -94,7 +94,7 @@ pub fn same_volume(a: &Path, b: &Path) -> bool {
 
 /// Não solta numa pasta que é um dos itens, que está dentro deles ou onde eles já estão.
 pub fn valid_target(paths: &[PathBuf], dest: &Path) -> bool {
-    !computer::is(dest) && paths.iter().all(|p| !dest.starts_with(p) && p.parent() != Some(dest))
+    !computer::is_virtual(dest) && paths.iter().all(|p| !dest.starts_with(p) && p.parent() != Some(dest))
 }
 
 impl App {
@@ -185,7 +185,7 @@ impl App {
             Gesture::Press { tab, at: from, .. } if from.distance(at) > DRAG_START => {
                 let id = *tab;
                 let Some(t) = self.find_tab(id) else { return Task::none() };
-                if computer::is(&t.path) {
+                if computer::is_virtual(&t.path) {
                     return Task::none();
                 }
                 let paths = t.targets();

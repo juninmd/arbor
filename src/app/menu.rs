@@ -35,7 +35,18 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             if dir {
                 v.push(Some(OpenInNewTab));
             }
-            v.extend([Some(OpenDefault), Some(Preview), None, Some(Cut), Some(Copy), Some(Rename), Some(Trash), None, Some(CopyPath)]);
+            v.extend([
+                Some(OpenDefault),
+                Some(Preview),
+                None,
+                Some(Cut),
+                Some(Copy),
+                Some(Rename),
+                Some(Trash),
+                Some(DeleteNow),
+                None,
+                Some(CopyPath),
+            ]);
             if dir {
                 v.push(Some(Pin));
             }
@@ -99,12 +110,16 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
 impl App {
     /// Comandos que não fariam nada agora aparecem apagados, como no Explorer.
     pub fn enabled(&self, cmd: Cmd) -> bool {
-        let here = computer::is(&self.tab().path);
+        let here = computer::is_virtual(&self.tab().path);
+        let in_trash = crate::trashbin::is(&self.tab().path);
         let has_target = self.tab().current().is_some();
         match cmd {
             // A área do sistema pode ter arquivos de outro app; lê-la a cada quadro custaria caro.
             Cmd::Paste => !here,
             Cmd::Undo => !self.undo.is_empty(),
+            Cmd::Restore | Cmd::Purge => in_trash && has_target,
+            Cmd::DeleteNow => has_target && (!here || in_trash),
+            Cmd::Copy | Cmd::CopyToOther | Cmd::Open | Cmd::OpenDefault | Cmd::Preview if in_trash => false,
             Cmd::Cut | Cmd::Rename | Cmd::Trash | Cmd::MoveToOther => has_target && !here,
             Cmd::NewFolder | Cmd::NewTextFile => !here,
             Cmd::Copy | Cmd::CopyToOther | Cmd::Open | Cmd::OpenDefault | Cmd::Preview => has_target,
@@ -113,8 +128,16 @@ impl App {
     }
 
     pub(super) fn open_menu(&mut self, kind: MenuKind, target: Option<PathBuf>) -> Task<Message> {
-        let here = computer::is(&self.tab().path);
-        let items = items(kind, here);
+        let here = computer::is_virtual(&self.tab().path);
+        let items = if crate::trashbin::is(&self.tab().path) {
+            match kind {
+                MenuKind::Item { .. } => vec![Some(Cmd::Restore), Some(Cmd::Purge), None, Some(Cmd::Properties)],
+                MenuKind::Background => vec![Some(Cmd::EmptyTrash), Some(Cmd::Refresh), Some(Cmd::SelectAll)],
+                k => items(k, here),
+            }
+        } else {
+            items(kind, here)
+        };
         self.overlay = Overlay::Menu(Menu { at: pointer::get(), items, target, selected: None });
         Task::none()
     }

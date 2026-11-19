@@ -23,7 +23,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Galeria (fotos de todas as pastas de imagens por data) | ❌ | P3 |
 | OneDrive/nuvem com estado de sincronização | ❌ (fora do escopo, ver plano) | — |
 | Locais de rede, compartilhamentos SMB, mapear unidade | ❌ | P2 |
-| Lixeira como local navegável (restaurar, esvaziar) | ❌ | P1 |
+| Lixeira como local navegável (restaurar, esvaziar) | ✅ (Windows e Linux; no macOS o sistema não deixa listar) | P1 |
 | Nova janela (Ctrl+N), restaurar janelas/abas ao abrir | 🟡 (Ctrl+N sim; restaurar sessão é da outra frente) | P1 |
 
 ## Barra de comandos e menu de contexto
@@ -72,7 +72,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Diálogo de conflito: substituir, pular, comparar, manter os dois | 🟡 (sempre "manter os dois" com nome único; sem perguntar) | P0 |
 | Janela de progresso com gráfico de velocidade, pausa | 🟡 (barra + cancelar) | P1 |
 | Refazer (Ctrl+Y) | ❌ | P1 |
-| Excluir permanentemente (Shift+Del) com confirmação | ❌ | P1 |
+| Excluir permanentemente (Shift+Del) com confirmação | ✅ | P1 |
 | Renomear com F2 selecionando só o nome sem extensão; Tab vai ao próximo | 🟡 (prompt, não inline) | P1 |
 | Renomear vários: "foto (1)", "foto (2)" | ❌ | P2 |
 | Criar atalho / link simbólico | ❌ | P2 |
