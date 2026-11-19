@@ -477,9 +477,12 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
     let mode = app.mode();
     let art = mode.art;
     let thumb: Element<_> = match app.thumbs.get(&e.path) {
-        Some(Some(h)) if mode.shape != Shape::Line => {
-            image(h.clone()).content_fit(ContentFit::Cover).width(if mode.shape == Shape::Icon { Fill } else { art.into() }).height(art).border_radius(10).into()
-        }
+        Some(Some(h)) if mode.shape != Shape::Line => image(h.clone())
+            .content_fit(ContentFit::Cover)
+            .width(if mode.shape == Shape::Icon { Fill } else { art.into() })
+            .height(art)
+            .border_radius(10)
+            .into(),
         _ if mode.shape == Shape::Line => chip(k, art),
         _ => container(chip(k, art * 0.48))
             .center_x(if mode.shape == Shape::Icon { Fill } else { art.into() })
