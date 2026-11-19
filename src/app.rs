@@ -244,7 +244,7 @@ pub enum Overlay {
         selected: usize,
     },
     /// Ctrl+K: pular para uma pasta frequente digitando parte do nome.
-    Jump {
+    Frecent {
         query: String,
         selected: usize,
     },
@@ -860,7 +860,7 @@ impl App {
                 }
             }
             Cmd::Jump => {
-                self.overlay = Overlay::Jump { query: String::new(), selected: 0 };
+                self.overlay = Overlay::Frecent { query: String::new(), selected: 0 };
                 op::focus(JUMP_INPUT)
             }
             Cmd::Palette => {
@@ -992,7 +992,7 @@ impl App {
 
     /// Pastas do Ctrl+K: um caminho digitado que existe vem primeiro, depois as frequentes.
     pub fn jump_view(&self) -> Vec<PathBuf> {
-        let Overlay::Jump { query, .. } = &self.overlay else { return vec![] };
+        let Overlay::Frecent { query, .. } = &self.overlay else { return vec![] };
         let mut items = Vec::new();
         let typed = PathBuf::from(query.trim());
         if typed.is_absolute() && typed.is_dir() {
@@ -1076,9 +1076,9 @@ impl App {
                 }
                 return Task::none();
             }
-            Overlay::Jump { .. } => {
+            Overlay::Frecent { .. } => {
                 let n = self.jump_view().len();
-                if let Overlay::Jump { selected, .. } = &mut self.overlay {
+                if let Overlay::Frecent { selected, .. } = &mut self.overlay {
                     match named {
                         Some(Named::Escape) => self.overlay = Overlay::None,
                         Some(Named::ArrowDown) if n > 0 => *selected = (*selected + 1) % n,
@@ -1309,14 +1309,14 @@ impl App {
                 cmd.map_or_else(Task::none, |c| self.run(c))
             }
             Message::JumpQuery(q) => {
-                if let Overlay::Jump { query, selected } = &mut self.overlay {
+                if let Overlay::Frecent { query, selected } = &mut self.overlay {
                     *query = q;
                     *selected = 0;
                 }
                 Task::none()
             }
             Message::JumpRun(index) => {
-                let Overlay::Jump { selected, .. } = &self.overlay else { return Task::none() };
+                let Overlay::Frecent { selected, .. } = &self.overlay else { return Task::none() };
                 let i = if index == usize::MAX { *selected } else { index };
                 let target = self.jump_view().get(i).cloned();
                 self.overlay = Overlay::None;

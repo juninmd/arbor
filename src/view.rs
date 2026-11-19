@@ -604,7 +604,7 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
             let card = palette(app, query, *selected);
             return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
         }
-        Overlay::Jump { query, selected } => {
+        Overlay::Frecent { query, selected } => {
             let card = jump(app, query, *selected);
             return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
         }
