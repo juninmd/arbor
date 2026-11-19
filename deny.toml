@@ -36,6 +36,7 @@ allow = [
     "BSL-1.0",
     "IJG",
     "CDLA-Permissive-2.0",
+    "bzip2-1.0.6", # libbz2-rs-sys (via sevenz-rust2): licença permissiva estilo BSD
 ]
 confidence-threshold = 0.93
 
