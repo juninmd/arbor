@@ -496,8 +496,9 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
     let mode = app.mode();
     let art = mode.art;
     let thumb: Element<_> = match app.thumbs.get(&e.path) {
+        // Ícone de programa aparece inteiro; foto e vídeo preenchem o quadro.
         Some(Some(h)) if mode.shape != Shape::Line => image(h.clone())
-            .content_fit(ContentFit::Cover)
+            .content_fit(if crate::thumbs::program(&e.path) { ContentFit::Contain } else { ContentFit::Cover })
             .width(if mode.shape == Shape::Icon { Fill } else { art.into() })
             .height(art)
             .border_radius(10)
