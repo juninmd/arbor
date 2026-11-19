@@ -3,6 +3,7 @@
 
 pub mod entry;
 pub mod fuzzy;
+pub mod lockers;
 pub mod ops;
 pub mod scan;
 

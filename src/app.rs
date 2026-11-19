@@ -263,39 +263,88 @@ pub const PROMPT_INPUT: &str = "prompt-input";
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Listed { tab: u64, generation: u64, snap: Snapshot },
-    Key { key: Key, modifiers: Modifiers, text: Option<String>, captured: bool },
+    Listed {
+        tab: u64,
+        generation: u64,
+        snap: Snapshot,
+    },
+    Key {
+        key: Key,
+        modifiers: Modifiers,
+        text: Option<String>,
+        captured: bool,
+    },
     Modifiers(Modifiers),
     Resized(Size),
     Dropped(PathBuf),
     Run(Cmd),
-    Click { tab: u64, index: usize },
-    Activate { tab: u64, index: usize },
-    Scrolled { tab: u64, viewport: Viewport },
+    Click {
+        tab: u64,
+        index: usize,
+    },
+    Activate {
+        tab: u64,
+        index: usize,
+    },
+    Scrolled {
+        tab: u64,
+        viewport: Viewport,
+    },
     Navigate(PathBuf),
-    NavigateIn { tab: u64, path: PathBuf },
-    SelectTab { pane: usize, index: usize },
-    CloseTabAt { pane: usize, index: usize },
+    NavigateIn {
+        tab: u64,
+        path: PathBuf,
+    },
+    SelectTab {
+        pane: usize,
+        index: usize,
+    },
+    CloseTabAt {
+        pane: usize,
+        index: usize,
+    },
     NewTabIn(usize),
     FocusPane(usize),
-    SortBy { tab: u64, key: SortKey },
-    FilterChanged { tab: u64, value: String },
+    SortBy {
+        tab: u64,
+        key: SortKey,
+    },
+    FilterChanged {
+        tab: u64,
+        value: String,
+    },
     FilterSubmit,
     PaletteQuery(String),
     PaletteRun(usize),
     PromptChanged(String),
     PromptSubmit,
     CloseOverlay,
-    PreviewLoaded { path: PathBuf, content: Preview },
-    Thumb { path: PathBuf, handle: Option<Handle> },
-    Job { id: u64, event: JobEvent },
+    PreviewLoaded {
+        path: PathBuf,
+        content: Preview,
+    },
+    Thumb {
+        path: PathBuf,
+        handle: Option<Handle>,
+    },
+    Job {
+        id: u64,
+        event: JobEvent,
+    },
     CancelJob(u64),
+    /// Texto para o aviso do rodapé, vindo de uma tarefa em segundo plano.
+    Info(String),
     ToastExpired(u64),
     DirChanged(PathBuf),
     Places(Vec<(String, PathBuf)>),
     Frame(Instant),
-    UpdateCheck { manual: bool },
-    UpdateChecked { manual: bool, result: Result<Option<update::Update>, String> },
+    UpdateCheck {
+        manual: bool,
+    },
+    UpdateChecked {
+        manual: bool,
+        result: Result<Option<update::Update>, String>,
+    },
     UpdateInstall,
     UpdateProgress(update::Progress),
     UpdateRestart,
@@ -820,6 +869,33 @@ impl App {
                     Err(e) => self.notify(e, true),
                 }
             }
+            Cmd::WhoUses => {
+                let targets = self.tab().targets();
+                if targets.is_empty() {
+                    return Task::none();
+                }
+                Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            let lines: Vec<String> = targets
+                                .iter()
+                                .filter_map(|p| {
+                                    let who = arbor_core::lockers::who_uses(p);
+                                    (!who.is_empty()).then(|| format!("{}: {}", ops::name(p), arbor_core::lockers::describe(&who)))
+                                })
+                                .collect();
+                            if lines.is_empty() {
+                                "Nenhum programa está usando a seleção".to_string()
+                            } else {
+                                format!("Em uso por {}", lines.join(" · "))
+                            }
+                        })
+                        .await
+                        .unwrap_or_default()
+                    },
+                    Message::Info,
+                )
+            }
             Cmd::ToggleFps => {
                 self.fps = if self.fps.is_some() { None } else { Some(Fps::default()) };
                 Task::none()
@@ -1299,6 +1375,7 @@ impl App {
                     Task::batch([refresh, toast])
                 }
             },
+            Message::Info(text) => self.notify(text, false),
             Message::CancelJob(id) => {
                 if let Some(j) = self.jobs.iter().find(|j| j.id == id) {
                     j.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
