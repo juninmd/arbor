@@ -1,11 +1,11 @@
-//! Preview (Espaço) e miniaturas, decodificados pelo vislo-core fora da thread da interface.
+//! Preview (Espaço) e miniaturas, gerados pelo vislo-core fora da thread da interface.
 
 use iced::widget::image::Handle;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use tokio::sync::Semaphore;
-use vislo_core::{decode, exif_info, formats, resize, thumbs};
+use vislo_core::{decode, exif_info, formats, resize};
 
 pub const THUMB_SIZE: u32 = 256;
 const PREVIEW_MAX: u32 = 2048;
@@ -51,16 +51,12 @@ pub async fn preview(path: PathBuf) -> Preview {
 
 pub async fn thumbnail(path: PathBuf) -> Option<Handle> {
     blocking(move || {
-        let cache = cache_dir();
+        let cache = crate::thumbs::cache_dir();
         let _ = std::fs::create_dir_all(&cache);
-        thumbs::thumbnail(&cache, &path, THUMB_SIZE).ok().map(Handle::from_bytes)
+        crate::thumbs::generate(&cache, &path, THUMB_SIZE).ok().map(Handle::from_bytes)
     })
     .await
     .flatten()
-}
-
-pub fn cache_dir() -> PathBuf {
-    dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join("arbor").join("thumbs")
 }
 
 pub fn is_image(path: &Path) -> bool {
