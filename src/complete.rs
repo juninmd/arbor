@@ -37,7 +37,8 @@ pub fn suggestions(input: &str, base: &Path, home: Option<&Path>) -> Vec<PathBuf
 /// Texto que vai para a caixa ao aceitar a sugestão: o caminho com a barra no fim, pronto para continuar.
 pub fn accept(path: &Path) -> String {
     let mut s = path.to_string_lossy().into_owned();
-    if !s.ends_with(MAIN_SEPARATOR) {
+    // No Windows "/" também é separador: não duplica.
+    if !s.ends_with(std::path::is_separator) {
         s.push(MAIN_SEPARATOR);
     }
     s
@@ -68,6 +69,6 @@ mod tests {
     #[test]
     fn aceitar_poe_barra_no_fim() {
         assert!(accept(Path::new("/a/b")).ends_with(MAIN_SEPARATOR));
-        assert_eq!(accept(Path::new("/")), MAIN_SEPARATOR.to_string());
+        assert_eq!(accept(Path::new("/")), "/", "raiz já termina em separador");
     }
 }
