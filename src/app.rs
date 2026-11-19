@@ -18,7 +18,7 @@ pub use menu::{Menu, MenuKind};
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::session::{self, Session};
-use crate::{instance, keymap, launch, listing, pins, pointer, trashbin, update, watch};
+use crate::{instance, keymap, launch, listing, network, pins, pointer, trashbin, update, watch};
 use arbor_core::frecency::Frecency;
 use arbor_core::group::GroupBy;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
@@ -819,6 +819,13 @@ impl App {
         if trashbin::is(&path) {
             return Task::batch([scan_trash(), scroll]);
         }
+        if let Some(server) = network::server_root(&path) {
+            tab.search = None;
+            return Task::batch([
+                Task::run(listing::list_shares(server, sort), move |snap| Message::Listed { tab: id, generation, snap }),
+                scroll,
+            ]);
+        }
         let stream = match (tab.search.clone(), archive::split(&path)) {
             (Some((query, hidden)), _) if refresh => {
                 Task::run(listing::search(path, query, sort, hidden), move |snap| Message::Listed { tab: id, generation, snap })
@@ -852,7 +859,12 @@ impl App {
         if computer::is_virtual(&tab.path) {
             return Task::none();
         }
-        let parent = tab.path.parent().map(Path::to_path_buf).unwrap_or_else(computer::path);
+        // \\servidor sobe para "Este Computador"; \\servidor\compartilhamento sobe para o servidor.
+        let parent = if network::server_root(&tab.path).is_some() {
+            computer::path()
+        } else {
+            tab.path.parent().map(Path::to_path_buf).or_else(|| network::share_parent(&tab.path)).unwrap_or_else(computer::path)
+        };
         let child = tab.path.clone();
         let pane = self.active;
         let task = self.navigate(pane, parent);
@@ -1283,6 +1295,10 @@ impl App {
                     Message::Ejected,
                 )
             }
+            Cmd::MapDrive => match computer::map_drive_dialog() {
+                Ok(()) => Task::none(),
+                Err(e) => self.notify(format!("Não abriu o diálogo de mapear unidade: {e}"), true),
+            },
             Cmd::Up => self.go_up(),
             Cmd::Back => self.history(true),
             Cmd::Forward => self.history(false),
@@ -1829,7 +1845,7 @@ impl App {
                     PathBuf::from(&value)
                 };
                 let target = if expanded.is_relative() { dir.join(expanded) } else { expanded };
-                if target.is_dir() {
+                if target.is_dir() || network::server_root(&target).is_some() {
                     let pane = self.active;
                     self.navigate(pane, target)
                 } else if let Some(parent) = target.parent().filter(|_| target.exists()) {

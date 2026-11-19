@@ -15,6 +15,7 @@ mod keymap;
 mod launch;
 mod listing;
 mod media;
+mod network;
 mod pins;
 mod pointer;
 mod props;

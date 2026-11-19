@@ -64,6 +64,7 @@ pub enum Cmd {
     WhoUses,
     Pin,
     Eject,
+    MapDrive,
     Details,
     Properties,
     ToggleFps,
@@ -140,6 +141,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::WhoUses,
     Cmd::Pin,
     Cmd::Eject,
+    Cmd::MapDrive,
     Cmd::Details,
     Cmd::Properties,
     Cmd::ToggleFps,
@@ -220,6 +222,7 @@ impl Cmd {
             Cmd::Pin => "Fixar/desafixar na barra lateral",
             Cmd::Details => "Painel de detalhes",
             Cmd::Eject => "Ejetar",
+            Cmd::MapDrive => "Mapear unidade de rede…",
             Cmd::Properties => "Propriedades",
             Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
             Cmd::CheckUpdates => "Procurar atualizações",
@@ -292,6 +295,7 @@ impl Cmd {
             | Cmd::OpenInNewTab
             | Cmd::Pin
             | Cmd::Eject
+            | Cmd::MapDrive
             | Cmd::OpenWith
             | Cmd::ColKind
             | Cmd::ColSize

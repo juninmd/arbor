@@ -14,7 +14,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Breadcrumb começando em "Este Computador"; subir da raiz volta para ele | ✅ (este PR) | P0 |
 | Breadcrumb com seta `›` que abre um menu das subpastas | ✅ (em "Este Computador" lista pastas e discos) | P1 |
 | Barra de endereço editável ao clicar, com autocomplete de caminho | ✅ (Ctrl+L ou duplo clique; Tab completa, setas escolhem) | P0 |
-| Caixa "Pesquisar em <pasta>" com busca recursiva em subpastas | ❌ (só filtro da pasta) | P0 |
+| Caixa "Pesquisar em <pasta>" com busca recursiva em subpastas | ✅ (Ctrl+Shift+F abre uma aba de resultados) | P0 |
 | Abas (Ctrl+T/W), arrastar aba para virar janela | 🟡 (abas sim, destacar não) | P2 |
 | Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | ✅ (Alt+←/→, botões do mouse; botão direito em Voltar/Avançar mostra o histórico) | P1 |
 | Árvore de pastas expansível na barra lateral | ✅ (locais, fixados e discos; até 500 subpastas por nó) | P1 |
@@ -22,7 +22,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Fixar pastas na barra lateral (arrastar para fixar, desafixar) | 🟡 (pelo menu; arrastar não) | P0 |
 | Galeria (fotos de todas as pastas de imagens por data) | ❌ | P3 |
 | OneDrive/nuvem com estado de sincronização | ❌ (fora do escopo, ver plano) | — |
-| Locais de rede, compartilhamentos SMB, mapear unidade | ❌ | P2 |
+| Locais de rede, compartilhamentos SMB, mapear unidade | 🟡 (`\\servidor` na barra de endereço lista os compartilhamentos no Windows; "Mapear unidade de rede…" em Este Computador; montagens smb/sftp do GVFS aparecem como unidades de rede no Linux; sem descoberta automática de computadores na rede) | P2 |
 | Lixeira como local navegável (restaurar, esvaziar) | ✅ (Windows e Linux; no macOS o sistema não deixa listar) | P1 |
 | Nova janela (Ctrl+N), restaurar janelas/abas ao abrir | 🟡 (Ctrl+N sim; restaurar sessão é da outra frente) | P1 |
 
@@ -35,7 +35,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (pasta e documento de texto) | P1 |
 | "Abrir com" (lista de apps + escolher outro) | 🟡 (Windows: diálogo nativo; Linux/macOS: digitar o programa) | P1 |
 | Propriedades (tamanho em disco, datas, atributos, permissões, hash) | 🟡 (Alt+Enter abre no painel de detalhes; sem hash e sem editar) | P1 |
-| Compactar em ZIP / extrair tudo; navegar dentro de .zip | ❌ (fase 3) | P1 |
+| Compactar em ZIP / extrair tudo; navegar dentro de .zip | ✅ (compactar em zip, extrair zip/7z/tar, abrir o compactado como pasta) | P1 |
 | Copiar como caminho | ✅ | — |
 | Abrir no Terminal | ✅ | — |
 | Compartilhar (painel do sistema) | ❌ | P3 |
@@ -55,7 +55,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Cada pasta lembra visão e ordenação | ✅ (`~/.config/arbor/views`) | P1 |
 | Painel de detalhes à direita (Alt+Shift+P) | ✅ | P1 |
 | Painel de visualização à direita (Alt+P) | 🟡 (preview em sobreposição, Espaço) | P1 |
-| Miniaturas de vídeo, PDF, Office | 🟡 (só imagem) | P2 |
+| Miniaturas de vídeo, PDF, Office | 🟡 (imagem, capa de áudio, vídeo e PDF com ffmpeg/pdftoppm ou Quick Look no macOS; Office não) | P2 |
 | Ícones reais dos programas (.exe, .lnk) e da associação | 🟡 (Windows: ícone real de .exe, .lnk, .msi e .url nas visualizações em grade e Blocos; em Detalhes e na Lista, e o ícone do programa associado a cada tipo, ainda não) | P1 |
 | Mostrar extensões, itens ocultos, caixas de seleção | 🟡 (ocultos sim) | P2 |
 | Modo compacto (densidade) | ❌ | P3 |
@@ -71,7 +71,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Arrastar com botão direito (copiar/mover/criar atalho aqui) | ❌ | P2 |
 | Diálogo de conflito: substituir, pular, comparar, manter os dois | 🟡 (sempre "manter os dois" com nome único; sem perguntar) | P0 |
 | Janela de progresso com gráfico de velocidade, pausa | 🟡 (barra + cancelar) | P1 |
-| Refazer (Ctrl+Y) | ❌ | P1 |
+| Refazer (Ctrl+Y) | ✅ | P1 |
 | Excluir permanentemente (Shift+Del) com confirmação | ✅ | P1 |
 | Renomear com F2 selecionando só o nome sem extensão; Tab vai ao próximo | 🟡 (prompt, não inline) | P1 |
 | Renomear vários: "foto (1)", "foto (2)" | ❌ | P2 |
