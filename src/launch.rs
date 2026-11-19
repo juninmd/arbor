@@ -20,7 +20,50 @@ pub fn open_default(path: &Path) -> Result<(), String> {
     open::that_detached(path).map_err(|e| e.to_string())
 }
 
+/// "Abrir com…": roda o programa escolhido com o arquivo como argumento (sem shell, nada é interpretado).
+/// Aceita nome no PATH ou caminho completo; no macOS, também o nome de um app ("TextEdit").
+pub fn open_with(program: &str, file: &Path) -> Result<(), String> {
+    let exe = Path::new(program);
+    let found = if exe.is_absolute() {
+        exe.is_file().then(|| exe.to_path_buf())
+    } else if program.contains(['/', '\\']) {
+        None
+    } else {
+        let name = if cfg!(windows) && exe.extension().is_none() { format!("{program}.exe") } else { program.to_string() };
+        std::env::var_os("PATH").and_then(|p| search_path(&p, &name))
+    };
+    if let Some(exe) = found {
+        return Command::new(exe).arg(file).spawn().map(drop).map_err(|e| e.to_string());
+    }
+    #[cfg(target_os = "macos")]
+    if !program.contains('/') {
+        return Command::new("open").arg("-a").arg(program).arg(file).spawn().map(drop).map_err(|e| e.to_string());
+    }
+    Err(format!("programa não encontrado: {program}"))
+}
+
+/// Diálogo nativo "Abrir com" do Windows.
+#[cfg(windows)]
+pub fn open_with_dialog(file: &Path) -> Result<(), String> {
+    Command::new("rundll32").arg("shell32.dll,OpenAs_RunDLL").arg(file).spawn().map(drop).map_err(|e| e.to_string())
+}
+
+#[cfg(not(windows))]
+pub fn open_with_dialog(_file: &Path) -> Result<(), String> {
+    Err("sem diálogo nativo neste sistema".into())
+}
+
 /// Mostra o arquivo no gerenciador do sistema (útil para coisas que o arbor ainda não faz).
+/// Ctrl+N: outra janela do arbor (outro processo), na mesma pasta ou em "Este Computador".
+pub fn new_window(dir: Option<&Path>) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut cmd = std::process::Command::new(exe);
+    if let Some(d) = dir {
+        cmd.arg(d);
+    }
+    cmd.spawn().map(drop).map_err(|e| e.to_string())
+}
+
 pub fn reveal(path: &Path) -> Result<(), String> {
     let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
     open::that_detached(dir).map_err(|e| e.to_string())
@@ -114,5 +157,12 @@ mod tests {
         let path = std::env::join_paths([PathBuf::from("/nao/existe"), d.path().to_path_buf()]).unwrap();
         assert_eq!(search_path(&path, "vislo"), Some(d.path().join("vislo")));
         assert_eq!(search_path(&path, "outro"), None);
+    }
+
+    #[test]
+    fn abrir_com_recusa_caminho_relativo_e_inexistente() {
+        let f = std::env::temp_dir();
+        assert!(open_with("../vislo", &f).is_err(), "caminho relativo não é procurado");
+        assert!(open_with("/nao/existe/prog", &f).is_err());
     }
 }

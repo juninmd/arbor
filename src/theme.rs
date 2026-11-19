@@ -1,8 +1,7 @@
 //! Tokens visuais do protótipo "arbor Glass": cores, fontes, raios e os estilos de vidro.
 //!
-//! O protótipo HTML é a especificação; aqui ficam os mesmos valores para o iced. Vidro de verdade (Mica,
-//! NSVisualEffectView) depende do compositor; o app desenha uma aurora em gradiente atrás de painéis
-//! translúcidos, que dá o mesmo efeito sem custo de GPU.
+//! O protótipo HTML é a especificação; aqui ficam os mesmos valores para o iced. A aurora vem de
+//! `aurora.rs` e o vidro nativo do sistema (quando há) de `glass.rs`.
 
 use iced::widget::{button, container, svg, text};
 use iced::{border, gradient, Background, Border, Color, Font, Radians, Shadow, Theme, Vector};
@@ -53,7 +52,6 @@ pub struct Tokens {
     pub glass_hi: Color,
     pub accent: Color,
     pub accent2: Color,
-    pub aurora: [Color; 3],
     pub danger: Color,
     pub good: Color,
     pub warn: Color,
@@ -66,11 +64,10 @@ pub const DARK: Tokens = Tokens {
     ink3: rgba(0xdee4ff, 0.42),
     stroke: rgba(0xffffff, 0.12),
     stroke_hi: rgba(0xffffff, 0.26),
-    glass: rgba(0x161c38, 0.62),
+    glass: rgba(0xffffff, 0.10),
     glass_hi: rgba(0xffffff, 0.07),
     accent: ICE,
     accent2: IRIS,
-    aurora: [rgb(0x0b2140), rgb(0x060914), rgb(0x1b0f3a)],
     danger: rgb(0xff8a8a),
     good: MINT,
     warn: AMBER,
@@ -83,11 +80,10 @@ pub const LIGHT: Tokens = Tokens {
     ink3: rgba(0x1d2340, 0.5),
     stroke: rgba(0x1d2340, 0.12),
     stroke_hi: rgba(0x1d2340, 0.24),
-    glass: rgba(0xffffff, 0.72),
+    glass: rgba(0xffffff, 0.58),
     glass_hi: rgba(0x1d2340, 0.05),
     accent: rgb(0x0a8fc2),
     accent2: rgb(0x6c4fe0),
-    aurora: [rgb(0xdff3ff), rgb(0xf3f5fc), rgb(0xece6ff)],
     danger: rgb(0xc43d3d),
     good: rgb(0x1f9d63),
     warn: rgb(0xb7790e),
@@ -121,17 +117,14 @@ pub const R_CHIP: f32 = 8.0;
 
 // ---------- estilos ----------
 
-/// Fundo da janela: a "aurora" do protótipo, em gradiente.
-pub fn backdrop(t: &Theme) -> container::Style {
-    let k = tokens(t);
-    let g = gradient::Linear::new(Radians(2.4)).add_stop(0.0, k.aurora[0]).add_stop(0.5, k.aurora[1]).add_stop(1.0, k.aurora[2]);
-    container::Style { background: Some(Background::Gradient(g.into())), text_color: Some(k.ink), ..Default::default() }
-}
-
-/// Cartão de vidro: preenchimento translúcido, filete claro e sombra longa.
+/// Cartão de vidro, como no protótipo: `linear-gradient(140deg, branco 10%, 2,5% aos 55%, 5%)` sobre a
+/// aurora, filete claro e sombra longa.
 pub fn glass(t: &Theme, active: bool) -> container::Style {
     let k = tokens(t);
-    let g = gradient::Linear::new(Radians(2.0)).add_stop(0.0, alpha(k.glass, k.glass.a + 0.06)).add_stop(1.0, k.glass);
+    let g = gradient::Linear::new(Radians(2.44))
+        .add_stop(0.0, k.glass)
+        .add_stop(0.55, alpha(k.glass, k.glass.a * 0.25))
+        .add_stop(1.0, alpha(k.glass, k.glass.a * 0.5));
     container::Style {
         background: Some(Background::Gradient(g.into())),
         text_color: Some(k.ink),
@@ -149,7 +142,8 @@ pub fn glass(t: &Theme, active: bool) -> container::Style {
 pub fn sheet(t: &Theme) -> container::Style {
     let k = tokens(t);
     let dark = t.extended_palette().is_dark;
-    let (a, b) = if dark { (rgba(0x283056, 0.97), rgba(0x12162c, 0.97)) } else { (rgba(0xffffff, 0.98), rgba(0xf1f3fb, 0.98)) };
+    // o protótipo usa 60%/55% com desfoque; sem desfoque o conteúdo por trás atrapalharia a leitura
+    let (a, b) = if dark { (rgba(0x283056, 0.86), rgba(0x12162c, 0.84)) } else { (rgba(0xffffff, 0.9), rgba(0xf1f3fb, 0.88)) };
     container::Style {
         background: Some(Background::Gradient(gradient::Linear::new(Radians(2.2)).add_stop(0.0, a).add_stop(1.0, b).into())),
         text_color: Some(k.ink),
@@ -338,6 +332,21 @@ pub fn progress(t: &Theme) -> iced::widget::progress_bar::Style {
     }
 }
 
+/// Retângulo de seleção: preenchimento leve e borda na cor de destaque.
+pub fn band(t: &Theme) -> container::Style {
+    let k = tokens(t);
+    container::Style {
+        background: Some(alpha(k.accent, 0.12).into()),
+        border: Border { color: alpha(k.accent, 0.6), width: 1.0, radius: 3.0.into() },
+        ..Default::default()
+    }
+}
+
+/// Disco quase cheio: mesma barra, em vermelho.
+pub fn progress_full(t: &Theme) -> iced::widget::progress_bar::Style {
+    iced::widget::progress_bar::Style { bar: Background::Color(tokens(t).danger), ..progress(t) }
+}
+
 pub fn scrollbar(t: &Theme, status: iced::widget::scrollable::Status) -> iced::widget::scrollable::Style {
     use iced::widget::scrollable::{Rail, Scroller, Status};
     let k = tokens(t);
@@ -390,11 +399,21 @@ pub enum Icon {
     Left,
     Right,
     Up,
+    Down,
     Plus,
     List,
     Grid,
     Drive,
     Download,
+    Cut,
+    Copy,
+    Paste,
+    Rename,
+    Trash,
+    Sort,
+    Eye,
+    More,
+    Pin,
     Logo,
 }
 
@@ -419,6 +438,7 @@ impl Icon {
             Icon::Left => r#"<path d="m15 6-6 6 6 6"/>"#,
             Icon::Right => r#"<path d="m9 6 6 6-6 6"/>"#,
             Icon::Up => r#"<path d="m6 15 6-6 6 6"/>"#,
+            Icon::Down => r#"<path d="m6 9 6 6 6-6"/>"#,
             Icon::Plus => r#"<path d="M12 5v14M5 12h14"/>"#,
             Icon::List => r#"<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>"#,
             Icon::Grid => {
@@ -426,6 +446,21 @@ impl Icon {
             }
             Icon::Drive => r#"<rect x="3" y="13" width="18" height="7" rx="2"/><path d="M5 13 7.5 5h9L19 13M17 16.5h.01"/>"#,
             Icon::Download => r#"<path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/>"#,
+            Icon::Cut => {
+                r#"<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>"#
+            }
+            Icon::Copy => {
+                r#"<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>"#
+            }
+            Icon::Paste => {
+                r#"<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>"#
+            }
+            Icon::Rename => r#"<path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3zM13.5 7.5l3 3"/>"#,
+            Icon::Trash => r#"<path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>"#,
+            Icon::Sort => r#"<path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3"/>"#,
+            Icon::Eye => r#"<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>"#,
+            Icon::More => r#"<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/>"#,
+            Icon::Pin => r#"<path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z"/>"#,
             Icon::Logo => "",
         }
     }

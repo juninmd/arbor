@@ -3,11 +3,23 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod aurora;
 mod commands;
+mod complete;
+mod computer;
+mod folder_views;
+mod glass;
 mod launch;
 mod listing;
 mod media;
+mod pins;
+mod pointer;
+mod props;
+mod session;
+mod sysclip;
 mod theme;
+mod thumbs;
+mod trashbin;
 mod update;
 mod view;
 mod watch;
@@ -24,15 +36,22 @@ fn main() -> iced::Result {
         println!("arbor {}", update::CURRENT);
         return Ok(());
     }
+    thumbs::prune_cache();
+    glass::log_to_stderr();
+    glass::prepare();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)
         .theme(view::theme)
+        .style(view::style)
         .default_font(theme::UI)
         .window(iced::window::Settings {
             size: iced::Size::new(1320.0, 840.0),
             min_size: Some(iced::Size::new(720.0, 460.0)),
             icon: window_icon(),
+            // vidro nativo onde o sistema dá (src/glass.rs); no resto a janela fica opaca
+            transparent: glass::wanted(),
+            blur: glass::wanted(),
             ..Default::default()
         })
         .antialiasing(true);

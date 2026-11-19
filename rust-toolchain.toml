@@ -1,0 +1,6 @@
+# Exact version, not "stable": CI treats warnings as errors, so a floating channel lets a newly
+# released Clippy lint break a build that passed locally. Bumping it is a deliberate, separate commit.
+[toolchain]
+channel = "1.100.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
