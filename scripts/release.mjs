@@ -9,7 +9,9 @@ const REPO = process.env.GITHUB_REPOSITORY ?? "juninmd/arbor";
 const git = (...args) => execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
 function lastTag() {
-  return latestTag(git("tag", "--merged", "HEAD", "--list", "v[0-9]*").split(/\s+/)); // null: nada publicado ainda
+  // Todas as tags, não só as alcançáveis: se main andou durante o build, a tag fica no commit construído,
+  // fora do histórico de main, e mesmo assim é a última versão publicada. null: nada publicado ainda.
+  return latestTag(git("tag", "--list", "v[0-9]*").split(/\s+/));
 }
 
 /** Uma release feita depois deste checkout (os runs ficam em fila) pode já conter o HEAD. */
