@@ -53,6 +53,37 @@ pub fn open_with_dialog(_file: &Path) -> Result<(), String> {
     Err("sem diálogo nativo neste sistema".into())
 }
 
+/// Programas que o Explorer oferece "Executar como administrador".
+pub fn elevatable(path: &Path) -> bool {
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase());
+    matches!(ext.as_deref(), Some("exe" | "bat" | "cmd" | "msi"))
+}
+
+/// "Executar como administrador": o Windows mostra o UAC e roda o programa elevado.
+#[cfg(windows)]
+pub fn run_as_admin(path: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let verb: Vec<u16> = "runas".encode_utf16().chain(Some(0)).collect();
+    let file: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let dir: Vec<u16> = path.parent().unwrap_or(path).as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: todas as strings terminam em zero e vivem até o fim da chamada.
+    let code = unsafe { ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), file.as_ptr(), std::ptr::null(), dir.as_ptr(), SW_SHOWNORMAL) }
+        as isize;
+    // Acima de 32 é sucesso; 5 é acesso negado (o usuário recusou o UAC).
+    match code {
+        c if c > 32 => Ok(()),
+        5 => Err("o pedido de administrador foi recusado".into()),
+        c => Err(format!("o Windows não executou (código {c})")),
+    }
+}
+
+#[cfg(not(windows))]
+pub fn run_as_admin(_path: &Path) -> Result<(), String> {
+    Err("executar como administrador só existe no Windows".into())
+}
+
 /// Mostra o arquivo no gerenciador do sistema (útil para coisas que o arbor ainda não faz).
 /// Ctrl+N: outra janela do arbor (outro processo), na mesma pasta ou em "Este Computador".
 pub fn new_window(dir: Option<&Path>) -> Result<(), String> {
@@ -150,6 +181,12 @@ fn known_locations() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_programs_offer_run_as_admin() {
+        assert!(elevatable(Path::new(r"C:\setup.EXE")) && elevatable(Path::new("instalar.msi")));
+        assert!(!elevatable(Path::new("foto.jpg")) && !elevatable(Path::new("exe")));
+    }
 
     #[test]
     fn acha_no_path() {

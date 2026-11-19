@@ -1321,6 +1321,13 @@ impl App {
                 Some(_) => self.open_prompt(PromptKind::OpenWith, String::new()),
                 None => Task::none(),
             },
+            Cmd::RunAsAdmin => match self.tab().current().filter(|e| launch::elevatable(&e.path)) {
+                Some(e) => match launch::run_as_admin(&e.path) {
+                    Ok(()) => Task::none(),
+                    Err(err) => self.notify(format!("Executar como administrador: {err}"), true),
+                },
+                None => Task::none(),
+            },
             Cmd::Preview => {
                 if matches!(self.overlay, Overlay::Preview { .. }) {
                     self.overlay = Overlay::None;

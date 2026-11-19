@@ -19,6 +19,7 @@ pub fn icon_of(cmd: Cmd) -> Option<Icon> {
         Cmd::NewTextFile => Icon::Doc,
         Cmd::NewZip => Icon::Archive,
         Cmd::CreateShortcut => Icon::Right,
+        Cmd::RunAsAdmin => Icon::Bolt,
         Cmd::Cut => Icon::Cut,
         Cmd::Copy | Cmd::CopyPath => Icon::Copy,
         Cmd::Paste => Icon::Paste,
