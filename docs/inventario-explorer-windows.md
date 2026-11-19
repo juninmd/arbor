@@ -49,7 +49,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Detalhes e miniaturas | ✅ | — |
 | Ícones extra grandes/grandes/médios/pequenos, Lista, Blocos, Conteúdo | 🟡 (detalhes + 4 tamanhos de ícone; sem Blocos/Conteúdo) | P1 |
 | Ctrl+roda muda o tamanho dos ícones | ✅ (também Ctrl+= / Ctrl+-) | P1 |
-| Colunas configuráveis (adicionar, reordenar, redimensionar por arraste) | 🟡 (mostrar/ocultar pelo botão direito no cabeçalho e largura por arraste; sem reordenar) | P1 |
+| Colunas configuráveis (adicionar, mostrar/ocultar, redimensionar por arraste) | 🟡 (mostrar/ocultar pelo botão direito no cabeçalho e largura por arraste; reordenar colunas não implementado) | P1 |
 | Agrupar por (tipo, data "Hoje/Ontem/Semana passada", tamanho) | ❌ | P2 |
 | Filtro pelo cabeçalho da coluna (por tipo, por data) | ❌ | P2 |
 | Cada pasta lembra visão e ordenação | ✅ (`~/.config/arbor/views`) | P1 |
