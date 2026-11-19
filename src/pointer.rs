@@ -16,7 +16,7 @@ pub fn armed() -> bool {
     ARMED.load(Ordering::Relaxed)
 }
 
-/// Ctrl (⌘ no macOS) pressionado: a roda do mouse vira zoom dos ícones.
+/// Ctrl (⌘ no macOS) pressionado: a roda do mouse troca a visualização.
 static CTRL: AtomicBool = AtomicBool::new(false);
 
 pub fn set_ctrl(on: bool) {

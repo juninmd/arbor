@@ -34,10 +34,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 pub const ROW_H: f32 = 34.0;
-pub const CELL_W: f32 = 142.0;
-pub const CELL_H: f32 = 168.0;
-/// Tamanhos de ícone da grade (pequeno, médio, grande, extra grande), trocados com Ctrl+roda.
-pub const ZOOMS: [f32; 4] = [0.75, 1.0, 1.35, 1.8];
 pub const SIDEBAR_W: f32 = 216.0;
 
 pub struct App {
@@ -70,7 +66,7 @@ pub struct App {
     pub suggest: address::Suggest,
     pub details_on: bool,
     pub details: Option<Details>,
-    /// Índice em `ZOOMS`.
+    /// Índice em `view_modes::MODES`: o modo usado quando a aba está em grade.
     pub zoom: usize,
     pub gesture: Gesture,
     pub tree: tree::Tree,
@@ -573,7 +569,7 @@ impl App {
             suggest: Default::default(),
             details_on: false,
             details: None,
-            zoom: 1,
+            zoom: crate::view_modes::DEFAULT,
             gesture: Gesture::None,
             tree: Default::default(),
             computer: computer::path(),
@@ -674,27 +670,31 @@ impl App {
         ((width / self.cell_w()).floor() as usize).max(1)
     }
 
+    pub fn mode(&self) -> &'static crate::view_modes::Mode {
+        &crate::view_modes::MODES[self.zoom]
+    }
+
     pub fn cell_w(&self) -> f32 {
-        CELL_W * ZOOMS[self.zoom]
+        self.mode().w
     }
 
-    /// Só a miniatura (96 px no médio) cresce; nome e tamanho embaixo mantêm a altura.
     pub fn cell_h(&self) -> f32 {
-        CELL_H + 96.0 * (ZOOMS[self.zoom] - 1.0)
+        self.mode().h
     }
 
-    /// Ctrl+roda como no Explorer: aumenta os ícones; abaixo do menor volta para a lista, acima da lista vira grade.
+    /// Ctrl+roda como no Explorer: Detalhes → Lista → Blocos → ícones pequenos … extra grandes, e de volta.
     fn zoom(&mut self, larger: bool) -> Task<Message> {
         let grid = self.tab().grid;
-        match (grid, larger) {
-            (false, true) => {
-                self.zoom = 0;
-                return self.run(Cmd::ToggleGrid);
-            }
-            (false, false) => return Task::none(),
-            (true, false) if self.zoom == 0 => return self.run(Cmd::ToggleGrid),
-            (true, false) => self.zoom -= 1,
-            (true, true) => self.zoom = (self.zoom + 1).min(ZOOMS.len() - 1),
+        let Some(next) = crate::view_modes::step(grid.then_some(self.zoom), larger) else {
+            return if grid { self.run(Cmd::ToggleGrid) } else { Task::none() };
+        };
+        let changed = next != self.zoom;
+        self.zoom = next;
+        if !grid {
+            return self.run(Cmd::ToggleGrid);
+        }
+        if !changed {
+            return Task::none();
         }
         let id = self.tab().id;
         Task::batch([self.reveal_cursor(id), self.request_thumbs(id)])
@@ -997,7 +997,7 @@ impl App {
     fn request_thumbs(&mut self, id: u64) -> Task<Message> {
         let (cols, cell_h) = (self.grid_cols(), self.cell_h());
         let Some(tab) = self.panes.iter().flat_map(|p| p.tabs.iter()).find(|t| t.id == id) else { return Task::none() };
-        if !tab.grid {
+        if !tab.grid || self.mode().shape == crate::view_modes::Shape::Line {
             return Task::none();
         }
         let first_row = (tab.scroll_y / cell_h).floor() as usize;

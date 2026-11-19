@@ -11,6 +11,7 @@ use crate::computer::{self, Drive};
 use crate::media::Preview;
 use crate::theme::{self, icon, Icon};
 use crate::update::{self, Progress};
+use crate::view_modes::Shape;
 use arbor_core::{human_count, human_size, human_time, Entry, SortKey};
 use iced::widget::text::Wrapping;
 use iced::widget::{
@@ -120,7 +121,7 @@ fn pane(app: &App, index: usize) -> Element<'_, Message> {
     if app.dragging().is_some() {
         body = body.on_enter(Message::DragOver(Some(tab.path.clone())));
     }
-    let content = column![tabs_bar(p, index, is_active), toolbar(app, tab), bar, body, status_line(tab, app.show_hidden)];
+    let content = column![tabs_bar(p, index, is_active), toolbar(app, tab), bar, body, status_line(app, tab)];
     let framed = container(content).width(Fill).height(Fill).clip(true).style(move |t: &Theme| theme::glass(t, is_active && app.dual));
     mouse_area(framed).on_press(Message::FocusPane(index)).into()
 }
@@ -473,13 +474,19 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
     let drive = drive_of(app, tab, e);
     let k = entry_kind(e, drive);
     let color = kind_color(k);
-    let z = crate::app::ZOOMS[app.zoom];
-    let thumb_h = 96.0 * z;
+    let mode = app.mode();
+    let art = mode.art;
     let thumb: Element<_> = match app.thumbs.get(&e.path) {
-        Some(Some(h)) => image(h.clone()).content_fit(ContentFit::Cover).width(Fill).height(thumb_h).border_radius(10).into(),
-        _ => container(chip(k, 46.0 * z))
-            .center_x(Fill)
-            .center_y(thumb_h)
+        Some(Some(h)) if mode.shape != Shape::Line => image(h.clone())
+            .content_fit(ContentFit::Cover)
+            .width(if mode.shape == Shape::Icon { Fill } else { art.into() })
+            .height(art)
+            .border_radius(10)
+            .into(),
+        _ if mode.shape == Shape::Line => chip(k, art),
+        _ => container(chip(k, art * 0.48))
+            .center_x(if mode.shape == Shape::Icon { Fill } else { art.into() })
+            .center_y(art)
             .style(move |_| container::Style {
                 background: Some(theme::alpha(color, 0.08).into()),
                 border: iced::border::rounded(10),
@@ -495,20 +502,34 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
         None => human_size(e.size),
     };
     let meta = text(meta).font(theme::MONO).size(10).style(theme::ink3);
-    let cell = container(column![thumb, label, meta].spacing(4))
+    let body: Element<_> = match mode.shape {
+        Shape::Line => row![thumb, label].spacing(8).align_y(Alignment::Center).into(),
+        Shape::Tile => {
+            // Pasta já diz o tipo no lugar do tamanho; repetir "Pasta" duas vezes só ocupa a linha.
+            let mut info = column![label].spacing(3);
+            if !e.is_dir || drive.is_some() {
+                info = info.push(text(kind_label(e)).size(11).style(theme::ink3));
+            }
+            row![thumb, info.push(meta)].spacing(10).align_y(Alignment::Center).into()
+        }
+        Shape::Icon => column![thumb, label, meta].spacing(4).into(),
+    };
+    let (pad, radius) = if mode.shape == Shape::Line { ([2, 6], 9.0) } else { ([6, 6], 15.0) };
+    let cell = container(body)
         .width(app.cell_w() - 10.0)
-        .height(app.cell_h() - 10.0)
-        .padding(6)
+        .height(app.cell_h() - if mode.shape == Shape::Line { 4.0 } else { 10.0 })
+        .padding(pad)
+        .align_y(Alignment::Center)
         .clip(true)
         .style(move |t: &Theme| {
             let mut s = theme::row(t, selected, cursor, pane_active);
             if !selected && !cursor {
                 s.background = Some(theme::tokens(t).glass_hi.into());
             }
-            s.border.radius = 15.0.into();
+            s.border.radius = radius.into();
             s
         });
-    let cell = container(cell).padding(5);
+    let cell = container(cell).padding(if mode.shape == Shape::Line { [2, 5] } else { [5, 5] });
     drop_zone(app, tab, e, mouse_area(cell))
         .on_press(Message::PressItem { tab: tab.id, index: i })
         .on_double_click(Message::Activate { tab: tab.id, index: i })
@@ -516,7 +537,8 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
         .into()
 }
 
-fn status_line(tab: &Tab, show_hidden: bool) -> Element<'_, Message> {
+fn status_line<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
+    let show_hidden = app.show_hidden;
     let mut parts = vec![format!("{} itens", human_count(tab.view.len()))];
     if !tab.filter.is_empty() {
         let total = tab.entries.iter().filter(|e| show_hidden || !e.hidden).count();
@@ -529,6 +551,8 @@ fn status_line(tab: &Tab, show_hidden: bool) -> Element<'_, Message> {
     if tab.loading {
         parts.push(format!("lendo… {}", human_count(tab.entries.len())));
     }
+    // O modo aparece ao trocar com Ctrl+roda, como o Explorer mostra o botão de visualização ativo.
+    parts.push(if tab.grid { app.mode().name } else { "Detalhes" }.to_string());
     container(text(parts.join("  ·  ")).size(11.5).style(theme::ink3)).padding([6, 16]).into()
 }
 
