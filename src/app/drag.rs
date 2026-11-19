@@ -4,7 +4,7 @@
 
 use super::{App, Message, ROW_H};
 use crate::columns::{Col, Columns};
-use crate::{computer, pointer};
+use crate::{computer, pins, pointer};
 use arbor_core::ops::{Conflict, Op};
 use iced::{Point, Rectangle, Task};
 use std::collections::HashSet;
@@ -234,6 +234,7 @@ impl App {
         pointer::arm(false);
         match std::mem::take(&mut self.gesture) {
             Gesture::Press { tab, index, collapse: true, .. } => self.click(tab, index),
+            Gesture::Drag { paths, over: Some(dest), .. } if pins::is_drop(&dest) => self.pin_dragged(&paths),
             Gesture::Drag { paths, over: Some(dest), .. } if valid_target(&paths, &dest) => {
                 let copy = self.drag_copies(&paths, &dest);
                 let conflict = Conflict::KeepBoth;
@@ -241,6 +242,20 @@ impl App {
             }
             Gesture::Resize { .. } => self.save_columns(),
             _ => Task::none(),
+        }
+    }
+
+    /// Soltar pastas na área "Solte para fixar" da barra lateral, como no Acesso rápido do Explorer.
+    fn pin_dragged(&mut self, paths: &[PathBuf]) -> Task<Message> {
+        let dirs: Vec<PathBuf> = paths.iter().filter(|p| p.is_dir()).cloned().collect();
+        if dirs.is_empty() {
+            return self.notify("Só pastas podem ser fixadas", true);
+        }
+        let added = pins::pin_all(&mut self.pins, &dirs);
+        match pins::save(pins::file().as_deref(), &self.pins) {
+            Ok(()) if added == 0 => self.notify("Já estavam fixadas", false),
+            Ok(()) => self.notify(format!("{added} pasta(s) fixada(s) na barra lateral"), false),
+            Err(e) => self.notify(format!("Não salvou as pastas fixadas: {e}"), true),
         }
     }
 

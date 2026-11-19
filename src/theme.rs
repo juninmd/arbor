@@ -342,6 +342,17 @@ pub fn band(t: &Theme) -> container::Style {
     }
 }
 
+/// Área de soltar (fixar na barra lateral): acende quando o arrasto passa por cima.
+pub fn drop_zone(t: &Theme, hot: bool) -> container::Style {
+    let k = tokens(t);
+    container::Style {
+        background: Some(alpha(k.accent, if hot { 0.2 } else { 0.05 }).into()),
+        border: Border { color: alpha(k.accent, if hot { 0.7 } else { 0.3 }), width: 1.0, radius: R_ROW.into() },
+        text_color: Some(if hot { k.ink } else { k.ink2 }),
+        ..Default::default()
+    }
+}
+
 /// Disco quase cheio: mesma barra, em vermelho.
 pub fn progress_full(t: &Theme) -> iced::widget::progress_bar::Style {
     iced::widget::progress_bar::Style { bar: Background::Color(tokens(t).danger), ..progress(t) }
