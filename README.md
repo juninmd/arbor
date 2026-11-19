@@ -178,6 +178,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Espaço` | Preview (as setas trocam o arquivo) |
 | `Backspace` | Pasta acima |
 | digitar | Filtrar a pasta (`Esc` limpa) |
+| `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
 | `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
 | `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
 | `Ctrl+Shift+T` | Reabrir aba fechada (a paleta tem *Restaurar abas ao abrir*) |

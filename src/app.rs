@@ -162,6 +162,8 @@ pub struct Tab {
     pub grid: bool,
     /// Selecionar este item quando ele aparecer na listagem (ao subir de pasta, depois de copiar...).
     focus_on_load: Vec<PathBuf>,
+    /// Aba de resultados de busca: consulta e se inclui ocultos. `path` é a pasta onde a busca começou.
+    pub search: Option<(String, bool)>,
 }
 
 impl Tab {
@@ -188,10 +190,14 @@ impl Tab {
             viewport_h: 600.0,
             grid: false,
             focus_on_load: vec![],
+            search: None,
         }
     }
 
     pub fn title(&self) -> String {
+        if let Some((q, _)) = &self.search {
+            return format!("Busca: {q}");
+        }
         if let Some(t) = computer::virtual_title(&self.path) {
             return t.into();
         }
@@ -304,6 +310,7 @@ pub enum Overlay {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptKind {
+    Search,
     Rename,
     /// F2 com vários itens selecionados: modelo ("Foto {n:3}") ou troca ("antigo => novo").
     BatchRename,
@@ -316,6 +323,7 @@ pub enum PromptKind {
 impl PromptKind {
     pub fn title(self) -> &'static str {
         match self {
+            PromptKind::Search => "Buscar nesta pasta e subpastas (palavras, ou *.pdf)",
             PromptKind::Rename => "Renomear",
             PromptKind::BatchRename => "Renomear em lote",
             PromptKind::NewFolder => "Nova pasta",
@@ -725,7 +733,16 @@ impl App {
         if trashbin::is(&path) {
             return Task::batch([scan_trash(), scroll]);
         }
-        Task::batch([Task::run(listing::list(path, sort), move |snap| Message::Listed { tab: id, generation, snap }), scroll])
+        let stream = match tab.search.clone() {
+            Some((query, hidden)) if refresh => {
+                Task::run(listing::search(path, query, sort, hidden), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+            _ => {
+                tab.search = None;
+                Task::run(listing::list(path, sort), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+        };
+        Task::batch([stream, scroll])
     }
 
     fn navigate(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
@@ -1185,6 +1202,18 @@ impl App {
                 let id = self.tab().filter_id();
                 op::focus(id)
             }
+            Cmd::Search => {
+                let filter = self.tab().filter.trim().to_string();
+                if filter.is_empty() {
+                    self.open_prompt(PromptKind::Search, String::new())
+                } else {
+                    let show = self.show_hidden;
+                    let tab = self.tab_mut();
+                    tab.filter.clear();
+                    tab.rebuild(show);
+                    self.start_search(filter)
+                }
+            }
             Cmd::GoTo => {
                 let path = if here { String::new() } else { self.tab().path.to_string_lossy().into_owned() };
                 self.open_prompt(PromptKind::GoTo, path)
@@ -1350,6 +1379,21 @@ impl App {
         }
     }
 
+    /// Abre uma aba de resultados no painel ativo, buscando `query` a partir da pasta atual.
+    fn start_search(&mut self, query: String) -> Task<Message> {
+        let pane = self.active;
+        let root = self.tab().path.clone();
+        let _ = self.new_tab(pane);
+        let hidden = self.show_hidden;
+        let tab = self.panes[pane].tab_mut();
+        // Zera a aba nova (a listagem comum é descartada) e roda a busca no lugar dela, mostrando cada lote.
+        let _ = Self::load_tab(tab, root.clone(), false);
+        tab.search = Some((query, hidden));
+        let task = Self::load_tab(tab, root, true);
+        tab.refreshing = false;
+        task
+    }
+
     fn open_prompt(&mut self, kind: PromptKind, value: String) -> Task<Message> {
         self.suggest.items.clear();
         self.suggest.selected = None;
@@ -1433,6 +1477,7 @@ impl App {
         }
         let dir = self.tab().path.clone();
         match kind {
+            PromptKind::Search => self.start_search(value),
             PromptKind::BatchRename => match rename::plan(&value, &self.batch_items()) {
                 Ok(pairs) if pairs.is_empty() => self.notify("Nenhum nome muda com esse modelo", false),
                 Ok(pairs) => self.start(Op::RenameMany { pairs }),
@@ -1600,6 +1645,7 @@ impl App {
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
                     ("f", false) => Some(Cmd::Filter),
+                    ("f", true) => Some(Cmd::Search),
                     ("h", false) => Some(Cmd::ToggleHidden),
                     ("g", false) => Some(Cmd::ToggleGrid),
                     ("1", _) => Some(Cmd::SortName),
@@ -1814,7 +1860,8 @@ impl App {
                 Task::none()
             }
             Message::FilterSubmit => {
-                let task = self.run(Cmd::Open);
+                // Ctrl+Enter no filtro busca o mesmo texto nas subpastas.
+                let task = self.run(if self.modifiers.command() { Cmd::Search } else { Cmd::Open });
                 Task::batch([task, iced::advanced::widget::operate(focusable::unfocus())])
             }
             Message::PaletteQuery(q) => {
@@ -1932,7 +1979,10 @@ impl App {
             }
             Message::DirChanged(path) => {
                 let tasks: Vec<_> = (0..2)
-                    .filter(|&p| self.panes[p].tab().path == path && !self.panes[p].tab().loading)
+                    .filter(|&p| {
+                        let t = self.panes[p].tab();
+                        t.path == path && !t.loading && t.search.is_none()
+                    })
                     .collect::<Vec<_>>()
                     .into_iter()
                     .map(|p| self.load(p, path.clone(), true))

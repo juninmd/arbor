@@ -353,6 +353,14 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
         .width(Fill)
         .font(if strong { theme::UI_BOLD } else { theme::UI })
         .style(move |t: &Theme| if dim { theme::ink3(t) } else { text::Style { color: Some(theme::tokens(t).ink) } });
+    // Na busca, a pasta de cada resultado (relativa à pasta buscada) vai embaixo do nome.
+    let name: Element<_> = match (&tab.search, e.path.parent().and_then(|p| p.strip_prefix(&tab.path).ok())) {
+        (Some(_), Some(rel)) => {
+            let rel = if rel.as_os_str().is_empty() { ".".to_string() } else { rel.to_string_lossy().into_owned() };
+            column![name, text(rel).size(10.5).font(theme::MONO).wrapping(Wrapping::None).style(theme::ink3)].width(Fill).into()
+        }
+        _ => name.into(),
+    };
     let line = row![
         chip(entry_kind(e, drive), 24.0),
         name,
