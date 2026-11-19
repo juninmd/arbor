@@ -180,6 +180,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | digitar | Filtrar a pasta (`Esc` limpa) |
 | `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
 | `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
+| `Ctrl+Shift+T` | Reabrir aba fechada (a paleta tem *Restaurar abas ao abrir*) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
 | `Ctrl+N` | Nova janela |
 | botões laterais do mouse | Voltar / avançar |

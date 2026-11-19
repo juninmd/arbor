@@ -13,6 +13,7 @@ pub enum Cmd {
     Refresh,
     NewTab,
     CloseTab,
+    ReopenTab,
     NextTab,
     PrevTab,
     ToggleDual,
@@ -55,6 +56,7 @@ pub enum Cmd {
     ToggleFps,
     CheckUpdates,
     ToggleAutoUpdate,
+    ToggleRestore,
     Palette,
 }
 
@@ -70,6 +72,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::Refresh,
     Cmd::NewTab,
     Cmd::CloseTab,
+    Cmd::ReopenTab,
     Cmd::NextTab,
     Cmd::PrevTab,
     Cmd::ToggleDual,
@@ -112,6 +115,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleFps,
     Cmd::CheckUpdates,
     Cmd::ToggleAutoUpdate,
+    Cmd::ToggleRestore,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -130,6 +134,7 @@ impl Cmd {
             Cmd::Refresh => "Atualizar",
             Cmd::NewTab => "Nova aba",
             Cmd::CloseTab => "Fechar aba",
+            Cmd::ReopenTab => "Reabrir aba fechada",
             Cmd::NextTab => "Próxima aba",
             Cmd::PrevTab => "Aba anterior",
             Cmd::ToggleDual => "Painel duplo",
@@ -172,6 +177,7 @@ impl Cmd {
             Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
             Cmd::CheckUpdates => "Procurar atualizações",
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
+            Cmd::ToggleRestore => "Ligar/desligar restaurar abas ao abrir",
             Cmd::Palette => "Paleta de comandos",
         }
     }
@@ -188,6 +194,7 @@ impl Cmd {
             Cmd::Refresh => format!("{m}+R"),
             Cmd::NewTab => format!("{m}+T"),
             Cmd::CloseTab => format!("{m}+W"),
+            Cmd::ReopenTab => format!("{m}+Shift+T"),
             Cmd::NextTab => "Ctrl+Tab".into(),
             Cmd::PrevTab => "Ctrl+Shift+Tab".into(),
             Cmd::ToggleDual => "F3".into(),
@@ -224,7 +231,7 @@ impl Cmd {
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
-            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate => String::new(),
+            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate | Cmd::ToggleRestore => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }
