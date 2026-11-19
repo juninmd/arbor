@@ -16,6 +16,24 @@ pub fn list(path: PathBuf, sort: Sort) -> impl Stream<Item = Snapshot> {
     rx
 }
 
+/// Compartilhamentos de `\\servidor` numa thread: a rede pode demorar a responder.
+pub fn list_shares(server: String, sort: Sort) -> impl Stream<Item = Snapshot> {
+    let (tx, rx) = mpsc::unbounded();
+    std::thread::Builder::new()
+        .name("arbor-shares".into())
+        .spawn(move || {
+            let start = std::time::Instant::now();
+            let (mut entries, error) = match crate::network::shares(&server) {
+                Ok(names) => (crate::network::share_entries(&server, &names), None),
+                Err(e) => (vec![], Some(e)),
+            };
+            arbor_core::sort_entries(&mut entries, sort);
+            let _ = tx.unbounded_send(Snapshot { entries: std::sync::Arc::new(entries), complete: true, elapsed: start.elapsed(), error });
+        })
+        .expect("thread de compartilhamentos");
+    rx
+}
+
 /// Lista o conteúdo de um compactado (`archive` + caminho interno) numa thread, como um snapshot completo.
 pub fn list_archive(archive: PathBuf, inner: PathBuf, sort: Sort) -> impl Stream<Item = Snapshot> {
     let (tx, rx) = mpsc::unbounded();

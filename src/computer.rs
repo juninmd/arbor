@@ -31,7 +31,7 @@ pub fn virtual_title(p: &Path) -> Option<&'static str> {
 
 /// Locais que não são pastas de verdade ("Este Computador" e "Lixeira"): sem escrever, colar ou soltar.
 pub fn is_virtual(p: &Path) -> bool {
-    is(p) || crate::trashbin::is(p)
+    is(p) || crate::trashbin::is(p) || crate::network::server_root(p).is_some()
 }
 
 #[derive(Debug, Clone)]
@@ -125,6 +125,14 @@ pub fn drives() -> Vec<Drive> {
                 }
             }
         }
+        // smb://, sftp:// abertos pelo gerenciador do sistema (gio) ficam montados pelo GVFS aqui.
+        // SAFETY: getuid não falha nem toca memória.
+        #[cfg(target_os = "linux")]
+        if let Ok(rd) = std::fs::read_dir(PathBuf::from(format!("/run/user/{}/gvfs", unsafe { libc::getuid() }))) {
+            for e in rd.flatten() {
+                v.push((crate::network::gvfs_label(&e.file_name().to_string_lossy()), e.path(), Media::Network));
+            }
+        }
     }
     v.into_iter().map(|(label, path, media)| Drive { space: space(&path), label, path, media }).collect()
 }
@@ -210,6 +218,18 @@ mod win {
         };
         Some((format!("{label} ({letter}:)"), media))
     }
+}
+
+/// Abre o diálogo "Mapear unidade de rede" do próprio Windows; a nova letra aparece ao atualizar (F5).
+pub fn map_drive_dialog() -> Result<(), String> {
+    #[cfg(windows)]
+    return std::process::Command::new("rundll32.exe")
+        .args(["shell32.dll,SHHelpShortcuts_RunDLL", "Connect"])
+        .spawn()
+        .map(drop)
+        .map_err(|e| e.to_string());
+    #[cfg(not(windows))]
+    Err("só existe no Windows".into())
 }
 
 /// Ejeta (desmonta) uma mídia removível pelo utilitário do sistema, sem passar por shell.

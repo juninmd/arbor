@@ -82,6 +82,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Terminal),
             Some(CopyPath),
             Some(Pin),
+            Some(MapDrive),
             None,
             Some(Details),
         ],
@@ -115,7 +116,11 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
         MenuKind::Columns => vec![Some(ColKind), Some(ColSize), Some(ColModified)],
     };
     // Em "Este Computador" não há pasta real para fixar, colar ou abrir terminal.
-    let hide = |c: &Cmd| here_virtual && matches!(kind, MenuKind::Background) && matches!(c, Cmd::Pin | Cmd::Terminal | Cmd::CopyPath);
+    let hide = |c: &Cmd| {
+        // Mapear unidade é do Windows e, como no Explorer, aparece em "Este Computador".
+        (*c == Cmd::MapDrive && (!cfg!(windows) || !here_virtual))
+            || here_virtual && matches!(kind, MenuKind::Background) && matches!(c, Cmd::Pin | Cmd::Terminal | Cmd::CopyPath)
+    };
     let mut out: Vec<Option<Cmd>> = Vec::new();
     for c in v.into_iter().filter(|c| !c.as_ref().is_some_and(hide)) {
         // Sem separador no começo, no fim ou repetido depois de esconder itens.
@@ -147,6 +152,7 @@ impl App {
         match cmd {
             // A área do sistema pode ter arquivos de outro app; lê-la a cada quadro custaria caro.
             Cmd::Paste => !here,
+            Cmd::MapDrive => cfg!(windows),
             Cmd::Undo => !self.undo.is_empty(),
             Cmd::Restore | Cmd::Purge => in_trash && has_target,
             Cmd::Eject => self.tab().current().is_some_and(|e| self.drives.iter().any(|d| d.path == e.path && d.removable())),

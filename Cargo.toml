@@ -44,7 +44,7 @@ self-replace = "1"
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_System_Com"] }
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_NetworkManagement_NetManagement"] }
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 # vidro nativo atrás da janela transparente (Mica/Acrylic, NSVisualEffectView): src/glass.rs
 window-vibrancy = "0.8"
