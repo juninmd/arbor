@@ -1252,7 +1252,7 @@ impl App {
                     ("x", false) if !captured => Some(Cmd::Cut),
                     ("v", false) if !captured => Some(Cmd::Paste),
                     ("z", false) if !captured => Some(Cmd::Undo),
-                    ("z", true) | ("y", false) if !captured => Some(Cmd::Redo),
+                    ("z", true) | ("y", true) if !captured => Some(Cmd::Redo),
                     ("a", false) if !captured => Some(Cmd::SelectAll),
                     _ => None,
                 };
