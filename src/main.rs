@@ -4,6 +4,7 @@
 
 mod app;
 mod aurora;
+mod clash;
 mod columns;
 mod commands;
 mod complete;

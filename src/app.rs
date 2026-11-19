@@ -349,7 +349,7 @@ pub enum Overlay {
     /// Itens com o mesmo nome no destino: substituir, pular ou manter os dois.
     Conflict {
         op: Op,
-        names: Vec<String>,
+        clashes: Vec<crate::clash::Clash>,
     },
     Palette {
         query: String,
@@ -566,6 +566,8 @@ pub enum Message {
     PauseJob(u64),
     /// Resposta do diálogo de conflito; `None` cancela.
     ResolveConflict(Option<Conflict>),
+    /// "Só os mais novos": substitui onde a origem é mais recente e pula o resto.
+    KeepNewer,
     ToastExpired(u64),
     DirChanged(PathBuf),
     Places(Vec<Drive>),
@@ -1152,7 +1154,8 @@ impl App {
         if names.is_empty() {
             return self.start(op);
         }
-        self.overlay = Overlay::Conflict { op, names };
+        let clashes = crate::clash::compare(sources, dest, &names);
+        self.overlay = Overlay::Conflict { op, clashes };
         Task::none()
     }
 
@@ -1951,6 +1954,7 @@ impl App {
                         "s" => Some(Some(Conflict::Replace)),
                         "p" => Some(Some(Conflict::Skip)),
                         "m" => Some(Some(Conflict::KeepBoth)),
+                        "n" => return self.update(Message::KeepNewer),
                         _ => None,
                     },
                     _ => None,
@@ -2460,6 +2464,19 @@ impl App {
                     Op::Move { sources, dest, .. } => Op::Move { sources, dest, conflict },
                     other => other,
                 };
+                self.start(op)
+            }
+            Message::KeepNewer => {
+                let Overlay::Conflict { op, clashes } = std::mem::replace(&mut self.overlay, Overlay::None) else { return Task::none() };
+                let conflict = Conflict::Replace;
+                let op = match op {
+                    Op::Copy { sources, dest, .. } => Op::Copy { sources: crate::clash::newer_sources(&sources, &clashes), dest, conflict },
+                    Op::Move { sources, dest, .. } => Op::Move { sources: crate::clash::newer_sources(&sources, &clashes), dest, conflict },
+                    other => other,
+                };
+                if matches!(&op, Op::Copy { sources, .. } | Op::Move { sources, .. } if sources.is_empty()) {
+                    return self.notify("Nada a fazer: o destino já tem as versões mais novas", false);
+                }
                 self.start(op)
             }
             Message::ToastExpired(id) => {

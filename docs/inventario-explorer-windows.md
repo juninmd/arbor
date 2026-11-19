@@ -69,7 +69,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Ctrl/Shift+clique, Ctrl+A, inverter seleção | ✅ | P2 |
 | Arrastar e soltar dentro do app e para outros apps | 🟡 (dentro do app: pastas, barra lateral, outro painel; arrastar para outros apps não) | P0 |
 | Arrastar com botão direito (copiar/mover/criar atalho aqui) | ❌ | P2 |
-| Diálogo de conflito: substituir, pular, comparar, manter os dois | 🟡 (pergunta Substituir, Pular ou Manter os dois quando há nome repetido; sem "comparar") | P0 |
+| Diálogo de conflito: substituir, pular, comparar, manter os dois | ✅ (compara tamanho e data de origem e destino e marca o mais novo; Substituir, Pular, Manter os dois ou "Só os mais novos"; sem escolher arquivo a arquivo) | P0 |
 | Janela de progresso com gráfico de velocidade, pausa | 🟡 (barra + cancelar) | P1 |
 | Refazer (Ctrl+Y) | ✅ | P1 |
 | Excluir permanentemente (Shift+Del) com confirmação | ✅ | P1 |
