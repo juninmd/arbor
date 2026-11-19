@@ -5,6 +5,12 @@ on:
   workflow_dispatch:
   workflow_call: # o release roda as mesmas verificações em main antes de publicar
 
+# Um push novo no mesmo PR cancela a run anterior, para a fila não acumular. Em main (e quando o
+# release chama o ci) nada é cancelado: o evento entra no grupo para não colidir com o do release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
