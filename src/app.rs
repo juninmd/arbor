@@ -1330,7 +1330,11 @@ impl App {
 
 /// `arbor arquivo.txt` abre a pasta do arquivo em vez de tentar listar um arquivo.
 fn start_dir(p: PathBuf) -> Option<PathBuf> {
-    if p.is_dir() { Some(p) } else { p.parent().map(Path::to_path_buf) }
+    if p.is_dir() {
+        Some(p)
+    } else {
+        p.parent().map(Path::to_path_buf)
+    }
 }
 
 fn places() -> Vec<(String, PathBuf)> {
