@@ -66,6 +66,9 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(SortSize),
             Some(SortModified),
             Some(SortKind),
+            Some(GroupKind),
+            Some(GroupModified),
+            Some(GroupNone),
             None,
             Some(Refresh),
             Some(Paste),
@@ -84,7 +87,17 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
         ],
         MenuKind::Sidebar => vec![Some(OpenInNewTab), Some(Pin)],
         MenuKind::New => vec![Some(NewFolder), Some(NewTextFile)],
-        MenuKind::Sort => vec![Some(SortName), Some(SortSize), Some(SortModified), Some(SortKind)],
+        MenuKind::Sort => vec![
+            Some(SortName),
+            Some(SortSize),
+            Some(SortModified),
+            Some(SortKind),
+            None,
+            Some(GroupNone),
+            Some(GroupKind),
+            Some(GroupModified),
+            Some(GroupSize),
+        ],
         MenuKind::View => vec![
             Some(ToggleGrid),
             Some(ZoomIn),
@@ -121,6 +134,9 @@ impl App {
     /// Comandos que não fariam nada agora aparecem apagados, como no Explorer.
     /// Itens liga/desliga do menu que estão ligados (mostram ✓).
     pub fn checked(&self, cmd: Cmd) -> bool {
+        if let Some(by) = super::group_of(cmd) {
+            return self.tab().group == by;
+        }
         super::column_of(cmd).is_some_and(|c| self.columns.shown(c))
     }
 

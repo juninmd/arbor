@@ -339,12 +339,15 @@ fn header<'a>(app: &'a App, tab: &'a Tab) -> Element<'a, Message> {
 }
 
 fn list<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Message> {
-    let total = tab.view.len();
+    let total = tab.row_count();
     let first = ((tab.scroll_y / ROW_H).floor() as usize).saturating_sub(OVERSCAN).min(total);
     let end = (first + (tab.viewport_h / ROW_H).ceil() as usize + 2 * OVERSCAN).min(total);
     let mut col = Column::new().push(space().height(first as f32 * ROW_H));
-    for i in first..end {
-        col = col.push(list_row(app, tab, i, pane_active));
+    for r in first..end {
+        col = col.push(match tab.item_at_row(r) {
+            Some(i) => list_row(app, tab, i, pane_active),
+            None => group_header(tab, r),
+        });
     }
     col = col.push(space().height((total - end) as f32 * ROW_H));
     let id = tab.id;
@@ -356,6 +359,22 @@ fn list<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
         .height(Fill)
         .style(theme::scrollbar)
         .into()
+}
+
+/// Cabeçalho de grupo como no Explorer: rótulo, contagem e um fio até a borda.
+fn group_header<'a>(tab: &'a Tab, row: usize) -> Element<'a, Message> {
+    let Some(crate::app::groups::Row::Header { label, count }) = tab.grouped.rows.get(row) else { return space().height(ROW_H).into() };
+    let rule = container(space().height(1))
+        .width(Fill)
+        .style(|t: &Theme| container::Style { background: Some(theme::alpha(theme::tokens(t).ink, 0.12).into()), ..Default::default() });
+    let line = row![
+        text(label.as_str()).size(12.5).font(theme::UI_BOLD).style(theme::accent),
+        text(format!("({count})")).size(11).style(theme::ink3),
+        rule
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center);
+    container(line).height(ROW_H).padding([0, 12]).align_y(Alignment::Center).into()
 }
 
 fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Element<'a, Message> {

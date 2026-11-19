@@ -177,7 +177,12 @@ impl App {
         let grid = self.find_tab(id).is_some_and(|t| t.grid);
         let layout = self.layout(grid);
         let Some(tab) = self.find_tab(id) else { return Task::none() };
-        let hits = band_hits(r, &layout, tab.view.len());
+        let hits = if grid {
+            band_hits(r, &layout, tab.view.len())
+        } else {
+            // Na lista o retângulo cobre linhas; cabeçalhos de grupo não são itens.
+            band_hits(r, &layout, tab.row_count()).into_iter().filter_map(|row| tab.item_at_row(row)).collect()
+        };
         let mut sel = base;
         sel.extend(hits.iter().filter_map(|&i| tab.entry_at(i).map(|e| e.path.clone())));
         tab.selected = sel;

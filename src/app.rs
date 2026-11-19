@@ -4,6 +4,7 @@ use crate::commands::{self, Cmd};
 mod address;
 mod details;
 mod drag;
+pub mod groups;
 mod jump;
 mod menu;
 mod trash_view;
@@ -19,6 +20,7 @@ use crate::media::{self, Preview};
 use crate::session::{self, Session};
 use crate::{instance, keymap, launch, listing, pins, pointer, trashbin, update, watch};
 use arbor_core::frecency::Frecency;
+use arbor_core::group::GroupBy;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
 use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
@@ -167,6 +169,9 @@ pub struct Tab {
     focus_on_load: Vec<PathBuf>,
     /// Aba de resultados de busca: consulta e se inclui ocultos. `path` é a pasta onde a busca começou.
     pub search: Option<(String, bool)>,
+    /// "Agrupar por" na lista em Detalhes; `grouped` são as linhas com cabeçalhos.
+    pub group: Option<GroupBy>,
+    pub grouped: groups::Grouped,
 }
 
 impl Tab {
@@ -194,6 +199,8 @@ impl Tab {
             grid: false,
             focus_on_load: vec![],
             search: None,
+            group: None,
+            grouped: groups::Grouped::default(),
         }
     }
 
@@ -259,6 +266,10 @@ impl Tab {
             let entries = &self.entries;
             fuzzy::rank_slice(&self.filter, &candidates, |&i| entries[i].name.as_str()).into_iter().map(|k| candidates[k]).collect()
         };
+        self.grouped = match self.group {
+            Some(by) => groups::build(&mut self.view, &self.entries, by),
+            None => groups::Grouped::default(),
+        };
         self.view_filter.clone_from(&self.filter);
         if !self.filter.is_empty() {
             self.cursor = 0;
@@ -266,6 +277,33 @@ impl Tab {
             self.cursor = self.position(&p).unwrap_or(self.cursor);
         }
         self.cursor = self.cursor.min(self.view.len().saturating_sub(1));
+    }
+
+    /// Linhas da lista em Detalhes: itens mais os cabeçalhos de grupo.
+    pub fn row_count(&self) -> usize {
+        if self.group.is_some() {
+            self.grouped.rows.len()
+        } else {
+            self.view.len()
+        }
+    }
+
+    pub fn row_of(&self, view_index: usize) -> usize {
+        if self.group.is_some() {
+            self.grouped.row_of.get(view_index).copied().unwrap_or(0)
+        } else {
+            view_index
+        }
+    }
+
+    pub fn item_at_row(&self, row: usize) -> Option<usize> {
+        match self.group {
+            Some(_) => match self.grouped.rows.get(row) {
+                Some(groups::Row::Item(i)) => Some(*i),
+                _ => None,
+            },
+            None => (row < self.view.len()).then_some(row),
+        }
     }
 
     fn position(&self, path: &Path) -> Option<usize> {
@@ -955,7 +993,7 @@ impl App {
     fn reveal_cursor(&mut self, id: u64) -> Task<Message> {
         let (cols, cell_h) = (self.grid_cols(), self.cell_h());
         let Some(tab) = self.find_tab(id) else { return Task::none() };
-        let (row, h) = if tab.grid { (tab.cursor / cols, cell_h) } else { (tab.cursor, ROW_H) };
+        let (row, h) = if tab.grid { (tab.cursor / cols, cell_h) } else { (tab.row_of(tab.cursor), ROW_H) };
         let top = row as f32 * h;
         let target = if top < tab.scroll_y {
             top
@@ -1425,6 +1463,15 @@ impl App {
             Cmd::SortSize => self.sort_by(SortKey::Size),
             Cmd::SortModified => self.sort_by(SortKey::Modified),
             Cmd::SortKind => self.sort_by(SortKey::Kind),
+            Cmd::GroupNone | Cmd::GroupKind | Cmd::GroupModified | Cmd::GroupSize => {
+                let by = group_of(cmd).expect("comando de agrupar");
+                let show_hidden = self.show_hidden;
+                let tab = self.tab_mut();
+                tab.group = by;
+                tab.edit_entries(show_hidden, |_| {});
+                let id = tab.id;
+                self.reveal_cursor(id)
+            }
             Cmd::ToggleTheme => {
                 self.dark = !self.dark;
                 self.refresh_aurora();
@@ -2436,6 +2483,17 @@ fn scan_trash() -> Task<Message> {
 const DRIVES_EVERY: Duration = Duration::from_secs(4);
 
 /// Coluna que um comando "Coluna …" mostra ou oculta.
+/// `Some(None)` é "nenhum"; `None` quando o comando não é de agrupar.
+pub fn group_of(cmd: Cmd) -> Option<Option<GroupBy>> {
+    match cmd {
+        Cmd::GroupNone => Some(None),
+        Cmd::GroupKind => Some(Some(GroupBy::Kind)),
+        Cmd::GroupModified => Some(Some(GroupBy::Modified)),
+        Cmd::GroupSize => Some(Some(GroupBy::Size)),
+        _ => None,
+    }
+}
+
 pub fn column_of(cmd: Cmd) -> Option<crate::columns::Col> {
     use crate::columns::Col;
     match cmd {

@@ -53,6 +53,10 @@ pub enum Cmd {
     SortSize,
     SortModified,
     SortKind,
+    GroupNone,
+    GroupKind,
+    GroupModified,
+    GroupSize,
     ToggleTheme,
     CopyPath,
     Terminal,
@@ -125,6 +129,10 @@ pub const ALL: &[Cmd] = &[
     Cmd::SortSize,
     Cmd::SortModified,
     Cmd::SortKind,
+    Cmd::GroupNone,
+    Cmd::GroupKind,
+    Cmd::GroupModified,
+    Cmd::GroupSize,
     Cmd::ToggleTheme,
     Cmd::CopyPath,
     Cmd::Terminal,
@@ -200,6 +208,10 @@ impl Cmd {
             Cmd::SortSize => "Ordenar por tamanho",
             Cmd::SortModified => "Ordenar por data",
             Cmd::SortKind => "Ordenar por tipo",
+            Cmd::GroupNone => "Agrupar por: nenhum",
+            Cmd::GroupKind => "Agrupar por tipo",
+            Cmd::GroupModified => "Agrupar por data de modificação",
+            Cmd::GroupSize => "Agrupar por tamanho",
             Cmd::ToggleTheme => "Alternar tema claro/escuro",
             Cmd::CopyPath => "Copiar caminho",
             Cmd::Terminal => "Abrir terminal aqui",
@@ -284,6 +296,10 @@ impl Cmd {
             | Cmd::ColKind
             | Cmd::ColSize
             | Cmd::ColModified
+            | Cmd::GroupNone
+            | Cmd::GroupKind
+            | Cmd::GroupModified
+            | Cmd::GroupSize
             | Cmd::WhoUses => String::new(),
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
