@@ -4,7 +4,7 @@
 //! O visual segue o protótipo "arbor Glass" (tokens em `theme.rs`): aurora ao fundo, cartões de vidro,
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
-use crate::app::{App, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W};
+use crate::app::{App, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
 use crate::commands::Cmd;
 use crate::computer::{self, Drive};
 use crate::media::Preview;
@@ -22,13 +22,14 @@ use std::path::{Component, Path, PathBuf};
 mod commands_view;
 mod computer_view;
 mod details_view;
+mod sidebar_view;
 
 const OVERSCAN: usize = 8;
 const GAP: f32 = 10.0;
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let panes: Element<_> = if app.dual { row![pane(app, 0), pane(app, 1)].spacing(GAP).into() } else { pane(app, app.active) };
-    let mut body = row![sidebar(app), container(panes).width(Fill).height(Fill)].spacing(GAP).height(Fill);
+    let mut body = row![sidebar_view::sidebar(app), container(panes).width(Fill).height(Fill)].spacing(GAP).height(Fill);
     if app.details_on {
         body = body.push(details_view::panel(app));
     }
@@ -48,74 +49,6 @@ pub fn theme(app: &App) -> Theme {
 }
 
 // ---------- barra lateral ----------
-
-fn sidebar(app: &App) -> Element<'_, Message> {
-    let current = &app.tab().path;
-    let computer_path = computer::path();
-    let item = |label: &str, path: &PathBuf, ic: Icon, color: Color| -> Element<'_, Message> {
-        let active = current == path;
-        let content =
-            row![icon(ic, 16.0, color), text(label.to_string()).size(13).wrapping(Wrapping::None)].spacing(10).align_y(Alignment::Center);
-        let b = button(content)
-            .on_press(Message::Navigate(path.clone()))
-            .width(Fill)
-            .padding([7, 10])
-            .style(move |t: &Theme, s| theme::place(t, s, active));
-        let area = mouse_area(b).on_right_press(Message::SidebarMenu(path.clone()));
-        if app.dragging().is_some() {
-            area.on_enter(Message::DragOver(Some(path.clone()))).on_exit(Message::DragLeave { from: path.clone(), back: None }).into()
-        } else {
-            area.into()
-        }
-    };
-    let brand = row![
-        icon(Icon::Logo, 26.0, theme::ICE),
-        text("arbor").font(theme::DISPLAY).size(19),
-        container(text(update::CURRENT).font(theme::MONO).size(10).style(theme::ink3)).padding([1, 6]).style(theme::kbd),
-    ]
-    .spacing(9)
-    .align_y(Alignment::Center);
-
-    let mut col = Column::new()
-        .spacing(2)
-        .push(item(computer::TITLE, &computer_path, Icon::Drive, theme::ICE))
-        .push(space().height(12))
-        .push(heading("Locais"));
-    for (label, path) in &app.places {
-        let (ic, color) = place_icon(label);
-        col = col.push(item(label, path, ic, color));
-    }
-    if !app.pins.is_empty() {
-        col = col.push(space().height(12)).push(heading("Fixados"));
-        for path in &app.pins {
-            let label = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
-            col = col.push(item(&label, path, Icon::Pin, theme::ICE));
-        }
-    }
-    if !app.drives.is_empty() {
-        col = col.push(space().height(12)).push(heading("Discos"));
-        for d in &app.drives {
-            col = col.push(item(&d.label, &d.path, Icon::Drive, theme::STEEL));
-        }
-    }
-    let palette = button(
-        row![icon(Icon::Search, 14.0, theme::DARK.ink3), text("Comandos").size(12).width(Fill), kbd(Cmd::Palette.shortcut())]
-            .spacing(8)
-            .align_y(Alignment::Center),
-    )
-    .on_press(Message::Run(Cmd::Palette))
-    .width(Fill)
-    .padding([8, 10])
-    .style(|t, s| theme::place(t, s, false));
-    let content = column![
-        container(brand).padding(Padding::new(6.0).bottom(14.0)),
-        scrollable(col).height(Fill).style(theme::scrollbar),
-        engine(app),
-        palette
-    ]
-    .spacing(8);
-    container(content).padding([14, 10]).width(SIDEBAR_W).height(Fill).style(|t| theme::glass(t, false)).into()
-}
 
 /// O cartão "motor" do protótipo: o que o arbor acabou de fazer, em números.
 fn engine(app: &App) -> Element<'_, Message> {

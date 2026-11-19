@@ -17,7 +17,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Caixa "Pesquisar em <pasta>" com busca recursiva em subpastas | ❌ (só filtro da pasta) | P0 |
 | Abas (Ctrl+T/W), arrastar aba para virar janela | 🟡 (abas sim, destacar não) | P2 |
 | Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | 🟡 (Alt+←/→ e botões do mouse; sem menu de histórico) | P1 |
-| Árvore de pastas expansível na barra lateral | ❌ | P1 |
+| Árvore de pastas expansível na barra lateral | ✅ (locais, fixados e discos; até 500 subpastas por nó) | P1 |
 | "Início" com Recentes, Favoritos e Acesso rápido | ❌ | P1 |
 | Fixar pastas na barra lateral (arrastar para fixar, desafixar) | 🟡 (pelo menu; arrastar não) | P0 |
 | Galeria (fotos de todas as pastas de imagens por data) | ❌ | P3 |

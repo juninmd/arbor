@@ -5,6 +5,7 @@ mod address;
 mod details;
 mod drag;
 mod menu;
+mod tree;
 
 pub use details::Details;
 pub use drag::{valid_target as drag_valid, Gesture};
@@ -62,6 +63,9 @@ pub struct App {
     /// Índice em `ZOOMS`.
     pub zoom: usize,
     pub gesture: Gesture,
+    pub tree: tree::Tree,
+    /// Caminho-sentinela de "Este Computador", guardado para a barra lateral poder emprestá-lo.
+    pub computer: PathBuf,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -306,6 +310,8 @@ pub enum Message {
     SuggestPick(usize),
     Zoom(bool),
     Created(Result<PathBuf, String>),
+    TreeToggle(PathBuf),
+    TreeLoaded { path: PathBuf, dirs: Vec<PathBuf> },
     PressItem { tab: u64, index: usize },
     PressEmpty(u64),
     BandMove { tab: u64, at: iced::Point },
@@ -385,6 +391,8 @@ impl App {
             details: None,
             zoom: 1,
             gesture: Gesture::None,
+            tree: Default::default(),
+            computer: computer::path(),
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -1502,6 +1510,11 @@ impl App {
             Message::Suggested { generation, items } => self.on_suggested(generation, items),
             Message::SuggestPick(i) => self.accept_suggestion(Some(i)),
             Message::Zoom(larger) => self.zoom(larger),
+            Message::TreeToggle(path) => self.tree_toggle(path),
+            Message::TreeLoaded { path, dirs } => {
+                self.tree.children.insert(path, dirs);
+                Task::none()
+            }
             Message::Created(result) => match result {
                 Ok(_) => Task::none(),
                 Err(e) => self.notify(format!("Não criou o arquivo: {e}"), true),

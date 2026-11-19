@@ -405,6 +405,7 @@ pub enum Icon {
     Left,
     Right,
     Up,
+    Down,
     Plus,
     List,
     Grid,
@@ -443,6 +444,7 @@ impl Icon {
             Icon::Left => r#"<path d="m15 6-6 6 6 6"/>"#,
             Icon::Right => r#"<path d="m9 6 6 6-6 6"/>"#,
             Icon::Up => r#"<path d="m6 15 6-6 6 6"/>"#,
+            Icon::Down => r#"<path d="m6 9 6 6 6-6"/>"#,
             Icon::Plus => r#"<path d="M12 5v14M5 12h14"/>"#,
             Icon::List => r#"<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>"#,
             Icon::Grid => {
