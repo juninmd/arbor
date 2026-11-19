@@ -1,6 +1,7 @@
 //! Estado e lógica do app (o `update` do iced). A interface fica em `view.rs`.
 
 use crate::commands::{self, Cmd};
+mod address;
 mod menu;
 
 pub use menu::{Menu, MenuKind};
@@ -48,6 +49,7 @@ pub struct App {
     pub pins: Vec<PathBuf>,
     /// Alvo do menu de onde o comando atual veio (fixar ou abrir uma pasta da barra lateral).
     menu_target: Option<PathBuf>,
+    pub suggest: address::Suggest,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -286,6 +288,8 @@ pub enum Message {
     OpenMenu(MenuKind),
     MenuRun(Cmd),
     MenuHover(usize),
+    Suggested { generation: u64, items: Vec<PathBuf> },
+    SuggestPick(usize),
     Click { tab: u64, index: usize },
     Activate { tab: u64, index: usize },
     Scrolled { tab: u64, viewport: Viewport },
@@ -351,6 +355,7 @@ impl App {
             drives: vec![],
             pins: pins::load(pins::file().as_deref()),
             menu_target: None,
+            suggest: Default::default(),
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -987,6 +992,8 @@ impl App {
     }
 
     fn open_prompt(&mut self, kind: PromptKind, value: String) -> Task<Message> {
+        self.suggest.items.clear();
+        self.suggest.selected = None;
         self.overlay = Overlay::Prompt { kind, value };
         Task::batch([op::focus(PROMPT_INPUT), op::move_cursor_to_end(PROMPT_INPUT)])
     }
@@ -1059,6 +1066,7 @@ impl App {
                 self.start(Op::Mkdir { path })
             }
             PromptKind::GoTo => {
+                let value = self.chosen_suggestion().unwrap_or(value);
                 let expanded = if let Some(rest) = value.strip_prefix('~') {
                     dirs::home_dir().map(|h| h.join(rest.trim_start_matches(['/', '\\']))).unwrap_or_else(|| PathBuf::from(&value))
                 } else {
@@ -1097,12 +1105,7 @@ impl App {
                 }
                 return Task::none();
             }
-            Overlay::Prompt { .. } => {
-                if named == Some(Named::Escape) {
-                    self.overlay = Overlay::None;
-                }
-                return Task::none();
-            }
+            Overlay::Prompt { .. } => return self.prompt_key(named),
             Overlay::Preview { .. } => {
                 return match named {
                     Some(Named::Escape | Named::Space) => {
@@ -1351,11 +1354,18 @@ impl App {
                 cmd.map_or_else(Task::none, |c| self.run(c))
             }
             Message::PromptChanged(v) => {
+                let goto = matches!(self.overlay, Overlay::Prompt { kind: PromptKind::GoTo, .. });
                 if let Overlay::Prompt { value, .. } = &mut self.overlay {
-                    *value = v;
+                    *value = v.clone();
                 }
-                Task::none()
+                if goto {
+                    self.request_suggestions(v)
+                } else {
+                    Task::none()
+                }
             }
+            Message::Suggested { generation, items } => self.on_suggested(generation, items),
+            Message::SuggestPick(i) => self.accept_suggestion(Some(i)),
             Message::PromptSubmit => self.submit_prompt(),
             Message::CloseOverlay => {
                 self.overlay = Overlay::None;

@@ -4,7 +4,9 @@
 //! O visual segue o protótipo "arbor Glass" (tokens em `theme.rs`): aurora ao fundo, cartões de vidro,
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
-use crate::app::{App, Message, Overlay, Pane, Tab, UpdateState, CELL_H, CELL_W, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W};
+use crate::app::{
+    App, Message, Overlay, Pane, PromptKind, Tab, UpdateState, CELL_H, CELL_W, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W,
+};
 use crate::commands::Cmd;
 use crate::computer::{self, Drive};
 use crate::media::Preview;
@@ -656,13 +658,17 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
                 .padding(10)
                 .size(14)
                 .style(theme::input);
+            let suggestions = suggestions(app, *kind);
             sheet(
                 column![
                     text(kind.title()).font(theme::DISPLAY).size(16),
                     input,
+                    suggestions,
                     row![
                         kbd("Enter".into()),
                         text("confirma").size(11.5).style(theme::ink3),
+                        kbd("Tab".into()),
+                        text("completa").size(11.5).style(theme::ink3),
                         kbd("Esc".into()),
                         text("cancela").size(11.5).style(theme::ink3)
                     ]
@@ -677,6 +683,28 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
     };
     Some(stack![scrim(), center(opaque(card)).padding(40)].into())
+}
+
+/// Pastas sugeridas abaixo da caixa "Ir para"; clique ou Tab completa.
+fn suggestions(app: &App, kind: PromptKind) -> Element<'_, Message> {
+    if kind != PromptKind::GoTo || app.suggest.items.is_empty() {
+        return space().height(0).into();
+    }
+    let mut col = Column::new().spacing(1);
+    for (i, p) in app.suggest.items.iter().enumerate() {
+        let hot = app.suggest.selected == Some(i);
+        let label = row![icon(Icon::Folder, 14.0, theme::ICE), text(p.to_string_lossy().into_owned()).size(12.5).wrapping(Wrapping::None)]
+            .spacing(8)
+            .align_y(Alignment::Center);
+        col = col.push(
+            button(label)
+                .width(Fill)
+                .padding([5, 8])
+                .on_press(Message::SuggestPick(i))
+                .style(move |t: &Theme, s| theme::place(t, if hot { button::Status::Hovered } else { s }, hot)),
+        );
+    }
+    col.into()
 }
 
 fn scrim<'a>() -> Element<'a, Message> {

@@ -13,7 +13,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Unidades com barra de uso (vermelha quando quase cheia) e "X livres de Y" | ✅ (este PR) | P0 |
 | Breadcrumb começando em "Este Computador"; subir da raiz volta para ele | ✅ (este PR) | P0 |
 | Breadcrumb com seta `›` que abre um menu das subpastas | ❌ | P1 |
-| Barra de endereço editável ao clicar, com autocomplete de caminho | 🟡 (Ctrl+L, sem autocomplete) | P0 |
+| Barra de endereço editável ao clicar, com autocomplete de caminho | ✅ (Ctrl+L ou duplo clique; Tab completa, setas escolhem) | P0 |
 | Caixa "Pesquisar em <pasta>" com busca recursiva em subpastas | ❌ (só filtro da pasta) | P0 |
 | Abas (Ctrl+T/W), arrastar aba para virar janela | 🟡 (abas sim, destacar não) | P2 |
 | Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | 🟡 (Alt+←/→) | P1 |
