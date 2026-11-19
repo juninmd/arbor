@@ -43,6 +43,8 @@ pub const STEEL: Color = rgb(0xc8d0e6);
 #[derive(Debug, Clone, Copy)]
 pub struct Tokens {
     pub void: Color,
+    /// Faixa das abas, do endereço e dos comandos: a aba ativa tem esta cor e "se funde" com ela.
+    pub surface: Color,
     pub ink: Color,
     pub ink2: Color,
     pub ink3: Color,
@@ -59,6 +61,7 @@ pub struct Tokens {
 
 pub const DARK: Tokens = Tokens {
     void: rgb(0x060914),
+    surface: rgba(0x222848, 0.86),
     ink: rgb(0xeef1ff),
     ink2: rgba(0xdee4ff, 0.68),
     ink3: rgba(0xdee4ff, 0.42),
@@ -75,6 +78,7 @@ pub const DARK: Tokens = Tokens {
 
 pub const LIGHT: Tokens = Tokens {
     void: rgb(0xf3f5fc),
+    surface: rgba(0xffffff, 0.86),
     ink: rgb(0x111528),
     ink2: rgba(0x1d2340, 0.72),
     ink3: rgba(0x1d2340, 0.5),
@@ -89,18 +93,20 @@ pub const LIGHT: Tokens = Tokens {
     warn: rgb(0xb7790e),
 };
 
-pub fn tokens(t: &Theme) -> Tokens {
-    if t.extended_palette().is_dark {
-        DARK
-    } else {
-        LIGHT
-    }
+/// Tokens do tema ativo (`palettes::current`); o `Theme` do iced só carrega a paleta básica.
+pub fn tokens(_: &Theme) -> Tokens {
+    now()
 }
 
-pub fn theme(dark: bool) -> Theme {
-    let k = if dark { DARK } else { LIGHT };
+/// Os mesmos tokens fora de um estilo, para a cor dos ícones (que antes vinha fixa do tema escuro).
+pub fn now() -> Tokens {
+    crate::palettes::current().tokens()
+}
+
+pub fn theme(p: crate::palettes::Palette) -> Theme {
+    let k = p.tokens();
     Theme::custom(
-        if dark { "arbor Glass" } else { "arbor Glass Claro" },
+        format!("arbor {}", p.name()),
         iced::theme::Palette { background: k.void, text: k.ink, primary: k.accent, success: k.good, warning: k.warn, danger: k.danger },
     )
 }
@@ -111,14 +117,13 @@ pub fn alpha(c: Color, a: f32) -> Color {
 
 // ---------- raios ----------
 
-pub const R_PANEL: f32 = 18.0;
 pub const R_ROW: f32 = 10.0;
 pub const R_CHIP: f32 = 8.0;
 
 // ---------- estilos ----------
 
-/// Cartão de vidro, como no protótipo: `linear-gradient(140deg, branco 10%, 2,5% aos 55%, 5%)` sobre a
-/// aurora, filete claro e sombra longa.
+/// Painel de vidro, como no protótipo: `linear-gradient(140deg, branco 10%, 2,5% aos 55%, 5%)` sobre a
+/// aurora. Encosta nas bordas da janela, então não tem canto arredondado nem sombra; só o filete.
 pub fn glass(t: &Theme, active: bool) -> container::Style {
     let k = tokens(t);
     let g = gradient::Linear::new(Radians(2.44))
@@ -128,14 +133,64 @@ pub fn glass(t: &Theme, active: bool) -> container::Style {
     container::Style {
         background: Some(Background::Gradient(g.into())),
         text_color: Some(k.ink),
-        border: Border { color: if active { alpha(k.accent, 0.36) } else { k.stroke }, width: 1.0, radius: R_PANEL.into() },
-        shadow: Shadow {
-            color: if active { alpha(k.accent, 0.18) } else { Color::from_rgba(0.0, 0.0, 0.0, 0.35) },
-            offset: Vector::new(0.0, if active { 0.0 } else { 14.0 }),
-            blur_radius: if active { 40.0 } else { 36.0 },
+        border: Border {
+            color: if active { alpha(k.accent, 0.36) } else { alpha(k.stroke, 0.6) },
+            width: if active { 1.0 } else { 0.0 },
+            radius: 0.0.into(),
         },
+        shadow: Shadow::default(),
         snap: false,
     }
+}
+
+/// Faixa de cima (endereço e comandos) na cor da aba ativa.
+pub fn surface(t: &Theme) -> container::Style {
+    let k = tokens(t);
+    container::Style { background: Some(k.surface.into()), text_color: Some(k.ink), ..Default::default() }
+}
+
+/// Barra de título própria (janela sem moldura do sistema): mais escura que a faixa das abas.
+pub fn titlebar(t: &Theme) -> container::Style {
+    let k = tokens(t);
+    container::Style { background: Some(alpha(k.void, 0.55).into()), text_color: Some(k.ink), ..Default::default() }
+}
+
+/// Aba no estilo do Explorer do Windows 11: cantos de cima arredondados e, ativa, a cor da faixa abaixo.
+pub fn win_tab(t: &Theme, status: button::Status, selected: bool) -> button::Style {
+    let k = tokens(t);
+    let background = if selected {
+        Some(k.surface.into())
+    } else if matches!(status, button::Status::Hovered | button::Status::Pressed) {
+        Some(k.glass_hi.into())
+    } else {
+        None
+    };
+    button::Style {
+        background,
+        text_color: if selected || status == button::Status::Hovered { k.ink } else { k.ink2 },
+        border: Border {
+            radius: border::Radius { top_left: 9.0, top_right: 9.0, bottom_right: 0.0, bottom_left: 0.0 },
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+/// Aba vertical: a pílula da barra lateral, com a cor de destaque na ativa.
+pub fn side_tab(t: &Theme, status: button::Status, selected: bool) -> button::Style {
+    place(t, status, selected)
+}
+
+/// Minimizar, maximizar e fechar; fechar fica vermelho no hover, como no Windows.
+pub fn window_button(t: &Theme, status: button::Status, close: bool) -> button::Style {
+    let k = tokens(t);
+    let hot = matches!(status, button::Status::Hovered | button::Status::Pressed);
+    let background = match (hot, close) {
+        (true, true) => Some(rgb(0xc42b1c).into()),
+        (true, false) => Some(k.glass_hi.into()),
+        _ => None,
+    };
+    button::Style { background, text_color: if hot && close { Color::WHITE } else { k.ink2 }, ..Default::default() }
 }
 
 /// Sobreposição (paleta, preview, diálogo): vidro mais opaco e azulado.
@@ -418,6 +473,10 @@ pub enum Icon {
     Eye,
     More,
     Pin,
+    Palette,
+    WinMin,
+    WinMax,
+    WinClose,
     Logo,
 }
 
@@ -471,6 +530,12 @@ impl Icon {
             Icon::Eye => r#"<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>"#,
             Icon::More => r#"<path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3"/>"#,
             Icon::Pin => r#"<path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z"/>"#,
+            Icon::Palette => {
+                r#"<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.9 1.2-1.8-.5-1-.1-2.2 1.1-2.2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15.5" cy="7.5" r="1.2"/>"#
+            }
+            Icon::WinMin => r#"<path d="M4 12h16"/>"#,
+            Icon::WinMax => r#"<rect x="4" y="4" width="16" height="16" rx="2"/>"#,
+            Icon::WinClose => r#"<path d="M5 5l14 14M19 5 5 19"/>"#,
             Icon::Logo => "",
         }
     }

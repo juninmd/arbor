@@ -17,6 +17,7 @@ mod launch;
 mod listing;
 mod media;
 mod network;
+mod palettes;
 mod pins;
 mod pointer;
 mod props;
@@ -29,6 +30,7 @@ mod update;
 mod view;
 mod view_modes;
 mod watch;
+mod window_chrome;
 
 /// mimalloc: a listagem cria centenas de milhares de alocações pequenas em várias threads; com o
 /// alocador do sistema elas disputam o mesmo lock e a pasta de 100 mil itens leva 4× mais.
@@ -65,6 +67,8 @@ fn main() -> iced::Result {
             // vidro nativo onde o sistema dá (src/glass.rs); no resto a janela fica opaca
             transparent: glass::wanted(),
             blur: glass::wanted(),
+            // barra de título própria, com as abas (src/window_chrome.rs)
+            decorations: !window_chrome::custom(),
             ..Default::default()
         })
         .antialiasing(true);

@@ -1,14 +1,13 @@
-//! Barra lateral: Este Computador, locais, fixados e discos, com a árvore de pastas que se expande
-//! pela seta (como o painel de navegação do Explorer).
+//! Barra lateral no jeito do painel de navegação do Explorer: Início, locais e fixados, Este Computador
+//! com os discos dentro (e o quanto estão cheios) e a Lixeira. Toda pasta se expande pela seta.
 
-use super::{engine, heading, kbd, place_icon};
+use super::place_icon;
 use crate::app::{App, Message, SIDEBAR_W};
-use crate::commands::Cmd;
-use crate::computer;
+use crate::computer::{self, Drive};
 use crate::theme::{self, icon, Icon};
-use crate::update;
+use arbor_core::human_size;
 use iced::widget::text::Wrapping;
-use iced::widget::{button, column, container, mouse_area, row, scrollable, space, text, Column};
+use iced::widget::{button, column, container, mouse_area, progress_bar, row, scrollable, space, text, Column};
 use iced::{Alignment, Color, Element, Fill, Padding, Theme};
 use std::path::{Path, PathBuf};
 
@@ -19,10 +18,11 @@ const MAX_DEPTH: usize = 24;
 fn node<'a>(app: &'a App, label: String, path: &Path, ic: Icon, color: Color, depth: usize) -> Element<'a, Message> {
     let active = app.tab().path == path;
     let open = app.tree.open.contains(path);
-    let chevron: Element<_> = if computer::is_virtual(path) {
+    // Este Computador é virtual mas abre: dentro dele ficam os discos
+    let chevron: Element<_> = if computer::is_virtual(path) && !computer::is(path) {
         space().width(16).into()
     } else {
-        button(icon(if open { Icon::Down } else { Icon::Right }, 12.0, theme::DARK.ink3))
+        button(icon(if open { Icon::Down } else { Icon::Right }, 12.0, theme::now().ink3))
             .padding(2)
             .on_press(Message::TreeToggle(path.to_path_buf()))
             .style(theme::ghost)
@@ -34,7 +34,12 @@ fn node<'a>(app: &'a App, label: String, path: &Path, ic: Icon, color: Color, de
         .width(Fill)
         .padding([7, 8])
         .style(move |t: &Theme, s| theme::place(t, s, active));
-    let line = row![space().width(depth as f32 * INDENT), chevron, b].spacing(2).align_y(Alignment::Center);
+    let mark = container(space().width(3).height(16)).style(move |t: &Theme| container::Style {
+        background: active.then(|| theme::tokens(t).accent.into()),
+        border: iced::border::rounded(2),
+        ..Default::default()
+    });
+    let line = row![mark, space().width(depth as f32 * INDENT), chevron, b].spacing(2).align_y(Alignment::Center);
     let p = path.to_path_buf();
     let area = mouse_area(line).on_right_press(Message::SidebarMenu(p.clone()));
     if app.dragging().is_some() {
@@ -70,61 +75,44 @@ fn branch<'a>(
     }
 }
 
-pub fn sidebar(app: &App) -> Element<'_, Message> {
-    let brand = row![
-        icon(Icon::Logo, 26.0, theme::ICE),
-        text("arbor").font(theme::DISPLAY).size(19),
-        container(text(update::CURRENT).font(theme::MONO).size(10).style(theme::ink3)).padding([1, 6]).style(theme::kbd),
+/// Disco dentro de Este Computador: nome e, quando o volume responde, a barra de uso.
+fn drive<'a>(col: Column<'a, Message>, app: &'a App, d: &'a Drive) -> Column<'a, Message> {
+    let (ic, color) = super::drive_look(d.media);
+    let col = branch(col, app, d.label.clone(), &d.path, ic, color, 1);
+    let Some((free, total)) = d.space.filter(|(_, t)| *t > 0) else { return col };
+    let used = 1.0 - free as f32 / total as f32;
+    let full = used > 0.9;
+    let usage = column![
+        progress_bar(0.0..=1.0, used).length(Fill).girth(3).style(if full { theme::progress_full } else { theme::progress }),
+        text(format!("{} livres de {}", human_size(free), human_size(total))).size(10.5).style(theme::ink3),
     ]
-    .spacing(9)
-    .align_y(Alignment::Center);
+    .spacing(3);
+    col.push(container(usage).padding(Padding::new(0.0).left(INDENT + 46.0).right(10.0).bottom(4.0)))
+}
 
-    let mut col = Column::new().spacing(2).push(node(app, crate::home::TITLE.into(), &app.home, Icon::Home, theme::ICE, 0)).push(node(
-        app,
-        computer::TITLE.into(),
-        &app.computer,
-        Icon::Drive,
-        theme::ICE,
-        0,
-    ));
-    if crate::trashbin::SUPPORTED {
-        col = col.push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::STEEL, 0));
-    }
-    col = col.push(space().height(12));
-    col = col.push(heading("Locais"));
+fn rule<'a>() -> Element<'a, Message> {
+    container(super::separator()).padding([6, 10]).into()
+}
+
+pub fn sidebar(app: &App) -> Element<'_, Message> {
+    let mut col = Column::new().spacing(1).push(node(app, crate::home::TITLE.into(), &app.home, Icon::Home, theme::ICE, 0));
     for (label, path) in &app.places {
         let (ic, color) = place_icon(label);
         col = branch(col, app, label.clone(), path, ic, color, 0);
     }
-    if !app.pins.is_empty() {
-        col = col.push(space().height(12)).push(heading("Fixados"));
-        for path in &app.pins {
-            let label = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
-            col = branch(col, app, label, path, Icon::Pin, theme::ICE, 0);
-        }
+    for path in &app.pins {
+        let label = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
+        col = branch(col, app, label, path, Icon::Pin, theme::ICE, 0);
     }
-    if !app.drives.is_empty() {
-        col = col.push(space().height(12)).push(heading("Discos"));
+    col = col.push(rule()).push(node(app, computer::TITLE.into(), &app.computer, Icon::Drive, theme::ICE, 0));
+    if app.tree.open.contains(&app.computer) {
         for d in &app.drives {
-            let (icon, color) = super::drive_look(d.media);
-            col = branch(col, app, d.label.clone(), &d.path, icon, color, 0);
+            col = drive(col, app, d);
         }
     }
-    let palette = button(
-        row![icon(Icon::Search, 14.0, theme::DARK.ink3), text("Comandos").size(12).width(Fill), kbd(Cmd::Palette.shortcut())]
-            .spacing(8)
-            .align_y(Alignment::Center),
-    )
-    .on_press(Message::Run(Cmd::Palette))
-    .width(Fill)
-    .padding([8, 10])
-    .style(|t, s| theme::place(t, s, false));
-    let content = column![
-        container(brand).padding(Padding::new(6.0).bottom(14.0)),
-        scrollable(col).height(Fill).style(theme::scrollbar),
-        engine(app),
-        palette
-    ]
-    .spacing(8);
-    container(content).padding([14, 10]).width(SIDEBAR_W).height(Fill).style(|t| theme::glass(t, false)).into()
+    if crate::trashbin::SUPPORTED {
+        col = col.push(rule()).push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::STEEL, 0));
+    }
+    let content = scrollable(col).height(Fill).style(theme::scrollbar);
+    container(content).padding([10, 6]).width(SIDEBAR_W).height(Fill).style(|t| theme::glass(t, false)).into()
 }

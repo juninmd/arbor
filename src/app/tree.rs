@@ -36,6 +36,10 @@ impl App {
             return Task::none();
         }
         self.tree.open.insert(path.clone());
+        // "Este Computador" mostra os discos, que já estão em `drives`: nada a listar.
+        if crate::computer::is_virtual(&path) {
+            return Task::none();
+        }
         let hidden = self.show_hidden;
         let p = path.clone();
         Task::perform(async move { tokio::task::spawn_blocking(move || subdirs(&p, hidden)).await.unwrap_or_default() }, move |dirs| {

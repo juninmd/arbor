@@ -29,19 +29,38 @@ fn settings_file() -> Option<PathBuf> {
 
 /// Desligado por padrão: o arbor abre na pasta inicial, como o Explorer.
 pub fn restore_enabled() -> bool {
-    let text = settings_file().and_then(|f| std::fs::read_to_string(f).ok()).unwrap_or_default();
-    text.lines().any(|l| l.trim() == "restore_session=true")
+    setting("restore_session").as_deref() == Some("true")
 }
 
 pub fn set_restore_enabled(on: bool) -> Result<(), String> {
+    set_setting("restore_session", if on { "true" } else { "false" })
+}
+
+/// Valor de `chave=valor` no arquivo `settings`.
+pub fn setting(key: &str) -> Option<String> {
+    let text = settings_file().and_then(|f| std::fs::read_to_string(f).ok())?;
+    parse_setting(&text, key)
+}
+
+fn parse_setting(text: &str, key: &str) -> Option<String> {
+    text.lines().filter_map(|l| l.trim().split_once('=')).find(|(k, _)| k.trim() == key).map(|(_, v)| v.trim().to_string())
+}
+
+/// Grava `chave=valor` trocando a linha antiga e mantendo as outras.
+pub fn set_setting(key: &str, value: &str) -> Result<(), String> {
     let file = settings_file().ok_or("sem pasta de configuração")?;
     if let Some(dir) = file.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     let text = std::fs::read_to_string(&file).unwrap_or_default();
-    let mut lines: Vec<String> = text.lines().filter(|l| !l.trim().starts_with("restore_session=")).map(str::to_string).collect();
-    lines.push(format!("restore_session={on}"));
-    std::fs::write(&file, lines.join("\n") + "\n").map_err(|e| e.to_string())
+    std::fs::write(&file, with_setting(&text, key, value)).map_err(|e| e.to_string())
+}
+
+fn with_setting(text: &str, key: &str, value: &str) -> String {
+    let mut lines: Vec<&str> = text.lines().filter(|l| l.trim().split_once('=').is_none_or(|(k, _)| k.trim() != key)).collect();
+    let line = format!("{key}={value}");
+    lines.push(&line);
+    lines.join("\n") + "\n"
 }
 
 impl Session {
@@ -117,5 +136,16 @@ mod tests {
         // Um painel sem nenhuma pasta válida invalida a sessão.
         assert_eq!(Session::from_json(&text, |p| p != Path::new("/c")), None);
         assert_eq!(Session::from_json("lixo", |_| true), None);
+    }
+
+    #[test]
+    fn configuracoes_trocam_so_a_propria_linha() {
+        let text = "restore_session=true\ntheme=aurora\n";
+        let out = with_setting(text, "theme", "oceano");
+        assert_eq!(parse_setting(&out, "theme").as_deref(), Some("oceano"));
+        assert_eq!(parse_setting(&out, "restore_session").as_deref(), Some("true"));
+        assert_eq!(out.matches("theme=").count(), 1);
+        assert_eq!(parse_setting(&with_setting("", "vertical_tabs", "true"), "vertical_tabs").as_deref(), Some("true"));
+        assert_eq!(parse_setting("x=1", "theme"), None);
     }
 }
