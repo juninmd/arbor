@@ -17,7 +17,7 @@ pub use menu::{Menu, MenuKind};
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::session::{self, Session};
-use crate::{instance, launch, listing, pins, pointer, trashbin, update, watch};
+use crate::{instance, keymap, launch, listing, pins, pointer, trashbin, update, watch};
 use arbor_core::frecency::Frecency;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
 use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
@@ -1478,6 +1478,18 @@ impl App {
                     Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
                 }
             }
+            Cmd::EditKeys => match keymap::ensure_file().and_then(|f| launch::open_default(&f).map(|_| f)) {
+                Ok(f) => self.notify(format!("Editando {}. Salve e use \"Recarregar atalhos\".", f.display()), false),
+                Err(e) => self.notify(format!("Atalhos: {e}"), true),
+            },
+            Cmd::ReloadKeys => {
+                let (n, bad) = keymap::reload();
+                if bad.is_empty() {
+                    self.notify(format!("{n} atalho(s) personalizado(s) ativo(s)"), false)
+                } else {
+                    self.notify(format!("{n} atalho(s) ativo(s); linhas ignoradas: {}", bad.join(" | ")), true)
+                }
+            }
             Cmd::Jump => {
                 self.overlay = Overlay::Frecent { query: String::new(), selected: 0 };
                 op::focus(JUMP_INPUT)
@@ -1852,6 +1864,13 @@ impl App {
             Overlay::None => {}
         }
 
+        // Atalhos do usuário valem antes dos de fábrica. Num campo de texto, só os com Ctrl/Alt ou teclas F.
+        let is_f = matches!(&key, Key::Named(n) if format!("{n:?}").strip_prefix('F').is_some_and(|d| d.parse::<u8>().is_ok()));
+        if !captured || mods.command() || mods.alt() || is_f {
+            if let Some(cmd) = keymap::lookup(&key, mods) {
+                return self.run(cmd);
+            }
+        }
         let cmd_mod = mods.command();
         let grid = self.tab().grid;
         // Teclas que funcionam mesmo com o filtro focado.

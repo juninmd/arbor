@@ -202,7 +202,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+Shift+C` | Copiar caminho |
 | ``Ctrl+' `` | Terminal nesta pasta |
 
-No macOS, `Ctrl` vira `⌘`.
+No macOS, `Ctrl` vira `⌘`. Para trocar qualquer atalho, use *Editar atalhos* na paleta: abre o arquivo `keys` (uma linha `Tecla = Comando` por atalho) e *Recarregar atalhos* aplica sem reiniciar.
 
 ## Arquitetura
 

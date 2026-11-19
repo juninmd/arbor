@@ -10,6 +10,7 @@ mod computer;
 mod folder_views;
 mod glass;
 mod instance;
+mod keymap;
 mod launch;
 mod listing;
 mod media;
@@ -46,6 +47,7 @@ fn main() -> iced::Result {
     thumbs::prune_cache();
     glass::log_to_stderr();
     glass::prepare();
+    keymap::reload();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)
