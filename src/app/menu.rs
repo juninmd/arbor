@@ -149,7 +149,7 @@ impl App {
             Cmd::Paste => !here,
             Cmd::Undo => !self.undo.is_empty(),
             Cmd::Restore | Cmd::Purge => in_trash && has_target,
-            Cmd::Eject => self.tab().current().is_some_and(|e| self.drives.iter().any(|d| d.path == e.path && d.removable)),
+            Cmd::Eject => self.tab().current().is_some_and(|e| self.drives.iter().any(|d| d.path == e.path && d.removable())),
             Cmd::DeleteNow => has_target && (!here || in_trash),
             Cmd::Copy | Cmd::CopyToOther | Cmd::Open | Cmd::OpenDefault | Cmd::OpenWith | Cmd::Preview if in_trash => false,
             Cmd::Cut | Cmd::Rename | Cmd::Trash | Cmd::MoveToOther => has_target && !here,

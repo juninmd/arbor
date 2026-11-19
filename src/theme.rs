@@ -404,6 +404,10 @@ pub enum Icon {
     List,
     Grid,
     Drive,
+    DriveSystem,
+    Usb,
+    Disc,
+    Network,
     Download,
     Cut,
     Copy,
@@ -445,6 +449,12 @@ impl Icon {
                 r#"<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>"#
             }
             Icon::Drive => r#"<rect x="3" y="13" width="18" height="7" rx="2"/><path d="M5 13 7.5 5h9L19 13M17 16.5h.01"/>"#,
+            Icon::DriveSystem => {
+                r#"<rect x="3" y="13" width="18" height="7" rx="2"/><path d="M5 13 7.5 5h9L19 13M17 16.5h.01"/><path d="M10 7h1.6v1.6H10zM12.4 7H14v1.6h-1.6zM10 9.4h1.6V11H10zM12.4 9.4H14V11h-1.6z" fill="currentColor" stroke="none"/>"#
+            }
+            Icon::Usb => r#"<rect x="7" y="10" width="10" height="12" rx="2"/><path d="M9 10V3h6v7M10.5 5.5V7M13.5 5.5V7"/>"#,
+            Icon::Disc => r#"<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 5.5a6.5 6.5 0 0 1 6.5 6.5"/>"#,
+            Icon::Network => r#"<rect x="3" y="3" width="18" height="9" rx="2"/><path d="M7 7.5h.01M12 12v5M4 21h16M12 17v4"/>"#,
             Icon::Download => r#"<path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 20h14"/>"#,
             Icon::Cut => {
                 r#"<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>"#

@@ -1275,7 +1275,7 @@ impl App {
                 let Some(path) = self.menu_target.clone().or_else(|| self.tab().current().map(|e| e.path.clone())) else {
                     return Task::none();
                 };
-                if !self.drives.iter().any(|d| d.path == path && d.removable) {
+                if !self.drives.iter().any(|d| d.path == path && d.removable()) {
                     return self.notify("Só dá para ejetar mídia removível", false);
                 }
                 Task::perform(

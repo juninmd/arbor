@@ -83,7 +83,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 
 | Feature do Explorer | arbor | Prio |
 |---|---|---|
-| Nome do volume ("Disco Local", "Backup") e ícone por tipo (SSD, USB, DVD, rede) | 🟡 (nome do volume no Windows; ícone único) | P1 |
+| Nome do volume ("Disco Local", "Backup") e ícone por tipo (SSD, USB, DVD, rede) | ✅ (nome do volume no Windows; ícones distintos para disco do sistema, disco local, USB/cartão, DVD e rede, na lista e na barra lateral) | P1 |
 | Ejetar unidade removível | ✅ (menu do disco em Este Computador) | P1 |
 | Atualizar a lista quando um pendrive entra ou sai | ✅ (varredura a cada 4 s) | P1 |
 | Formatar, BitLocker, propriedades da unidade | ❌ | P3 |
