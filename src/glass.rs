@@ -2,7 +2,7 @@
 //! - Windows 11: Mica; Windows 10: Acrylic. A swapchain DX12 vem de DirectComposition (patch em
 //!   `patches/iced_wgpu`), a única forma de o conteúdo ter alfa por cima do material do sistema.
 //! - macOS: NSVisualEffectView (vibrancy).
-//! - Linux: transparência com desfoque do compositor (KDE desfoca; nos outros a área de trabalho aparece
+//! - Linux: transparência com desfoque do compositor (KDE desfoca; nos outros a área de desktop aparece
 //!   suave atrás da aurora).
 //!
 //! `ARBOR_NO_GLASS=1` desliga em qualquer sistema e a janela volta a ser opaca.
@@ -12,7 +12,7 @@ pub fn wanted() -> bool {
     // Windows: a swapchain de DirectComposition ainda derruba o app em algumas máquinas
     // ("Invalid surface" no Surface::configure). Até validar, o Mica é opt-in (ARBOR_GLASS=1).
     if cfg!(target_os = "windows") {
-        return std::env::var_os("ARBOR_GLASS").is_some();
+        return std::env::var_os("ARBOR_NO_GLASS").is_none() && std::env::var_os("ARBOR_GLASS").is_some();
     }
     std::env::var_os("ARBOR_NO_GLASS").is_none()
 }
