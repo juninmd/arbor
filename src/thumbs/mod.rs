@@ -3,6 +3,8 @@
 
 mod cover;
 mod external;
+#[cfg(windows)]
+mod shell_icon;
 
 use fast_image_resize::FilterType;
 use std::path::{Path, PathBuf};
@@ -17,6 +19,8 @@ const COVER: &[&str] = &["mp3", "flac"];
 /// Sem "ts": quase sempre é TypeScript, e cada um custaria um ffmpeg à toa.
 const VIDEO: &[&str] = &["mp4", "mkv", "mov", "avi", "webm", "wmv", "flv", "m4v", "mpg", "mpeg", "mts", "m2ts", "3gp"];
 const PDF: &[&str] = &["pdf"];
+/// Programas e atalhos: no Windows, o ícone real do Explorer em vez do ícone genérico.
+const PROGRAM: &[&str] = &["exe", "lnk", "msi", "url"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Source {
@@ -24,6 +28,7 @@ enum Source {
     Cover,
     Video,
     Pdf,
+    Program,
 }
 
 fn source(path: &Path) -> Option<Source> {
@@ -35,6 +40,8 @@ fn source(path: &Path) -> Option<Source> {
         Some(Source::Video)
     } else if formats::has_ext(path, PDF) {
         Some(Source::Pdf)
+    } else if program(path) {
+        Some(Source::Program)
     } else {
         None
     }
@@ -42,6 +49,11 @@ fn source(path: &Path) -> Option<Source> {
 
 pub fn supported(path: &Path) -> bool {
     source(path).is_some()
+}
+
+/// Ícone de programa: desenhado inteiro (sem cortar) e sem fundo, como no Explorer.
+pub fn program(path: &Path) -> bool {
+    cfg!(windows) && formats::has_ext(path, PROGRAM)
 }
 
 pub fn cache_dir() -> PathBuf {
@@ -66,7 +78,20 @@ pub fn generate(cache: &Path, path: &Path, size: u32) -> Result<Vec<u8>, String>
         return thumbs::thumbnail(cache, path, size);
     }
     let size = size.clamp(thumbs::MIN_SIZE, thumbs::MAX_SIZE);
-    let file = cache_file(cache, path, size)?;
+    #[cfg(windows)]
+    if kind == Source::Program {
+        // PNG para manter a transparência; o ícone já sai no tamanho certo, sem redimensionar.
+        let file = cache_file(cache, path, size, "png")?;
+        if let Some(hit) = std::fs::read(&file).ok().filter(|b| b.ends_with(PNG_END)) {
+            return Ok(hit);
+        }
+        let png = shell_icon::png(path, size)?;
+        if let Err(e) = write_atomic(&file, &png) {
+            eprintln!("arbor: gravar ícone no cache falhou: {e}");
+        }
+        return Ok(png);
+    }
+    let file = cache_file(cache, path, size, "jpg")?;
     if let Some(hit) = std::fs::read(&file).ok().filter(|b| is_complete_jpeg(b)) {
         return Ok(hit);
     }
@@ -74,7 +99,7 @@ pub fn generate(cache: &Path, path: &Path, size: u32) -> Result<Vec<u8>, String>
         Source::Cover => cover::read(path).ok_or("sem capa embutida")?,
         Source::Video => external::video_frame(path)?,
         Source::Pdf => external::pdf_page(path)?,
-        Source::Image => unreachable!("tratado acima"),
+        Source::Image | Source::Program => unreachable!("tratado acima ou só existe no Windows"),
     };
     let img = image::load_from_memory(&encoded).map_err(|e| e.to_string())?;
     let jpeg = resize::to_jpeg(&resize::fit_owned(img, size, size, FilterType::CatmullRom)?, 80)?;
@@ -85,10 +110,14 @@ pub fn generate(cache: &Path, path: &Path, size: u32) -> Result<Vec<u8>, String>
     Ok(jpeg)
 }
 
-fn cache_file(dir: &Path, src: &Path, size: u32) -> Result<PathBuf, String> {
+/// Fim do bloco IEND: um PNG cortado no meio da gravação não termina assim.
+#[cfg(windows)]
+const PNG_END: &[u8] = &[0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82];
+
+fn cache_file(dir: &Path, src: &Path, size: u32, ext: &str) -> Result<PathBuf, String> {
     let meta = std::fs::metadata(src).map_err(|e| e.to_string())?;
     let mtime = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos());
-    Ok(dir.join(format!("{}.jpg", thumbs::cache_key(src, meta.len(), mtime, size))))
+    Ok(dir.join(format!("{}.{ext}", thumbs::cache_key(src, meta.len(), mtime, size))))
 }
 
 /// Um arquivo cortado por queda ou disco cheio não pode ser servido como miniatura.
