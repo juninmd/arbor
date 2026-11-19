@@ -25,6 +25,7 @@ mod thumbs;
 mod trashbin;
 mod update;
 mod view;
+mod view_modes;
 mod watch;
 
 /// mimalloc: a listagem cria centenas de milhares de alocações pequenas em várias threads; com o
