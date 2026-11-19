@@ -4,7 +4,9 @@
 //! O visual segue o protótipo "arbor Glass" (tokens em `theme.rs`): aurora ao fundo, cartões de vidro,
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
-use crate::app::{App, Message, Overlay, Pane, Tab, UpdateState, CELL_H, CELL_W, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W};
+use crate::app::{
+    App, Message, Overlay, Pane, PromptKind, Tab, UpdateState, CELL_H, CELL_W, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W,
+};
 use crate::commands::Cmd;
 use crate::media::Preview;
 use crate::theme::{self, icon, Icon};
@@ -24,15 +26,23 @@ const GAP: f32 = 10.0;
 pub fn view(app: &App) -> Element<'_, Message> {
     let panes: Element<_> = if app.dual { row![pane(app, 0), pane(app, 1)].spacing(GAP).into() } else { pane(app, app.active) };
     let body = row![sidebar(app), container(panes).width(Fill).height(Fill)].spacing(GAP).height(Fill);
-    let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill).style(theme::backdrop);
+    let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill);
+    // a aurora fica atrás de tudo; os cartões de vidro deixam ela (e o vidro do sistema) aparecer
+    let aurora = image(app.aurora.clone()).width(Fill).height(Fill).content_fit(ContentFit::Fill);
     match overlay(app) {
-        Some(o) => stack![main, o].into(),
-        None => main.into(),
+        Some(o) => stack![aurora, main, o].into(),
+        None => stack![aurora, main].into(),
     }
 }
 
 pub fn theme(app: &App) -> Theme {
     theme::theme(app.dark)
+}
+
+/// Com vidro nativo o fundo da janela é transparente: quem pinta é a aurora translúcida sobre o sistema.
+pub fn style(app: &App, t: &Theme) -> iced::theme::Style {
+    let k = theme::tokens(t);
+    iced::theme::Style { background_color: if app.glass { Color::TRANSPARENT } else { k.void }, text_color: k.ink }
 }
 
 // ---------- barra lateral ----------
@@ -610,10 +620,12 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
                 .padding(10)
                 .size(14)
                 .style(theme::input);
+            let hint: Option<Element<_>> = (*kind == PromptKind::BatchRename).then(|| batch_hint(app, value));
             sheet(
                 column![
                     text(kind.title()).font(theme::DISPLAY).size(16),
                     input,
+                    hint,
                     row![
                         kbd("Enter".into()),
                         text("confirma").size(11.5).style(theme::ink3),
@@ -630,6 +642,30 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         Overlay::Preview { path, content } => preview(app, path, content.as_ref()),
     };
     Some(stack![scrim(), center(opaque(card)).padding(40)].into())
+}
+
+/// Ajuda e prévia ao vivo da renomeação em lote.
+fn batch_hint<'a>(app: &'a App, value: &str) -> Element<'a, Message> {
+    let help = text("{name} nome · {n} ou {n:3} contador · {ext} extensão · {date} data · {upper} {lower} · antigo => novo")
+        .size(11.5)
+        .style(theme::ink3);
+    let preview: Element<_> = match app.batch_preview(value) {
+        Ok((n, pairs)) => {
+            let rows = pairs.into_iter().map(|(from, to)| {
+                row![
+                    text(shorten(&from, 28)).size(12).font(theme::MONO).style(theme::ink3).width(Fill),
+                    text("→").size(12).style(theme::ink3),
+                    text(shorten(&to, 28)).size(12).font(theme::MONO).width(Fill)
+                ]
+                .spacing(8)
+                .into()
+            });
+            let more = (n > 6).then(|| text(format!("… e mais {}", n - 6)).size(11.5).style(theme::ink3));
+            column![text(format!("{n} item(ns) mudam de nome")).size(12), column(rows).spacing(3), more].spacing(6).into()
+        }
+        Err(e) => text(e).size(12).style(theme::danger).into(),
+    };
+    column![help, preview].spacing(8).into()
 }
 
 fn scrim<'a>() -> Element<'a, Message> {
