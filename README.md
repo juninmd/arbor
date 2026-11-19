@@ -51,6 +51,9 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   (pasta, imagem, código, documento, áudio, vídeo, compactado), tema claro com os mesmos tokens.
 * **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
   de fps com o pior quadro do último segundo.
+* **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
+  livre. Subir da raiz de um disco volta para lá. O que falta para a paridade está em
+  [docs/inventario-explorer-windows.md](docs/inventario-explorer-windows.md).
 * **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`).
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.

@@ -4,6 +4,7 @@
 
 mod app;
 mod commands;
+mod computer;
 mod launch;
 mod listing;
 mod media;

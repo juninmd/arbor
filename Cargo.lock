@@ -134,6 +134,7 @@ dependencies = [
  "fast_image_resize",
  "iced",
  "image",
+ "libc",
  "mimalloc",
  "notify",
  "open",
@@ -144,6 +145,7 @@ dependencies = [
  "tokio",
  "ureq",
  "vislo-core",
+ "windows-sys 0.61.2",
  "winresource",
 ]
 

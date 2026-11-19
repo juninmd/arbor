@@ -1,6 +1,7 @@
 //! Estado e lógica do app (o `update` do iced). A interface fica em `view.rs`.
 
 use crate::commands::{self, Cmd};
+use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::{launch, listing, update, watch};
 use arbor_core::ops::{self, JobEvent, Op, Undo};
@@ -39,7 +40,7 @@ pub struct App {
     modifiers: Modifiers,
     pub window: Size,
     pub places: Vec<(String, PathBuf)>,
-    pub drives: Vec<(String, PathBuf)>,
+    pub drives: Vec<Drive>,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -150,6 +151,9 @@ impl Tab {
     }
 
     pub fn title(&self) -> String {
+        if computer::is(&self.path) {
+            return computer::TITLE.into();
+        }
         self.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| self.path.to_string_lossy().into_owned())
     }
 
@@ -292,7 +296,7 @@ pub enum Message {
     CancelJob(u64),
     ToastExpired(u64),
     DirChanged(PathBuf),
-    Places(Vec<(String, PathBuf)>),
+    Places(Vec<Drive>),
     Frame(Instant),
     UpdateCheck { manual: bool },
     UpdateChecked { manual: bool, result: Result<Option<update::Update>, String> },
@@ -309,8 +313,7 @@ impl App {
             .map(PathBuf::from)
             .and_then(|p| std::fs::canonicalize(p).ok())
             .and_then(start_dir)
-            .or_else(dirs::home_dir)
-            .unwrap_or_else(|| PathBuf::from("/"));
+            .unwrap_or_else(computer::path);
         let second = dirs::download_dir().filter(|d| d.is_dir()).unwrap_or_else(|| start.clone());
         let mut app = App {
             panes: [
@@ -331,7 +334,7 @@ impl App {
             thumbs: HashMap::new(),
             modifiers: Modifiers::default(),
             window: Size::new(1280.0, 800.0),
-            places: places(),
+            places: computer::places(),
             drives: vec![],
             next_tab: 2,
             update: UpdateState::Idle,
@@ -340,7 +343,7 @@ impl App {
         let tasks = Task::batch([
             app.load(0, start, false),
             app.load(1, second, false),
-            Task::perform(async { tokio::task::spawn_blocking(drives).await.unwrap_or_default() }, Message::Places),
+            scan_drives(),
             if update::auto_enabled() {
                 Task::perform(tokio::time::sleep(update::FIRST_CHECK), |_| Message::UpdateCheck { manual: false })
             } else {
@@ -351,7 +354,7 @@ impl App {
     }
 
     pub fn title(&self) -> String {
-        format!("{} — arbor", self.tab().path.display())
+        format!("{} — arbor", if computer::is(&self.tab().path) { computer::TITLE.into() } else { self.tab().path.display().to_string() })
     }
 
     pub fn tab(&self) -> &Tab {
@@ -392,7 +395,10 @@ impl App {
             _ => None,
         });
         let visible = if self.dual { &self.panes[..] } else { &self.panes[self.active..=self.active] };
-        let watchers = visible.iter().map(|p| Subscription::run_with(p.tab().path.clone(), watch::watch).map(Message::DirChanged));
+        let watchers = visible
+            .iter()
+            .filter(|p| !computer::is(&p.tab().path))
+            .map(|p| Subscription::run_with(p.tab().path.clone(), watch::watch).map(Message::DirChanged));
         let fps = if self.fps.is_some() { window::frames().map(Message::Frame) } else { Subscription::none() };
         let updates = if update::auto_enabled() {
             iced::time::every(update::EVERY).map(|_| Message::UpdateCheck { manual: false })
@@ -429,6 +435,9 @@ impl App {
         }
         let (id, generation, sort) = (tab.id, tab.generation, tab.sort);
         let scroll = if refresh { Task::none() } else { op::scroll_to(tab.scroll_id(), AbsoluteOffset { x: 0.0, y: 0.0 }) };
+        if computer::is(&path) {
+            return Task::batch([scan_drives(), scroll]);
+        }
         Task::batch([Task::run(listing::list(path, sort), move |snap| Message::Listed { tab: id, generation, snap }), scroll])
     }
 
@@ -445,7 +454,11 @@ impl App {
 
     fn go_up(&mut self) -> Task<Message> {
         let tab = self.tab();
-        let Some(parent) = tab.path.parent().map(Path::to_path_buf) else { return Task::none() };
+        // Acima da raiz de um disco fica "Este Computador", como no Explorer.
+        if computer::is(&tab.path) {
+            return Task::none();
+        }
+        let parent = tab.path.parent().map(Path::to_path_buf).unwrap_or_else(computer::path);
         let child = tab.path.clone();
         let pane = self.active;
         let task = self.navigate(pane, parent);
@@ -490,10 +503,12 @@ impl App {
             return Task::none();
         }
         // A ordenação pode ter mudado enquanto a lista era lida; o snapshot veio na ordem antiga.
+        // "Este Computador" chega já agrupado (pastas, depois discos); só reordena se pedirem.
         let sort = tab.sort;
+        let grouped = computer::is(&tab.path);
         tab.edit_entries(show_hidden, |entries| {
             *entries = snap.entries;
-            if !entries.is_sorted_by(|a, b| arbor_core::compare(a, b, sort).is_le()) {
+            if !grouped && !entries.is_sorted_by(|a, b| arbor_core::compare(a, b, sort).is_le()) {
                 sort_entries(Arc::<Vec<Entry>>::make_mut(entries), sort);
             }
         });
@@ -666,6 +681,13 @@ impl App {
 
     fn run(&mut self, cmd: Cmd) -> Task<Message> {
         let pane = self.active;
+        // "Este Computador" é virtual: renomear, apagar ou colar ali agiria nas pastas e discos de verdade.
+        let here = computer::is(&self.tab().path);
+        let there = self.dual && computer::is(&self.panes[self.other_pane()].tab().path);
+        let writes_here = matches!(cmd, Cmd::Paste | Cmd::Trash | Cmd::Rename | Cmd::NewFolder | Cmd::Cut | Cmd::MoveToOther);
+        if (here && writes_here) || (there && matches!(cmd, Cmd::CopyToOther | Cmd::MoveToOther)) {
+            return self.notify(format!("{} não aceita essa operação; abra uma pasta", computer::TITLE), true);
+        }
         match cmd {
             Cmd::Open => match self.tab().current().cloned() {
                 Some(e) => self.open_entry(pane, e),
@@ -775,7 +797,7 @@ impl App {
                 op::focus(id)
             }
             Cmd::GoTo => {
-                let path = self.tab().path.to_string_lossy().into_owned();
+                let path = if here { String::new() } else { self.tab().path.to_string_lossy().into_owned() };
                 self.open_prompt(PromptKind::GoTo, path)
             }
             Cmd::ToggleHidden => {
@@ -809,10 +831,12 @@ impl App {
                 let text = if text.is_empty() { self.tab().path.to_string_lossy().into_owned() } else { text };
                 Task::batch([iced::clipboard::write(text), self.notify("Caminho copiado", false)])
             }
-            Cmd::Terminal => match launch::terminal_here(&self.tab().path) {
-                Ok(()) => Task::none(),
-                Err(e) => self.notify(format!("Terminal: {e}"), true),
-            },
+            Cmd::Terminal => {
+                match launch::terminal_here(&if here { dirs::home_dir().unwrap_or_default() } else { self.tab().path.clone() }) {
+                    Ok(()) => Task::none(),
+                    Err(e) => self.notify(format!("Terminal: {e}"), true),
+                }
+            }
             Cmd::Reveal => {
                 let target = self.tab().current().map(|e| e.path.clone()).unwrap_or_else(|| self.tab().path.clone());
                 match launch::reveal(&target) {
@@ -1172,7 +1196,7 @@ impl App {
             }
             Message::Dropped(path) => {
                 let dest = self.tab().path.clone();
-                if path.parent() == Some(dest.as_path()) {
+                if computer::is(&dest) || path.parent() == Some(dest.as_path()) {
                     return Task::none();
                 }
                 self.start(Op::Copy { sources: vec![path], dest })
@@ -1322,7 +1346,15 @@ impl App {
             }
             Message::Places(drives) => {
                 self.drives = drives;
-                Task::none()
+                let snap = Snapshot {
+                    entries: Arc::new(computer::entries(&self.places, &self.drives)),
+                    complete: true,
+                    elapsed: Duration::ZERO,
+                    error: None,
+                };
+                let tabs: Vec<_> =
+                    self.panes.iter().flat_map(|p| &p.tabs).filter(|t| computer::is(&t.path)).map(|t| (t.id, t.generation)).collect();
+                Task::batch(tabs.into_iter().map(|(id, generation)| self.on_listed(id, generation, snap.clone())).collect::<Vec<_>>())
             }
         }
     }
@@ -1337,50 +1369,8 @@ fn start_dir(p: PathBuf) -> Option<PathBuf> {
     }
 }
 
-fn places() -> Vec<(String, PathBuf)> {
-    let candidates = [
-        ("Início", dirs::home_dir()),
-        ("Área de trabalho", dirs::desktop_dir()),
-        ("Documentos", dirs::document_dir()),
-        ("Downloads", dirs::download_dir()),
-        ("Imagens", dirs::picture_dir()),
-        ("Músicas", dirs::audio_dir()),
-        ("Vídeos", dirs::video_dir()),
-    ];
-    candidates.into_iter().filter_map(|(n, p)| p.map(|p| (n.to_string(), p))).collect()
-}
-
-/// Discos e volumes. Roda fora da interface: um drive de rede desconectado pode demorar a responder.
-fn drives() -> Vec<(String, PathBuf)> {
-    let mut v = Vec::new();
-    #[cfg(windows)]
-    for letter in b'C'..=b'Z' {
-        let root = PathBuf::from(format!("{}:\\", letter as char));
-        if root.exists() {
-            v.push((format!("Disco {}:", letter as char), root));
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        v.push(("Sistema (/)".to_string(), PathBuf::from("/")));
-        let mut roots = vec![PathBuf::from("/Volumes")];
-        if let Ok(user) = std::env::var("USER") {
-            roots.push(PathBuf::from("/media").join(&user));
-            roots.push(PathBuf::from("/run/media").join(&user));
-        }
-        roots.push(PathBuf::from("/mnt"));
-        for root in roots {
-            if let Ok(rd) = std::fs::read_dir(&root) {
-                for e in rd.flatten().filter(|e| e.path().is_dir()) {
-                    if e.path() == Path::new("/Volumes/Macintosh HD") {
-                        continue;
-                    }
-                    v.push((e.file_name().to_string_lossy().into_owned(), e.path()));
-                }
-            }
-        }
-    }
-    v
+fn scan_drives() -> Task<Message> {
+    Task::perform(async { tokio::task::spawn_blocking(computer::drives).await.unwrap_or_default() }, Message::Places)
 }
 
 #[cfg(test)]

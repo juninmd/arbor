@@ -338,6 +338,11 @@ pub fn progress(t: &Theme) -> iced::widget::progress_bar::Style {
     }
 }
 
+/// Disco quase cheio: mesma barra, em vermelho.
+pub fn progress_full(t: &Theme) -> iced::widget::progress_bar::Style {
+    iced::widget::progress_bar::Style { bar: Background::Color(tokens(t).danger), ..progress(t) }
+}
+
 pub fn scrollbar(t: &Theme, status: iced::widget::scrollable::Status) -> iced::widget::scrollable::Style {
     use iced::widget::scrollable::{Rail, Scroller, Status};
     let k = tokens(t);

@@ -6,6 +6,7 @@
 
 use crate::app::{App, Message, Overlay, Pane, Tab, UpdateState, CELL_H, CELL_W, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W};
 use crate::commands::Cmd;
+use crate::computer::{self, Drive};
 use crate::media::Preview;
 use crate::theme::{self, icon, Icon};
 use crate::update::{self, Progress};
@@ -17,6 +18,8 @@ use iced::widget::{
 };
 use iced::{Alignment, Color, ContentFit, Element, Fill, Length, Padding, Theme};
 use std::path::{Component, Path, PathBuf};
+
+mod computer_view;
 
 const OVERSCAN: usize = 8;
 const GAP: f32 = 10.0;
@@ -39,6 +42,7 @@ pub fn theme(app: &App) -> Theme {
 
 fn sidebar(app: &App) -> Element<'_, Message> {
     let current = &app.tab().path;
+    let computer_path = computer::path();
     let item = |label: &str, path: &PathBuf, ic: Icon, color: Color| -> Element<'_, Message> {
         let active = current == path;
         let content =
@@ -58,15 +62,19 @@ fn sidebar(app: &App) -> Element<'_, Message> {
     .spacing(9)
     .align_y(Alignment::Center);
 
-    let mut col = Column::new().spacing(2).push(heading("Locais"));
+    let mut col = Column::new()
+        .spacing(2)
+        .push(item(computer::TITLE, &computer_path, Icon::Drive, theme::ICE))
+        .push(space().height(12))
+        .push(heading("Locais"));
     for (label, path) in &app.places {
         let (ic, color) = place_icon(label);
         col = col.push(item(label, path, ic, color));
     }
     if !app.drives.is_empty() {
         col = col.push(space().height(12)).push(heading("Discos"));
-        for (label, path) in &app.drives {
-            col = col.push(item(label, path, Icon::Drive, theme::STEEL));
+        for d in &app.drives {
+            col = col.push(item(&d.label, &d.path, Icon::Drive, theme::STEEL));
         }
     }
     let palette = button(
@@ -231,7 +239,13 @@ fn view_switch(tab: &Tab) -> Element<'_, Message> {
 fn breadcrumbs(tab: &Tab) -> Element<'_, Message> {
     let mut acc = PathBuf::new();
     let mut r = Row::new().spacing(1).align_y(Alignment::Center);
-    let parts: Vec<_> = tab.path.components().collect();
+    let in_computer = computer::is(&tab.path);
+    // Como no Explorer: todo caminho começa em "Este Computador".
+    r = r.push(crumb(tab.id, computer::TITLE.into(), computer::path(), in_computer));
+    let parts: Vec<_> = if in_computer { vec![] } else { tab.path.components().collect() };
+    if !parts.is_empty() {
+        r = r.push(text("›").size(12).style(theme::ink3));
+    }
     for (i, c) in parts.iter().enumerate() {
         acc.push(c.as_os_str());
         let label = match c {
@@ -243,19 +257,7 @@ fn breadcrumbs(tab: &Tab) -> Element<'_, Message> {
         if i > 0 && !matches!(parts[i - 1], Component::RootDir | Component::Prefix(_)) {
             r = r.push(text("›").size(12).style(theme::ink3));
         }
-        let last = i == parts.len() - 1;
-        let label = text(label).size(12.5).wrapping(Wrapping::None).font(if last { theme::UI_BOLD } else { theme::UI });
-        r = r.push(button(label).padding([4, 7]).on_press(Message::NavigateIn { tab: tab.id, path: acc.clone() }).style(
-            move |t: &Theme, s| {
-                let mut st = theme::ghost(t, s);
-                if last {
-                    st.text_color = theme::tokens(t).ink;
-                } else if s == button::Status::Active {
-                    st.text_color = theme::tokens(t).ink3;
-                }
-                st
-            },
-        ));
+        r = r.push(crumb(tab.id, label, acc.clone(), i == parts.len() - 1));
     }
     let bar = scrollable(r).direction(thin_horizontal()).anchor_right().width(Fill).style(theme::scrollbar);
     mouse_area(container(bar).width(Fill)).on_double_click(Message::Run(Cmd::GoTo)).into()
@@ -287,13 +289,16 @@ fn body<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
     }
     if tab.grid {
         grid(app, tab, pane_active)
+    } else if computer::is(&tab.path) {
+        computer_view::body(app, tab, pane_active)
     } else {
-        column![header(tab), list(tab, pane_active)].into()
+        column![header(tab), list(app, tab, pane_active)].into()
     }
 }
 
 fn header(tab: &Tab) -> Element<'_, Message> {
     let id = tab.id;
+    let disks = computer::is(&tab.path);
     let col = |label: &'static str, key: SortKey, width: Length, right: bool| -> Element<'_, Message> {
         let arrow = match (tab.sort.key == key, tab.sort.desc) {
             (true, true) => " ↓",
@@ -316,8 +321,8 @@ fn header(tab: &Tab) -> Element<'_, Message> {
             space().width(28),
             col("Nome", SortKey::Name, Fill, false),
             col("Tipo", SortKey::Kind, Length::Fixed(64.0), false),
-            col("Tamanho", SortKey::Size, Length::Fixed(80.0), true),
-            col("Modificado", SortKey::Modified, Length::Fixed(118.0), false),
+            col(if disks { "Total" } else { "Tamanho" }, SortKey::Size, Length::Fixed(80.0), true),
+            col(if disks { "Livre" } else { "Modificado" }, SortKey::Modified, Length::Fixed(118.0), false),
         ]
         .spacing(10)
         .align_y(Alignment::Center),
@@ -326,13 +331,13 @@ fn header(tab: &Tab) -> Element<'_, Message> {
     .into()
 }
 
-fn list(tab: &Tab, pane_active: bool) -> Element<'_, Message> {
+fn list<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Message> {
     let total = tab.view.len();
     let first = ((tab.scroll_y / ROW_H).floor() as usize).saturating_sub(OVERSCAN).min(total);
     let end = (first + (tab.viewport_h / ROW_H).ceil() as usize + 2 * OVERSCAN).min(total);
     let mut col = Column::new().push(space().height(first as f32 * ROW_H));
     for i in first..end {
-        col = col.push(list_row(tab, i, pane_active));
+        col = col.push(list_row(app, tab, i, pane_active));
     }
     col = col.push(space().height((total - end) as f32 * ROW_H));
     let id = tab.id;
@@ -345,8 +350,13 @@ fn list(tab: &Tab, pane_active: bool) -> Element<'_, Message> {
         .into()
 }
 
-fn list_row(tab: &Tab, i: usize, pane_active: bool) -> Element<'_, Message> {
+fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Element<'a, Message> {
     let e = tab.entry_at(i).expect("índice válido");
+    let drive = drive_of(app, tab, e);
+    let (size, when) = match drive {
+        Some(d) => d.space.map(|(free, total)| (human_size(total), human_size(free))).unwrap_or_default(),
+        None => (if e.is_dir { String::new() } else { human_size(e.size) }, human_time(e.modified)),
+    };
     let selected = tab.selected.contains(&e.path);
     let cursor = i == tab.cursor;
     let dim = e.hidden;
@@ -358,16 +368,11 @@ fn list_row(tab: &Tab, i: usize, pane_active: bool) -> Element<'_, Message> {
         .font(if strong { theme::UI_BOLD } else { theme::UI })
         .style(move |t: &Theme| if dim { theme::ink3(t) } else { text::Style { color: Some(theme::tokens(t).ink) } });
     let line = row![
-        chip(e, 24.0),
+        chip(entry_kind(e, drive), 24.0),
         name,
-        text(kind_label(e)).size(11.5).width(64).wrapping(Wrapping::None).style(theme::ink3),
-        text(if e.is_dir { String::new() } else { human_size(e.size) })
-            .font(theme::MONO)
-            .size(11)
-            .width(80)
-            .align_x(Alignment::End)
-            .style(theme::ink3),
-        text(human_time(e.modified)).font(theme::MONO).size(11).width(118).wrapping(Wrapping::None).style(theme::ink3),
+        text(if drive.is_some() { "Disco".into() } else { kind_label(e) }).size(11.5).width(64).wrapping(Wrapping::None).style(theme::ink3),
+        text(size).font(theme::MONO).size(11).width(80).align_x(Alignment::End).style(theme::ink3),
+        text(when).font(theme::MONO).size(11).width(118).wrapping(Wrapping::None).style(theme::ink3),
     ]
     .spacing(10)
     .align_y(Alignment::Center);
@@ -409,10 +414,12 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
     let e = tab.entry_at(i).expect("índice válido");
     let selected = tab.selected.contains(&e.path);
     let cursor = i == tab.cursor;
-    let color = kind_color(kind(e));
+    let drive = drive_of(app, tab, e);
+    let k = entry_kind(e, drive);
+    let color = kind_color(k);
     let thumb: Element<_> = match app.thumbs.get(&e.path) {
         Some(Some(h)) => image(h.clone()).content_fit(ContentFit::Cover).width(Fill).height(96).border_radius(10).into(),
-        _ => container(chip(e, 46.0))
+        _ => container(chip(k, 46.0))
             .center_x(Fill)
             .center_y(96)
             .style(move |_| container::Style {
@@ -424,7 +431,12 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
     };
     let label =
         text(shorten(&e.name, 30)).size(12).width(Fill).wrapping(Wrapping::None).font(if selected { theme::UI_BOLD } else { theme::UI });
-    let meta = text(if e.is_dir { "Pasta".to_string() } else { human_size(e.size) }).font(theme::MONO).size(10).style(theme::ink3);
+    let meta = match drive.and_then(|d| d.space) {
+        Some((free, total)) => format!("{} livres de {}", human_size(free), human_size(total)),
+        None if e.is_dir => "Pasta".to_string(),
+        None => human_size(e.size),
+    };
+    let meta = text(meta).font(theme::MONO).size(10).style(theme::ink3);
     let cell = container(column![thumb, label, meta].spacing(4)).width(CELL_W - 10.0).height(CELL_H - 10.0).padding(6).clip(true).style(
         move |t: &Theme| {
             let mut s = theme::row(t, selected, cursor, pane_active);
@@ -453,6 +465,23 @@ fn status_line(tab: &Tab, show_hidden: bool) -> Element<'_, Message> {
         parts.push(format!("lendo… {}", human_count(tab.entries.len())));
     }
     container(text(parts.join("  ·  ")).size(11.5).style(theme::ink3)).padding([6, 16]).into()
+}
+
+fn crumb<'a>(tab: u64, label: String, path: PathBuf, last: bool) -> Element<'a, Message> {
+    let label = text(label).size(12.5).wrapping(Wrapping::None).font(if last { theme::UI_BOLD } else { theme::UI });
+    button(label)
+        .padding([4, 7])
+        .on_press(Message::NavigateIn { tab, path })
+        .style(move |t: &Theme, s| {
+            let mut st = theme::ghost(t, s);
+            if last {
+                st.text_color = theme::tokens(t).ink;
+            } else if s == button::Status::Active {
+                st.text_color = theme::tokens(t).ink3;
+            }
+            st
+        })
+        .into()
 }
 
 // ---------- doca: atalhos, operações, avisos, fps e atualização ----------
@@ -491,8 +520,7 @@ fn dock(app: &App) -> Element<'_, Message> {
             .into()
     } else {
         let tab = app.tab();
-        let where_ =
-            tab.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| tab.path.to_string_lossy().into_owned());
+        let where_ = tab.title();
         row![
             text(where_).font(theme::UI_BOLD).size(12),
             text(format!("·  {} itens", human_count(tab.view.len()))).size(12).style(theme::ink3)
@@ -789,6 +817,19 @@ fn fmt_ms(ms: f64) -> String {
     }
 }
 
+/// Em "Este Computador", as entradas que são discos (e só elas) ganham ícone e colunas de disco.
+fn drive_of<'a>(app: &'a App, tab: &Tab, e: &Entry) -> Option<&'a Drive> {
+    computer::is(&tab.path).then(|| app.drives.iter().find(|d| d.path == e.path)).flatten()
+}
+
+fn entry_kind(e: &Entry, drive: Option<&Drive>) -> Kind {
+    if drive.is_some() {
+        Kind::Drive
+    } else {
+        kind(e)
+    }
+}
+
 fn kind_label(e: &Entry) -> String {
     if e.is_dir {
         "Pasta".into()
@@ -802,6 +843,7 @@ fn kind_label(e: &Entry) -> String {
 #[derive(Clone, Copy)]
 enum Kind {
     Folder,
+    Drive,
     Image,
     Code,
     Archive,
@@ -831,6 +873,7 @@ fn kind(e: &Entry) -> Kind {
 fn kind_color(k: Kind) -> Color {
     match k {
         Kind::Folder => theme::ICE,
+        Kind::Drive => theme::STEEL,
         Kind::Image => theme::ROSE,
         Kind::Code => theme::MINT,
         Kind::Doc => theme::IRIS,
@@ -843,6 +886,7 @@ fn kind_color(k: Kind) -> Color {
 fn kind_icon(k: Kind) -> Icon {
     match k {
         Kind::Folder => Icon::Folder,
+        Kind::Drive => Icon::Drive,
         Kind::Image => Icon::Image,
         Kind::Code => Icon::Code,
         Kind::Doc => Icon::Doc,
@@ -854,8 +898,7 @@ fn kind_icon(k: Kind) -> Icon {
 }
 
 /// Ficha de ícone: quadrado arredondado tingido com a cor do tipo.
-fn chip<'a>(e: &Entry, size: f32) -> Element<'a, Message> {
-    let k = kind(e);
+fn chip<'a>(k: Kind, size: f32) -> Element<'a, Message> {
     let color = kind_color(k);
     container(icon(kind_icon(k), size * 0.58, color)).center_x(size).center_y(size).style(theme::chip(color)).into()
 }
