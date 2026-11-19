@@ -26,6 +26,8 @@ pub fn virtual_title(p: &Path) -> Option<&'static str> {
         Some(crate::trashbin::TITLE)
     } else if crate::home::is(p) {
         Some(crate::home::TITLE)
+    } else if crate::discovery::is(p) {
+        Some(crate::discovery::TITLE)
     } else {
         None
     }
@@ -33,7 +35,7 @@ pub fn virtual_title(p: &Path) -> Option<&'static str> {
 
 /// Locais que não são pastas de verdade ("Este Computador" e "Lixeira"): sem escrever, colar ou soltar.
 pub fn is_virtual(p: &Path) -> bool {
-    is(p) || crate::trashbin::is(p) || crate::home::is(p) || crate::network::server_root(p).is_some()
+    is(p) || crate::trashbin::is(p) || crate::home::is(p) || crate::discovery::is(p) || crate::network::server_root(p).is_some()
 }
 
 #[derive(Debug, Clone)]

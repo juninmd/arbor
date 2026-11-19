@@ -18,7 +18,7 @@ pub use menu::{Menu, MenuKind};
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::session::{self, Session};
-use crate::{home, instance, keymap, launch, listing, network, pins, pointer, trashbin, update, watch};
+use crate::{discovery, home, instance, keymap, launch, listing, network, pins, pointer, trashbin, update, watch};
 use arbor_core::frecency::Frecency;
 use arbor_core::group::GroupBy;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
@@ -76,6 +76,7 @@ pub struct App {
     pub computer: PathBuf,
     pub trash: PathBuf,
     /// Caminho-sentinela de "Início" e os arquivos abertos recentemente que ele lista.
+    pub network: PathBuf,
     pub home: PathBuf,
     recent: Vec<PathBuf>,
     next_tab: u64,
@@ -453,6 +454,12 @@ pub enum Message {
     TrashDone(Result<String, String>),
     Confirmed,
     Ejected(Result<(), String>),
+    /// Compartilhamento montado pelo GVFS (Linux): a aba troca o caminho UNC pela pasta montada.
+    #[cfg(target_os = "linux")]
+    Mounted {
+        tab: u64,
+        result: Result<PathBuf, String>,
+    },
     /// Varredura periódica de discos: só atualiza a tela se um volume entrou ou saiu.
     DrivesPolled(Vec<Drive>),
     DrivesTick,
@@ -625,6 +632,7 @@ impl App {
             computer: computer::path(),
             trash: trashbin::path(),
             home: home::path(),
+            network: discovery::path(),
             recent: home::load(),
             next_tab: 2,
             update: UpdateState::Idle,
@@ -844,6 +852,22 @@ impl App {
         if home::is(&path) {
             return Task::batch([Task::done(Message::HomeRefresh), scroll]);
         }
+        if discovery::is(&path) {
+            tab.search = None;
+            return Task::batch([
+                Task::run(listing::list_network(sort), move |snap| Message::Listed { tab: id, generation, snap }),
+                scroll,
+            ]);
+        }
+        #[cfg(target_os = "linux")]
+        if let Some((server, share)) = network::split_share(&path) {
+            return Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || network::mount_share(&server, &share)).await.unwrap_or_else(|e| Err(e.to_string()))
+                },
+                move |result| Message::Mounted { tab: id, result },
+            );
+        }
         if let Some(server) = network::server_root(&path) {
             tab.search = None;
             return Task::batch([
@@ -880,14 +904,15 @@ impl App {
 
     fn go_up(&mut self) -> Task<Message> {
         let tab = self.tab();
-        // Acima da raiz de um disco fica "Este Computador", como no Explorer.
-        if computer::is_virtual(&tab.path) {
-            return Task::none();
-        }
-        // \\servidor sobe para "Este Computador"; \\servidor\compartilhamento sobe para o servidor.
+        // \\servidor sobe para "Rede", e "Rede" para "Este Computador", como no Explorer.
         let parent = if network::server_root(&tab.path).is_some() {
+            discovery::path()
+        } else if discovery::is(&tab.path) {
             computer::path()
+        } else if computer::is_virtual(&tab.path) {
+            return Task::none();
         } else {
+            // Acima da raiz de um disco fica "Este Computador"; \\servidor\compartilhamento sobe para o servidor.
             tab.path.parent().map(Path::to_path_buf).or_else(|| network::share_parent(&tab.path)).unwrap_or_else(computer::path)
         };
         let child = tab.path.clone();
@@ -2305,6 +2330,19 @@ impl App {
                     Err(e) => self.notify(format!("Não ejetou: {e}"), true),
                 };
                 Task::batch([note, scan_drives()])
+            }
+            #[cfg(target_os = "linux")]
+            Message::Mounted { tab, result } => {
+                let Some(pane) = self.pane_of(tab).filter(|&p| self.panes[p].tab().id == tab) else { return Task::none() };
+                match result {
+                    // Troca o caminho sem histórico: voltar não remonta o compartilhamento.
+                    Ok(dir) if network::split_share(&self.panes[pane].tab().path).is_some() => {
+                        self.panes[pane].tab_mut().path = dir.clone();
+                        self.load(pane, dir, false)
+                    }
+                    Ok(_) => Task::none(),
+                    Err(e) => self.notify(e, true),
+                }
             }
             Message::TreeLoaded { path, dirs } => {
                 self.tree.children.insert(path, dirs);
