@@ -488,6 +488,8 @@ pub enum Message {
         event: JobEvent,
     },
     CancelJob(u64),
+    /// Texto para o aviso do rodapé, vindo de uma tarefa em segundo plano.
+    Info(String),
     /// Resultado de abrir um arquivo de dentro de um compactado.
     Opened {
         name: String,
@@ -1419,6 +1421,33 @@ impl App {
                     Err(e) => self.notify(e, true),
                 }
             }
+            Cmd::WhoUses => {
+                let targets = self.tab().targets();
+                if targets.is_empty() {
+                    return Task::none();
+                }
+                Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            let lines: Vec<String> = targets
+                                .iter()
+                                .filter_map(|p| {
+                                    let who = arbor_core::lockers::who_uses(p);
+                                    (!who.is_empty()).then(|| format!("{}: {}", ops::name(p), arbor_core::lockers::describe(&who)))
+                                })
+                                .collect();
+                            if lines.is_empty() {
+                                "Nenhum programa está usando a seleção".to_string()
+                            } else {
+                                format!("Em uso por {}", lines.join(" · "))
+                            }
+                        })
+                        .await
+                        .unwrap_or_default()
+                    },
+                    Message::Info,
+                )
+            }
             Cmd::ToggleFps => {
                 self.fps = if self.fps.is_some() { None } else { Some(Fps::default()) };
                 Task::none()
@@ -2147,6 +2176,7 @@ impl App {
                     Task::batch([refresh, next, toast])
                 }
             },
+            Message::Info(text) => self.notify(text, false),
             Message::Opened { name, result } => match result {
                 Ok(()) => Task::none(),
                 Err(e) => self.notify(format!("Não abriu {name}: {e}"), true),

@@ -217,7 +217,15 @@ pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
             with_skipped(out, skipped)
         }
         Op::Trash { paths } => {
-            trash::delete_all(&paths).map_err(io::Error::other)?;
+            trash::delete_all(&paths).map_err(|e| {
+                // Diz quem está segurando, se for isso (a lixeira não devolve o código do sistema).
+                match paths.iter().map(|p| (p, crate::lockers::who_uses(p))).find(|(_, w)| !w.is_empty()) {
+                    Some((p, who)) => {
+                        io::Error::other(format!("{} está em uso por {}. Feche e tente de novo.", name(p), crate::lockers::describe(&who)))
+                    }
+                    None => io::Error::other(e),
+                }
+            })?;
             Ok(Outcome {
                 summary: format!("{} na lixeira. Ctrl+Z desfaz.", count(paths.len())),
                 undo: Some(Undo::Trashed(paths)),
@@ -228,7 +236,7 @@ pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
             if to.exists() && !same_file_ignoring_case(&from, &to) {
                 return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} já existe", name(&to))));
             }
-            fs::rename(&from, &to)?;
+            fs::rename(&from, &to).map_err(|e| crate::lockers::explain(e, &from))?;
             Ok(Outcome {
                 summary: format!("Renomeado para {}", name(&to)),
                 undo: Some(Undo::Moved(vec![(from, to.clone())])),
@@ -492,7 +500,7 @@ fn move_item(src: &Path, dst: &Path, ctx: &mut Ctx) -> io::Result<()> {
                 fs::remove_file(src)
             }
         }
-        Err(e) => Err(e),
+        Err(e) => Err(crate::lockers::explain(e, src)),
     }
 }
 
@@ -549,7 +557,7 @@ fn copy_symlink(_src: &Path, _dst: &Path) -> io::Result<()> {
 fn copy_file(src: &Path, dst: &Path, ctx: &mut Ctx) -> io::Result<()> {
     let part = dst.with_file_name(format!(".{}.arbor-part", name(dst)));
     let result = (|| {
-        let mut input = fs::File::open(src)?;
+        let mut input = fs::File::open(src).map_err(|e| crate::lockers::explain(e, src))?;
         let meta = input.metadata()?;
         let mut output = fs::File::create(&part)?;
         let mut buf = vec![0u8; 1 << 20];

@@ -4,6 +4,7 @@
 pub mod archive;
 pub mod entry;
 pub mod fuzzy;
+pub mod lockers;
 pub mod ops;
 pub mod rename;
 pub mod scan;
