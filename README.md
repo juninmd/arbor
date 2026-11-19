@@ -56,7 +56,9 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   anterior.
 * **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
 * **Preview com Espaço** de imagens (todos os formatos do [Vislo](https://github.com/juninmd/vislo), com EXIF),
-  texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) com cache em disco pelo `vislo-core`.
+  texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) de imagens (inclusive PSD e RAW), capa de MP3 e
+  FLAC, vídeo e PDF, com cache em disco limitado a 512 MB. Vídeo e PDF usam o Quick Look no macOS e, no Linux e no
+  Windows, o `ffmpeg` e o `pdftoppm` (Poppler) se estiverem no PATH; sem eles, fica o ícone do tipo.
 * **Cópia confiável:** grava em `.nome.arbor-part`, confere o tamanho e só então renomeia. Cancelar nunca deixa
   arquivo pela metade. **Desfazer** (`Ctrl+Z`) para copiar, mover, renomear, nova pasta e lixeira.
 * **Atualiza sozinho** a partir das releases deste repositório, com o SHA-256 conferido antes de trocar o executável.
@@ -195,7 +197,8 @@ src/                 o app iced
   theme.rs           tokens do protótipo Glass: cores, fontes, raios, estilos e ícones
   listing.rs         ponte entre a listagem do arbor-core e o iced
   update/            atualização automática (GitHub Releases + SHA-256 + self-replace)
-  media.rs           preview e miniaturas via vislo-core
+  media.rs           preview via vislo-core
+  thumbs/            miniaturas: imagens (vislo-core), capa de áudio, vídeo e PDF (ffmpeg, pdftoppm, Quick Look)
   watch.rs           pasta atualizada sozinha (notify)
   launch.rs          abrir arquivos, achar o Vislo, terminal
   commands.rs        catálogo de comandos e atalhos
@@ -206,9 +209,13 @@ plataformas no mesmo ritmo** e **índice global desligado por padrão** quando e
 
 ## Desenvolvimento
 
+A versão do Rust está fixada em [`rust-toolchain.toml`](rust-toolchain.toml): o `rustup` instala a mesma no CI e
+na sua máquina, e um lint novo do Clippy só chega quando ela sobe num commit próprio.
+
 ```sh
 cargo test --workspace                                  # núcleo, app e updater
 cargo clippy --workspace --all-targets -- -D warnings
+cargo deny check                                        # vulnerabilidades, licenças e origens (deny.toml)
 node --test scripts/*.test.mjs                          # planejador de versão
 cargo run --release -p arbor-bench -- suite /tmp/bench-100k --check
 scripts/bench-compare.sh /tmp/bench-100k                # contra ls, eza, find, fd, fzf
@@ -218,7 +225,7 @@ scripts/bench-compare.sh /tmp/bench-100k                # contra ls, eza, find, 
 
 Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.github/workflows/release.yml)):
 
-1. O CI roda (fmt, clippy, testes nas três plataformas).
+1. O CI roda (fmt, clippy, cargo-deny, testes nas três plataformas).
 2. A próxima versão sai dos [commits semânticos](https://www.conventionalcommits.org) desde a maior tag `vX.Y.Z`
    (`feat` → minor, `fix` e demais → patch, `!` → major).
 3. Windows x64, Linux x64 e arm64, macOS Apple Silicon e Intel são construídos e empacotados; o `SHA256SUMS.txt` é
