@@ -19,7 +19,7 @@ use crate::media::{self, Preview};
 use crate::session::{self, Session};
 use crate::{launch, listing, pins, pointer, trashbin, update, watch};
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
-use arbor_core::{fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
+use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
 use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget::image::Handle;
@@ -488,6 +488,11 @@ pub enum Message {
         event: JobEvent,
     },
     CancelJob(u64),
+    /// Resultado de abrir um arquivo de dentro de um compactado.
+    Opened {
+        name: String,
+        result: Result<(), String>,
+    },
     PauseJob(u64),
     /// Resposta do diálogo de conflito; `None` cancela.
     ResolveConflict(Option<Conflict>),
@@ -759,9 +764,13 @@ impl App {
         if trashbin::is(&path) {
             return Task::batch([scan_trash(), scroll]);
         }
-        let stream = match tab.search.clone() {
-            Some((query, hidden)) if refresh => {
+        let stream = match (tab.search.clone(), archive::split(&path)) {
+            (Some((query, hidden)), _) if refresh => {
                 Task::run(listing::search(path, query, sort, hidden), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+            (_, Some((file, inner))) => {
+                tab.search = None;
+                Task::run(listing::list_archive(file, inner, sort), move |snap| Message::Listed { tab: id, generation, snap })
             }
             _ => {
                 tab.search = None;
@@ -812,8 +821,27 @@ impl App {
     }
 
     fn open_entry(&mut self, pane: usize, entry: Entry) -> Task<Message> {
-        if entry.is_dir {
+        // Compactados abrem como pasta (Shift+Enter abre no app do sistema).
+        if entry.is_dir || (archive::is_archive(&entry.path) && entry.path.is_file()) {
             self.navigate(pane, entry.path)
+        } else if let Some((file, inner)) = archive::split(&entry.path) {
+            // Arquivo de dentro de um compactado: extrai para uma pasta temporária e abre de lá.
+            let name = entry.name.clone();
+            Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        let dir = std::env::temp_dir().join(format!("arbor-{}", std::process::id()));
+                        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+                        let out = archive::extract(&file, &[inner], &dir, |_, _| true).map_err(|e| e.to_string())?;
+                        let path = out.into_iter().next().ok_or("nada extraído")?;
+                        launch::open(&path)
+                    })
+                    .await
+                    .map_err(|e| e.to_string())
+                    .and_then(|r| r)
+                },
+                move |r| Message::Opened { name: name.clone(), result: r },
+            )
         } else {
             match launch::open(&entry.path) {
                 Ok(()) => Task::none(),
@@ -1049,8 +1077,36 @@ impl App {
         Task::batch(tasks)
     }
 
+    /// A pasta atual é o interior de um compactado: (compactado, caminho interno).
+    fn in_archive(&self) -> Option<(PathBuf, PathBuf)> {
+        archive::split(&self.tab().path)
+    }
+
     fn run(&mut self, cmd: Cmd) -> Task<Message> {
         let pane = self.active;
+        // Dentro de um compactado tudo é só leitura; copiar para o outro painel vira extrair.
+        if let Some((file, inner)) = self.in_archive() {
+            match cmd {
+                Cmd::CopyToOther | Cmd::Extract => {
+                    let members: Vec<PathBuf> =
+                        self.tab().targets().iter().filter_map(|p| p.strip_prefix(&file).ok().map(Path::to_path_buf)).collect();
+                    let members = if members.is_empty() && !inner.as_os_str().is_empty() { vec![inner] } else { members };
+                    let dest = if self.dual {
+                        self.panes[self.other_pane()].tab().path.clone()
+                    } else {
+                        file.parent().map(Path::to_path_buf).unwrap_or_default()
+                    };
+                    if archive::split(&dest).is_some() {
+                        return self.notify("Escolha uma pasta comum como destino", true);
+                    }
+                    return self.start(Op::Extract { archive: file, members, dest });
+                }
+                Cmd::MoveToOther | Cmd::Cut | Cmd::Paste | Cmd::Rename | Cmd::NewFolder | Cmd::Trash | Cmd::Compress => {
+                    return self.notify("Dentro de um compactado é só leitura: use Extrair (Ctrl+E)", true);
+                }
+                _ => {}
+            }
+        }
         // "Este Computador" é virtual: renomear, apagar ou colar ali agiria nas pastas e discos de verdade.
         let here = computer::is_virtual(&self.tab().path);
         let there = self.dual && computer::is_virtual(&self.panes[self.other_pane()].tab().path);
@@ -1065,6 +1121,31 @@ impl App {
             return self.notify(format!("{} não aceita essa operação; abra uma pasta", computer::TITLE), true);
         }
         match cmd {
+            Cmd::Extract => {
+                let archives: Vec<PathBuf> = self.tab().targets().into_iter().filter(|p| archive::is_archive(p) && p.is_file()).collect();
+                if archives.is_empty() {
+                    return self.notify("Selecione um zip, 7z ou tar para extrair", false);
+                }
+                let dir = self.tab().path.clone();
+                let tasks: Vec<_> = archives
+                    .into_iter()
+                    .map(|file| {
+                        let stem = folder_name(&file);
+                        let dest = ops::unique_dest(&dir, &stem);
+                        self.start(Op::Extract { archive: file, members: vec![], dest })
+                    })
+                    .collect();
+                Task::batch(tasks)
+            }
+            Cmd::Compress => {
+                let sources = self.tab().targets();
+                if sources.is_empty() {
+                    return Task::none();
+                }
+                let base = if sources.len() == 1 { folder_name(&sources[0]) } else { self.tab().title() };
+                let dest = ops::unique_dest(&self.tab().path, &format!("{base}.zip"));
+                self.start(Op::Compress { sources, dest })
+            }
             Cmd::Open => match self.tab().current().cloned() {
                 Some(e) => self.open_entry(pane, e),
                 None => Task::none(),
@@ -1730,6 +1811,8 @@ impl App {
                     ("n", true) => Some(Cmd::NewFolder),
                     ("n", false) => Some(Cmd::NewWindow),
                     ("t", false) => Some(Cmd::NewTab),
+                    ("e", false) => Some(Cmd::Extract),
+                    ("e", true) => Some(Cmd::Compress),
                     ("t", true) => Some(Cmd::ReopenTab),
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
@@ -2062,6 +2145,10 @@ impl App {
                     Task::batch([refresh, next, toast])
                 }
             },
+            Message::Opened { name, result } => match result {
+                Ok(()) => Task::none(),
+                Err(e) => self.notify(format!("Não abriu {name}: {e}"), true),
+            },
             Message::CancelJob(id) => {
                 // Na fila, ainda não começou: basta tirar.
                 if self.jobs.iter().any(|j| j.id == id && j.queued) {
@@ -2132,6 +2219,18 @@ impl App {
     }
 }
 
+/// Nome do arquivo sem as extensões de compactado ("fotos.tar.gz" → "fotos").
+fn folder_name(p: &Path) -> String {
+    let name = ops::name(p);
+    let lower = name.to_lowercase();
+    for ext in [".tar.gz", ".tar.xz", ".tgz", ".txz", ".tar", ".zip", ".7z"] {
+        if lower.ends_with(ext) && name.len() > ext.len() {
+            return name[..name.len() - ext.len()].to_string();
+        }
+    }
+    p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or(name)
+}
+
 /// `arbor arquivo.txt` abre a pasta do arquivo em vez de tentar listar um arquivo.
 fn start_dir(p: PathBuf) -> Option<PathBuf> {
     if p.is_dir() {
@@ -2178,6 +2277,13 @@ mod tests {
         let file = std::fs::canonicalize(std::env::current_exe().unwrap()).unwrap();
         assert_eq!(start_dir(dir.clone()), Some(dir));
         assert_eq!(start_dir(file.clone()), file.parent().map(Path::to_path_buf));
+    }
+
+    #[test]
+    fn nome_da_pasta_de_extracao() {
+        assert_eq!(folder_name(Path::new("/x/fotos.tar.gz")), "fotos");
+        assert_eq!(folder_name(Path::new("/x/Pacote.ZIP")), "Pacote");
+        assert_eq!(folder_name(Path::new("/x/notas.txt")), "notas");
     }
 
     #[test]

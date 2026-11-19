@@ -191,6 +191,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
 | `Shift+Delete` | Excluir permanentemente (pede confirmação) |
 | `Ctrl+Z` | Desfazer |
+| `Ctrl+E` / `Ctrl+Shift+E` | Extrair compactado / compactar em zip (zip, 7z e tar abrem como pasta com `Enter`) |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
 | `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Ícones maiores / menores |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |

@@ -50,6 +50,17 @@ pub enum Op {
     Mkdir {
         path: PathBuf,
     },
+    /// Extrai membros de um compactado (`members` internos; vazio = tudo) para dentro de `dest`.
+    Extract {
+        archive: PathBuf,
+        members: Vec<PathBuf>,
+        dest: PathBuf,
+    },
+    /// Cria o zip `dest` com `sources`.
+    Compress {
+        sources: Vec<PathBuf>,
+        dest: PathBuf,
+    },
     Undo(Undo),
 }
 
@@ -68,6 +79,8 @@ impl Op {
             Op::Rename { from, .. } => format!("Renomeando {}", name(from)),
             Op::RenameMany { pairs } => format!("Renomeando {}", count(pairs.len())),
             Op::Mkdir { path } => format!("Criando {}", name(path)),
+            Op::Extract { archive, .. } => format!("Extraindo {}", name(archive)),
+            Op::Compress { dest, .. } => format!("Compactando {}", name(dest)),
             Op::Undo(_) => "Desfazendo".into(),
         }
     }
@@ -238,6 +251,43 @@ pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
                 undo: Some(Undo::Created(vec![path.clone()])),
                 created: vec![path],
             })
+        }
+        Op::Extract { archive, members, dest } => {
+            // Pasta nova criada para a extração: ela é o "item criado" (desfazer a manda inteira para a lixeira).
+            let fresh = fs::symlink_metadata(&dest).is_err();
+            fs::create_dir_all(&dest)?;
+            let created = crate::archive::extract(&archive, &members, &dest, |done, total| {
+                ctx.total = total;
+                ctx.done = 0;
+                ctx.advance(done, &archive);
+                !ctx.cancelled()
+            });
+            match created {
+                Ok(created) => {
+                    let n = created.len();
+                    let created = if fresh { vec![dest] } else { created };
+                    Ok(Outcome {
+                        summary: format!("{} extraído(s) de {}", count(n), name(&archive)),
+                        undo: Some(Undo::Created(created.clone())),
+                        created,
+                    })
+                }
+                Err(e) => {
+                    if fresh {
+                        let _ = fs::remove_dir_all(&dest);
+                    }
+                    Err(e)
+                }
+            }
+        }
+        Op::Compress { sources, dest } => {
+            crate::archive::compress_zip(&sources, &dest, |done, total| {
+                ctx.total = total;
+                ctx.done = 0;
+                ctx.advance(done, &dest);
+                !ctx.cancelled()
+            })?;
+            Ok(Outcome { summary: format!("{} criado", name(&dest)), undo: Some(Undo::Created(vec![dest.clone()])), created: vec![dest] })
         }
         Op::Undo(undo) => run_undo(undo, ctx),
     }
