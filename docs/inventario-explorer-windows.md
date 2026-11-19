@@ -85,7 +85,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 |---|---|---|
 | Nome do volume ("Disco Local", "Backup") e ícone por tipo (SSD, USB, DVD, rede) | 🟡 (nome do volume no Windows; ícone único) | P1 |
 | Ejetar unidade removível | ✅ (menu do disco em Este Computador) | P1 |
-| Atualizar a lista quando um pendrive entra ou sai | ❌ (F5 em Este Computador) | P1 |
+| Atualizar a lista quando um pendrive entra ou sai | ✅ (varredura a cada 4 s) | P1 |
 | Formatar, BitLocker, propriedades da unidade | ❌ | P3 |
 | Gerenciador de arquivos padrão (abrir pastas do sistema no arbor), instância única | ❌ (fase 3) | P1 |
 | Teclado: Alt+D, F4, F6 ciclo de áreas, Alt+Enter, Ctrl+Shift+N, letras pulam para o item | 🟡 (Alt+D, F4, Alt+Enter e Ctrl+Shift+N sim; digitar filtra em vez de pular; sem F6) | P1 |

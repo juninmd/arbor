@@ -317,22 +317,43 @@ pub const PROMPT_INPUT: &str = "prompt-input";
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Listed { tab: u64, generation: u64, snap: Snapshot },
-    Key { key: Key, modifiers: Modifiers, text: Option<String>, captured: bool },
+    Listed {
+        tab: u64,
+        generation: u64,
+        snap: Snapshot,
+    },
+    Key {
+        key: Key,
+        modifiers: Modifiers,
+        text: Option<String>,
+        captured: bool,
+    },
     Modifiers(Modifiers),
     Resized(Size),
     Dropped(PathBuf),
     Run(Cmd),
-    ContextMenu { tab: u64, index: Option<usize> },
+    ContextMenu {
+        tab: u64,
+        index: Option<usize>,
+    },
     SidebarMenu(PathBuf),
     OpenMenu(MenuKind),
     MenuRun(Cmd),
-    JumpOpen { kind: JumpKind, dir: Option<PathBuf> },
-    JumpListed { generation: u64, dirs: Vec<PathBuf> },
+    JumpOpen {
+        kind: JumpKind,
+        dir: Option<PathBuf>,
+    },
+    JumpListed {
+        generation: u64,
+        dirs: Vec<PathBuf>,
+    },
     JumpPick(usize),
     JumpHover(usize),
     MenuHover(usize),
-    Suggested { generation: u64, items: Vec<PathBuf> },
+    Suggested {
+        generation: u64,
+        items: Vec<PathBuf>,
+    },
     SuggestPick(usize),
     Zoom(bool),
     Created(Result<PathBuf, String>),
@@ -341,42 +362,99 @@ pub enum Message {
     TrashDone(Result<String, String>),
     Confirmed,
     Ejected(Result<(), String>),
-    TreeLoaded { path: PathBuf, dirs: Vec<PathBuf> },
-    PressItem { tab: u64, index: usize },
+    /// Varredura periódica de discos: só atualiza a tela se um volume entrou ou saiu.
+    DrivesPolled(Vec<Drive>),
+    DrivesTick,
+    TreeLoaded {
+        path: PathBuf,
+        dirs: Vec<PathBuf>,
+    },
+    PressItem {
+        tab: u64,
+        index: usize,
+    },
     PressEmpty(u64),
-    BandMove { tab: u64, at: iced::Point },
+    BandMove {
+        tab: u64,
+        at: iced::Point,
+    },
     PointerMoved(iced::Point),
     PointerUp,
     DragOver(Option<PathBuf>),
-    DragLeave { from: PathBuf, back: Option<PathBuf> },
-    DetailsLoaded { path: PathBuf, preview: Preview, props: Vec<(String, String)> },
-    Click { tab: u64, index: usize },
-    Activate { tab: u64, index: usize },
-    Scrolled { tab: u64, viewport: Viewport },
+    DragLeave {
+        from: PathBuf,
+        back: Option<PathBuf>,
+    },
+    DetailsLoaded {
+        path: PathBuf,
+        preview: Preview,
+        props: Vec<(String, String)>,
+    },
+    Click {
+        tab: u64,
+        index: usize,
+    },
+    Activate {
+        tab: u64,
+        index: usize,
+    },
+    Scrolled {
+        tab: u64,
+        viewport: Viewport,
+    },
     Navigate(PathBuf),
-    NavigateIn { tab: u64, path: PathBuf },
-    SelectTab { pane: usize, index: usize },
-    CloseTabAt { pane: usize, index: usize },
+    NavigateIn {
+        tab: u64,
+        path: PathBuf,
+    },
+    SelectTab {
+        pane: usize,
+        index: usize,
+    },
+    CloseTabAt {
+        pane: usize,
+        index: usize,
+    },
     NewTabIn(usize),
     FocusPane(usize),
-    SortBy { tab: u64, key: SortKey },
-    FilterChanged { tab: u64, value: String },
+    SortBy {
+        tab: u64,
+        key: SortKey,
+    },
+    FilterChanged {
+        tab: u64,
+        value: String,
+    },
     FilterSubmit,
     PaletteQuery(String),
     PaletteRun(usize),
     PromptChanged(String),
     PromptSubmit,
     CloseOverlay,
-    PreviewLoaded { path: PathBuf, content: Preview },
-    Thumb { path: PathBuf, handle: Option<Handle> },
-    Job { id: u64, event: JobEvent },
+    PreviewLoaded {
+        path: PathBuf,
+        content: Preview,
+    },
+    Thumb {
+        path: PathBuf,
+        handle: Option<Handle>,
+    },
+    Job {
+        id: u64,
+        event: JobEvent,
+    },
     CancelJob(u64),
     ToastExpired(u64),
     DirChanged(PathBuf),
     Places(Vec<Drive>),
     Frame(Instant),
-    UpdateCheck { manual: bool },
-    UpdateChecked { manual: bool, result: Result<Option<update::Update>, String> },
+    UpdateCheck {
+        manual: bool,
+    },
+    UpdateChecked {
+        manual: bool,
+        result: Result<Option<update::Update>, String>,
+    },
     UpdateInstall,
     UpdateProgress(update::Progress),
     UpdateRestart,
@@ -537,7 +615,8 @@ impl App {
         } else {
             Subscription::none()
         };
-        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates]))
+        let drives = iced::time::every(DRIVES_EVERY).map(|_| Message::DrivesTick);
+        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates, drives]))
     }
 
     // ---------- navegação e listagem ----------
@@ -1715,6 +1794,16 @@ impl App {
                     .collect();
                 Task::batch(tasks)
             }
+            Message::DrivesTick => {
+                Task::perform(async { tokio::task::spawn_blocking(computer::drives).await.unwrap_or_default() }, Message::DrivesPolled)
+            }
+            Message::DrivesPolled(drives) => {
+                let ids = |v: &[Drive]| v.iter().map(|d| (d.label.clone(), d.path.clone())).collect::<Vec<_>>();
+                if ids(&drives) == ids(&self.drives) {
+                    return Task::none();
+                }
+                self.handle(Message::Places(drives))
+            }
             Message::Places(drives) => {
                 self.drives = drives;
                 let snap = Snapshot {
@@ -1743,6 +1832,9 @@ fn start_dir(p: PathBuf) -> Option<PathBuf> {
 fn scan_trash() -> Task<Message> {
     Task::perform(async { tokio::task::spawn_blocking(trashbin::list).await.unwrap_or_else(|e| Err(e.to_string())) }, Message::TrashListed)
 }
+
+/// Pendrive entrou ou saiu: o Explorer percebe em segundos, sem F5.
+const DRIVES_EVERY: Duration = Duration::from_secs(4);
 
 fn scan_drives() -> Task<Message> {
     Task::perform(async { tokio::task::spawn_blocking(computer::drives).await.unwrap_or_default() }, Message::Places)
