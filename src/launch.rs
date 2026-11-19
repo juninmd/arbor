@@ -58,6 +58,7 @@ pub fn open_with_dialog(_file: &Path) -> Result<(), String> {
 pub fn new_window(dir: Option<&Path>) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let mut cmd = std::process::Command::new(exe);
+    cmd.env("ARBOR_MULTI", "1"); // senão a instância única transformaria a janela nova em aba
     if let Some(d) = dir {
         cmd.arg(d);
     }

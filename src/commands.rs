@@ -60,6 +60,8 @@ pub enum Cmd {
     ToggleFps,
     CheckUpdates,
     ToggleAutoUpdate,
+    SetDefault,
+    UnsetDefault,
     ToggleRestore,
     Palette,
 }
@@ -123,6 +125,8 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleFps,
     Cmd::CheckUpdates,
     Cmd::ToggleAutoUpdate,
+    Cmd::SetDefault,
+    Cmd::UnsetDefault,
     Cmd::ToggleRestore,
 ];
 
@@ -189,6 +193,8 @@ impl Cmd {
             Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
             Cmd::CheckUpdates => "Procurar atualizações",
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
+            Cmd::SetDefault => "Usar o arbor para abrir pastas (explorer padrão)",
+            Cmd::UnsetDefault => "Voltar a abrir pastas no gerenciador do sistema",
             Cmd::ToggleRestore => "Ligar/desligar restaurar abas ao abrir",
             Cmd::Palette => "Paleta de comandos",
         }
@@ -247,7 +253,7 @@ impl Cmd {
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
-            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate | Cmd::ToggleRestore => String::new(),
+            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate | Cmd::SetDefault | Cmd::UnsetDefault | Cmd::ToggleRestore => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

@@ -17,7 +17,7 @@ pub use menu::{Menu, MenuKind};
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::session::{self, Session};
-use crate::{launch, listing, pins, pointer, trashbin, update, watch};
+use crate::{instance, launch, listing, pins, pointer, trashbin, update, watch};
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
 use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
@@ -512,16 +512,13 @@ pub enum Message {
     UpdateProgress(update::Progress),
     UpdateRestart,
     UpdateDismiss,
+    /// Outra execução do arbor pediu esta pasta (ou só uma janela nova, se `None`).
+    Remote(Option<PathBuf>),
 }
 
 impl App {
     pub fn boot() -> (App, Task<Message>) {
-        let start = std::env::args_os()
-            .nth(1)
-            .map(PathBuf::from)
-            .and_then(|p| std::fs::canonicalize(p).ok())
-            .and_then(start_dir)
-            .unwrap_or_else(computer::path);
+        let start = instance::start_arg().and_then(|p| std::fs::canonicalize(p).ok()).and_then(start_dir).unwrap_or_else(computer::path);
         let second = dirs::download_dir().filter(|d| d.is_dir()).unwrap_or_else(|| start.clone());
         let has_arg = std::env::args_os().nth(1).is_some();
         let restore = session::restore_enabled();
@@ -722,8 +719,9 @@ impl App {
         } else {
             Subscription::none()
         };
+        let remote = Subscription::run(instance::requests).map(Message::Remote);
         let drives = iced::time::every(DRIVES_EVERY).map(|_| Message::DrivesTick);
-        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates, drives]))
+        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates, drives, remote]))
     }
 
     // ---------- navegação e listagem ----------
@@ -1433,6 +1431,10 @@ impl App {
                     Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
                 }
             }
+            Cmd::SetDefault | Cmd::UnsetDefault => match instance::set_default(cmd == Cmd::SetDefault) {
+                Ok(msg) => self.notify(msg, false),
+                Err(e) => self.notify(e, true),
+            },
             Cmd::Palette => {
                 self.overlay = Overlay::Palette { query: String::new(), selected: 0 };
                 op::focus(PALETTE_INPUT)
@@ -2193,6 +2195,22 @@ impl App {
                     .collect();
                 Task::batch(tasks)
             }
+            Message::Remote(target) => {
+                let pane = self.active;
+                let tab = self.new_tab(pane);
+                let go = match target.and_then(start_dir_keep) {
+                    Some((dir, file)) => {
+                        let task = self.navigate(pane, dir);
+                        let t = self.tab_mut();
+                        t.back.clear();
+                        t.focus_on_load = file.into_iter().collect();
+                        task
+                    }
+                    None => Task::none(),
+                };
+                let focus = window::latest().and_then(window::gain_focus);
+                Task::batch([tab, go, focus])
+            }
             Message::DrivesTick => {
                 Task::perform(async { tokio::task::spawn_blocking(computer::drives).await.unwrap_or_default() }, Message::DrivesPolled)
             }
@@ -2216,6 +2234,15 @@ impl App {
                 Task::batch(tabs.into_iter().map(|(id, generation)| self.on_listed(id, generation, snap.clone())).collect::<Vec<_>>())
             }
         }
+    }
+}
+
+/// Como [`start_dir`], mas lembrando o arquivo pedido para selecioná-lo na pasta.
+fn start_dir_keep(p: PathBuf) -> Option<(PathBuf, Option<PathBuf>)> {
+    if p.is_dir() {
+        Some((p, None))
+    } else {
+        p.parent().map(|d| (d.to_path_buf(), Some(p.clone())))
     }
 }
 

@@ -9,6 +9,7 @@ mod complete;
 mod computer;
 mod folder_views;
 mod glass;
+mod instance;
 mod launch;
 mod listing;
 mod media;
@@ -36,6 +37,12 @@ fn main() -> iced::Result {
         println!("arbor {}", update::CURRENT);
         return Ok(());
     }
+    // Já tem uma janela aberta: manda a pasta para ela (vira uma aba nova) e sai.
+    let target = instance::start_arg().and_then(|p| std::fs::canonicalize(p).ok());
+    if instance::forward(target.as_deref()) {
+        return Ok(());
+    }
+    instance::listen();
     thumbs::prune_cache();
     glass::log_to_stderr();
     glass::prepare();
