@@ -4,6 +4,7 @@
 pub mod entry;
 pub mod fuzzy;
 pub mod ops;
+pub mod rename;
 pub mod scan;
 pub mod search;
 
