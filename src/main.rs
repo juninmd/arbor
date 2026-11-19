@@ -8,6 +8,7 @@ mod launch;
 mod listing;
 mod media;
 mod theme;
+mod thumbs;
 mod update;
 mod view;
 mod watch;
@@ -24,6 +25,7 @@ fn main() -> iced::Result {
         println!("arbor {}", update::CURRENT);
         return Ok(());
     }
+    thumbs::prune_cache();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)
