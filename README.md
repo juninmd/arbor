@@ -197,7 +197,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+E` / `Ctrl+Shift+E` | Extrair compactado / compactar em zip (zip, 7z e tar abrem como pasta com `Enter`) |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
-| `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Troca a visualização: Detalhes → Lista → Blocos → ícones pequenos, médios, grandes, extra grandes |
+| `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Troca a visualização: Conteúdo ← Detalhes → Lista → Blocos → ícones pequenos, médios, grandes, extra grandes |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
 | botão direito, `Shift+F10`, tecla Menu | Menu de contexto do item ou da pasta |
 | `Alt+Shift+P` / `Alt+Enter` | Painel de detalhes / propriedades |

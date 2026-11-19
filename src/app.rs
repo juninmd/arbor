@@ -702,10 +702,13 @@ impl App {
     }
 
     pub fn grid_cols(&self) -> usize {
+        ((self.grid_width() / self.cell_w()).floor() as usize).max(1)
+    }
+
+    fn grid_width(&self) -> f32 {
         let panes = if self.dual { 2.0 } else { 1.0 };
         // margens da janela, espaço entre os cartões e o recuo da grade
-        let width = (self.window.width - SIDEBAR_W - 30.0 - 10.0 * (panes - 1.0)) / panes - 20.0;
-        ((width / self.cell_w()).floor() as usize).max(1)
+        (self.window.width - SIDEBAR_W - 30.0 - 10.0 * (panes - 1.0)) / panes - 20.0
     }
 
     pub fn mode(&self) -> &'static crate::view_modes::Mode {
@@ -713,6 +716,9 @@ impl App {
     }
 
     pub fn cell_w(&self) -> f32 {
+        if self.mode().shape == crate::view_modes::Shape::Content {
+            return self.grid_width().max(200.0);
+        }
         self.mode().w
     }
 

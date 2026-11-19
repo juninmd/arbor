@@ -24,7 +24,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | OneDrive/nuvem com estado de sincronização | ❌ (fora do escopo, ver plano) | — |
 | Locais de rede, compartilhamentos SMB, mapear unidade | 🟡 (`\\servidor` na barra de endereço lista os compartilhamentos no Windows; "Mapear unidade de rede…" em Este Computador; montagens smb/sftp do GVFS aparecem como unidades de rede no Linux; sem descoberta automática de computadores na rede) | P2 |
 | Lixeira como local navegável (restaurar, esvaziar) | ✅ (Windows e Linux; no macOS o sistema não deixa listar) | P1 |
-| Nova janela (Ctrl+N), restaurar janelas/abas ao abrir | 🟡 (Ctrl+N sim; restaurar sessão é da outra frente) | P1 |
+| Nova janela (Ctrl+N), restaurar janelas/abas ao abrir | ✅ (Ctrl+N; restaurar abas ao abrir, liga/desliga pela paleta) | P1 |
 
 ## Barra de comandos e menu de contexto
 
@@ -47,7 +47,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Feature do Explorer | arbor | Prio |
 |---|---|---|
 | Detalhes e miniaturas | ✅ | — |
-| Ícones extra grandes/grandes/médios/pequenos, Lista, Blocos, Conteúdo | 🟡 (Detalhes, Lista, Blocos e 4 tamanhos de ícone; sem Conteúdo) | P1 |
+| Ícones extra grandes/grandes/médios/pequenos, Lista, Blocos, Conteúdo | ✅ (Conteúdo, Detalhes, Lista, Blocos e 4 tamanhos de ícone, na ordem do Ctrl+roda) | P1 |
 | Ctrl+roda percorre Detalhes → Lista → Blocos → ícones P/M/G/XG | ✅ (também Ctrl+= / Ctrl+-; o modo aparece na barra de status) | P1 |
 | Colunas configuráveis (adicionar, mostrar/ocultar, redimensionar por arraste) | 🟡 (mostrar/ocultar pelo botão direito no cabeçalho e largura por arraste; reordenar colunas não implementado) | P1 |
 | Agrupar por (tipo, data "Hoje/Ontem/Semana passada", tamanho) | 🟡 (Classificar ou botão direito → Agrupar por; cabeçalhos com contagem em Detalhes; na grade só ordena por grupo, sem cabeçalho, e não fica salvo por pasta) | P2 |
@@ -69,7 +69,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Ctrl/Shift+clique, Ctrl+A, inverter seleção | ✅ | P2 |
 | Arrastar e soltar dentro do app e para outros apps | 🟡 (dentro do app: pastas, barra lateral, outro painel; arrastar para outros apps não) | P0 |
 | Arrastar com botão direito (copiar/mover/criar atalho aqui) | ❌ | P2 |
-| Diálogo de conflito: substituir, pular, comparar, manter os dois | 🟡 (sempre "manter os dois" com nome único; sem perguntar) | P0 |
+| Diálogo de conflito: substituir, pular, comparar, manter os dois | 🟡 (pergunta Substituir, Pular ou Manter os dois quando há nome repetido; sem "comparar") | P0 |
 | Janela de progresso com gráfico de velocidade, pausa | 🟡 (barra + cancelar) | P1 |
 | Refazer (Ctrl+Y) | ✅ | P1 |
 | Excluir permanentemente (Shift+Del) com confirmação | ✅ | P1 |
@@ -87,7 +87,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Ejetar unidade removível | ✅ (menu do disco em Este Computador) | P1 |
 | Atualizar a lista quando um pendrive entra ou sai | ✅ (varredura a cada 4 s) | P1 |
 | Formatar, BitLocker, propriedades da unidade | ❌ | P3 |
-| Gerenciador de arquivos padrão (abrir pastas do sistema no arbor), instância única | ❌ (fase 3) | P1 |
+| Gerenciador de arquivos padrão (abrir pastas do sistema no arbor), instância única | ✅ (paleta: "Usar o arbor para abrir pastas"; segunda execução vira aba na janela aberta) | P1 |
 | Teclado: Alt+D, F4, F6 ciclo de áreas, Alt+Enter, Ctrl+Shift+N, letras pulam para o item | 🟡 (Alt+D, F4, Alt+Enter e Ctrl+Shift+N sim; digitar filtra em vez de pular; sem F6) | P1 |
 | Leitor de tela e navegação só por teclado em todas as áreas | 🟡 | P1 |
 

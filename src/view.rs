@@ -533,6 +533,14 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
             row![thumb, info.push(meta)].spacing(10).align_y(Alignment::Center).into()
         }
         Shape::Icon => column![thumb, label, meta].spacing(4).into(),
+        Shape::Content => {
+            let kind = text(if drive.is_some() { "Disco".into() } else { kind_label(e) }).size(11).style(theme::ink3);
+            let when = text(human_time(e.modified)).font(theme::MONO).size(10.5).style(theme::ink3);
+            row![thumb, column![label, kind].spacing(3).width(Fill), column![when, meta].spacing(3).align_x(Alignment::End)]
+                .spacing(12)
+                .align_y(Alignment::Center)
+                .into()
+        }
     };
     let (pad, radius) = if mode.shape == Shape::Line { ([2, 6], 9.0) } else { ([6, 6], 15.0) };
     let cell = container(body)
