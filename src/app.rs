@@ -308,6 +308,7 @@ impl App {
             .nth(1)
             .map(PathBuf::from)
             .and_then(|p| std::fs::canonicalize(p).ok())
+            .and_then(start_dir)
             .or_else(dirs::home_dir)
             .unwrap_or_else(|| PathBuf::from("/"));
         let second = dirs::download_dir().filter(|d| d.is_dir()).unwrap_or_else(|| start.clone());
@@ -1327,6 +1328,11 @@ impl App {
     }
 }
 
+/// `arbor arquivo.txt` abre a pasta do arquivo em vez de tentar listar um arquivo.
+fn start_dir(p: PathBuf) -> Option<PathBuf> {
+    if p.is_dir() { Some(p) } else { p.parent().map(Path::to_path_buf) }
+}
+
 fn places() -> Vec<(String, PathBuf)> {
     let candidates = [
         ("Início", dirs::home_dir()),
@@ -1391,6 +1397,14 @@ mod tests {
         assert_eq!(tab.current().unwrap().name, "e");
         tab.edit_entries(false, |e| *e = vec![entry("a")].into());
         assert_eq!(tab.cursor, 0);
+    }
+
+    #[test]
+    fn argumento_arquivo_abre_a_pasta_dele() {
+        let dir = std::env::temp_dir();
+        let file = std::fs::canonicalize(std::env::current_exe().unwrap()).unwrap();
+        assert_eq!(start_dir(dir.clone()), Some(dir));
+        assert_eq!(start_dir(file.clone()), file.parent().map(Path::to_path_buf));
     }
 
     #[test]
