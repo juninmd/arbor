@@ -21,6 +21,16 @@ pub fn open_default(path: &Path) -> Result<(), String> {
 }
 
 /// Mostra o arquivo no gerenciador do sistema (útil para coisas que o arbor ainda não faz).
+/// Ctrl+N: outra janela do arbor (outro processo), na mesma pasta ou em "Este Computador".
+pub fn new_window(dir: Option<&Path>) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut cmd = std::process::Command::new(exe);
+    if let Some(d) = dir {
+        cmd.arg(d);
+    }
+    cmd.spawn().map(drop).map_err(|e| e.to_string())
+}
+
 pub fn reveal(path: &Path) -> Result<(), String> {
     let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
     open::that_detached(dir).map_err(|e| e.to_string())

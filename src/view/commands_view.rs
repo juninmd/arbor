@@ -15,7 +15,8 @@ const SEP_H: f32 = 9.0;
 
 pub fn icon_of(cmd: Cmd) -> Option<Icon> {
     Some(match cmd {
-        Cmd::NewFolder => Icon::Plus,
+        Cmd::NewFolder => Icon::Folder,
+        Cmd::NewTextFile => Icon::Doc,
         Cmd::Cut => Icon::Cut,
         Cmd::Copy | Cmd::CopyPath => Icon::Copy,
         Cmd::Paste => Icon::Paste,
@@ -48,7 +49,7 @@ pub fn bar(app: &App) -> Element<'_, Message> {
         let content = row![icon(ic, 14.0, theme::DARK.ink2), text(label).size(12.5)].spacing(6).align_y(Alignment::Center);
         button(content).padding([5, 9]).on_press_maybe(msg).style(theme::ghost).into()
     };
-    let new = labeled(Icon::Plus, "Nova pasta", app.enabled(Cmd::NewFolder).then_some(Message::Run(Cmd::NewFolder)));
+    let new = labeled(Icon::Plus, "Novo", app.enabled(Cmd::NewFolder).then_some(Message::OpenMenu(MenuKind::New)));
     row![
         new,
         separator_v(),

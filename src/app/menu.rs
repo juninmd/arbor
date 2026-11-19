@@ -16,6 +16,7 @@ pub enum MenuKind {
     Sidebar,
     Sort,
     View,
+    New,
 }
 
 pub struct Menu {
@@ -54,8 +55,10 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Paste),
             Some(Undo),
             Some(SelectAll),
+            Some(InvertSelection),
             None,
             Some(NewFolder),
+            Some(NewTextFile),
             None,
             Some(Terminal),
             Some(CopyPath),
@@ -64,6 +67,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Details),
         ],
         MenuKind::Sidebar => vec![Some(OpenInNewTab), Some(Pin)],
+        MenuKind::New => vec![Some(NewFolder), Some(NewTextFile)],
         MenuKind::Sort => vec![Some(SortName), Some(SortSize), Some(SortModified), Some(SortKind)],
         MenuKind::View => vec![
             Some(ToggleGrid),
@@ -102,7 +106,7 @@ impl App {
             Cmd::Paste => !here,
             Cmd::Undo => !self.undo.is_empty(),
             Cmd::Cut | Cmd::Rename | Cmd::Trash | Cmd::MoveToOther => has_target && !here,
-            Cmd::NewFolder => !here,
+            Cmd::NewFolder | Cmd::NewTextFile => !here,
             Cmd::Copy | Cmd::CopyToOther | Cmd::Open | Cmd::OpenDefault | Cmd::Preview => has_target,
             _ => true,
         }

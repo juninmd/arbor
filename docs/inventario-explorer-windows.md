@@ -16,7 +16,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Barra de endereço editável ao clicar, com autocomplete de caminho | ✅ (Ctrl+L ou duplo clique; Tab completa, setas escolhem) | P0 |
 | Caixa "Pesquisar em <pasta>" com busca recursiva em subpastas | ❌ (só filtro da pasta) | P0 |
 | Abas (Ctrl+T/W), arrastar aba para virar janela | 🟡 (abas sim, destacar não) | P2 |
-| Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | 🟡 (Alt+←/→) | P1 |
+| Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | 🟡 (Alt+←/→ e botões do mouse; sem menu de histórico) | P1 |
 | Árvore de pastas expansível na barra lateral | ❌ | P1 |
 | "Início" com Recentes, Favoritos e Acesso rápido | ❌ | P1 |
 | Fixar pastas na barra lateral (arrastar para fixar, desafixar) | 🟡 (pelo menu; arrastar não) | P0 |
@@ -24,7 +24,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | OneDrive/nuvem com estado de sincronização | ❌ (fora do escopo, ver plano) | — |
 | Locais de rede, compartilhamentos SMB, mapear unidade | ❌ | P2 |
 | Lixeira como local navegável (restaurar, esvaziar) | ❌ | P1 |
-| Nova janela (Ctrl+N), restaurar janelas/abas ao abrir | ❌ | P1 |
+| Nova janela (Ctrl+N), restaurar janelas/abas ao abrir | 🟡 (Ctrl+N sim; restaurar sessão é da outra frente) | P1 |
 
 ## Barra de comandos e menu de contexto
 
@@ -32,7 +32,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 |---|---|---|
 | Barra de comandos visível: Novo, Recortar, Copiar, Colar, Renomear, Compartilhar, Excluir, Classificar, Visualizar, "…" | ✅ (sem Compartilhar) | P0 |
 | Menu de contexto (botão direito) em item e em área vazia | ✅ (também Shift+F10 e tecla Menu) | P0 |
-| "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (só pasta) | P1 |
+| "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (pasta e documento de texto) | P1 |
 | "Abrir com" (lista de apps + escolher outro) | 🟡 (só app padrão) | P1 |
 | Propriedades (tamanho em disco, datas, atributos, permissões, hash) | 🟡 (Alt+Enter abre no painel de detalhes; sem hash e sem editar) | P1 |
 | Compactar em ZIP / extrair tudo; navegar dentro de .zip | ❌ (fase 3) | P1 |
@@ -66,7 +66,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 |---|---|---|
 | Copiar, mover, renomear, lixeira, nova pasta, desfazer | ✅ | — |
 | Seleção por retângulo (arrastar com o mouse) | ✅ (Ctrl soma à seleção) | P0 |
-| Ctrl/Shift+clique, Ctrl+A, inverter seleção | 🟡 (inverter não) | P2 |
+| Ctrl/Shift+clique, Ctrl+A, inverter seleção | ✅ | P2 |
 | Arrastar e soltar dentro do app e para outros apps | 🟡 (dentro do app: pastas, barra lateral, outro painel; arrastar para outros apps não) | P0 |
 | Arrastar com botão direito (copiar/mover/criar atalho aqui) | ❌ | P2 |
 | Diálogo de conflito: substituir, pular, comparar, manter os dois | 🟡 (sempre "manter os dois" com nome único; sem perguntar) | P0 |
@@ -88,7 +88,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Atualizar a lista quando um pendrive entra ou sai | ❌ (F5 em Este Computador) | P1 |
 | Formatar, BitLocker, propriedades da unidade | ❌ | P3 |
 | Gerenciador de arquivos padrão (abrir pastas do sistema no arbor), instância única | ❌ (fase 3) | P1 |
-| Teclado: Alt+D, F4, F6 ciclo de áreas, Alt+Enter, Ctrl+Shift+N, letras pulam para o item | 🟡 (digitar filtra, não pula) | P1 |
+| Teclado: Alt+D, F4, F6 ciclo de áreas, Alt+Enter, Ctrl+Shift+N, letras pulam para o item | 🟡 (Alt+D, F4, Alt+Enter e Ctrl+Shift+N sim; digitar filtra em vez de pular; sem F6) | P1 |
 | Leitor de tela e navegação só por teclado em todas as áreas | 🟡 | P1 |
 
 ## Ordem sugerida

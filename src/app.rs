@@ -271,6 +271,7 @@ pub enum Overlay {
 pub enum PromptKind {
     Rename,
     NewFolder,
+    NewFile,
     GoTo,
 }
 
@@ -279,6 +280,7 @@ impl PromptKind {
         match self {
             PromptKind::Rename => "Renomear",
             PromptKind::NewFolder => "Nova pasta",
+            PromptKind::NewFile => "Novo documento de texto",
             PromptKind::GoTo => "Ir para",
         }
     }
@@ -303,6 +305,7 @@ pub enum Message {
     Suggested { generation: u64, items: Vec<PathBuf> },
     SuggestPick(usize),
     Zoom(bool),
+    Created(Result<PathBuf, String>),
     PressItem { tab: u64, index: usize },
     PressEmpty(u64),
     BandMove { tab: u64, at: iced::Point },
@@ -469,6 +472,9 @@ impl App {
                 pointer::armed().then_some(Message::PointerMoved(position))
             }
             Event::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) if pointer::armed() => Some(Message::PointerUp),
+            // Botões laterais do mouse voltam e avançam.
+            Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Back)) => Some(Message::Run(Cmd::Back)),
+            Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Forward)) => Some(Message::Run(Cmd::Forward)),
             Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, text, .. }) => {
                 Some(Message::Key { key, modifiers, text: text.map(|t| t.to_string()), captured: status == event::Status::Captured })
             }
@@ -770,7 +776,8 @@ impl App {
         // "Este Computador" é virtual: renomear, apagar ou colar ali agiria nas pastas e discos de verdade.
         let here = computer::is(&self.tab().path);
         let there = self.dual && computer::is(&self.panes[self.other_pane()].tab().path);
-        let writes_here = matches!(cmd, Cmd::Paste | Cmd::Trash | Cmd::Rename | Cmd::NewFolder | Cmd::Cut | Cmd::MoveToOther);
+        let writes_here =
+            matches!(cmd, Cmd::Paste | Cmd::Trash | Cmd::Rename | Cmd::NewFolder | Cmd::NewTextFile | Cmd::Cut | Cmd::MoveToOther);
         if (here && writes_here) || (there && matches!(cmd, Cmd::CopyToOther | Cmd::MoveToOther)) {
             return self.notify(format!("{} não aceita essa operação; abra uma pasta", computer::TITLE), true);
         }
@@ -910,6 +917,20 @@ impl App {
                 None => Task::none(),
             },
             Cmd::NewFolder => self.open_prompt(PromptKind::NewFolder, "Nova pasta".into()),
+            Cmd::NewTextFile => self.open_prompt(PromptKind::NewFile, "Novo documento de texto.txt".into()),
+            Cmd::NewWindow => {
+                let arg = (!here).then(|| self.tab().path.clone());
+                match launch::new_window(arg.as_deref()) {
+                    Ok(()) => Task::none(),
+                    Err(e) => self.notify(format!("Nova janela: {e}"), true),
+                }
+            }
+            Cmd::InvertSelection => {
+                let tab = self.tab_mut();
+                let all: HashSet<PathBuf> = tab.view.iter().map(|&i| tab.entries[i].path.clone()).collect();
+                tab.selected = all.difference(&tab.selected).cloned().collect();
+                Task::none()
+            }
             Cmd::Trash => {
                 let paths = self.tab().targets();
                 if paths.is_empty() {
@@ -1144,6 +1165,24 @@ impl App {
                 let path = ops::unique_dest(&dir, &value);
                 self.start(Op::Mkdir { path })
             }
+            PromptKind::NewFile => {
+                if value.contains(['/', '\\']) {
+                    return self.notify("O nome não pode ter barras", true);
+                }
+                let path = ops::unique_dest(&dir, &value);
+                self.tab_mut().focus_on_load = vec![path.clone()];
+                Task::perform(
+                    async move {
+                        let p = path.clone();
+                        tokio::task::spawn_blocking(move || std::fs::OpenOptions::new().write(true).create_new(true).open(&p).map(drop))
+                            .await
+                            .map_err(|e| e.to_string())
+                            .and_then(|r| r.map_err(|e| e.to_string()))
+                            .map(|()| path)
+                    },
+                    Message::Created,
+                )
+            }
             PromptKind::GoTo => {
                 let value = self.chosen_suggestion().unwrap_or(value);
                 let expanded = if let Some(rest) = value.strip_prefix('~') {
@@ -1231,6 +1270,7 @@ impl App {
             Some(Named::F5) => return self.run(Cmd::CopyToOther),
             Some(Named::F6) => return self.run(Cmd::MoveToOther),
             Some(Named::F7) => return self.run(Cmd::NewFolder),
+            Some(Named::F4) => return self.run(Cmd::GoTo),
             Some(Named::F8) => return self.run(Cmd::Trash),
             Some(Named::F12) => return self.run(Cmd::ToggleFps),
             _ => {}
@@ -1244,6 +1284,7 @@ impl App {
                     ("-", _) => Some(Cmd::ZoomOut),
                     ("c", true) => Some(Cmd::CopyPath),
                     ("n", true) => Some(Cmd::NewFolder),
+                    ("n", false) => Some(Cmd::NewWindow),
                     ("t", false) => Some(Cmd::NewTab),
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
@@ -1270,6 +1311,10 @@ impl App {
         }
         if mods.alt() && mods.shift() && matches!(&key, Key::Character(c) if c.eq_ignore_ascii_case("p")) {
             return self.run(Cmd::Details);
+        }
+        // Alt+D: barra de endereço, como no Explorer.
+        if mods.alt() && !mods.shift() && matches!(&key, Key::Character(c) if c.eq_ignore_ascii_case("d")) {
+            return self.run(Cmd::GoTo);
         }
         if captured {
             return Task::none();
@@ -1457,6 +1502,10 @@ impl App {
             Message::Suggested { generation, items } => self.on_suggested(generation, items),
             Message::SuggestPick(i) => self.accept_suggestion(Some(i)),
             Message::Zoom(larger) => self.zoom(larger),
+            Message::Created(result) => match result {
+                Ok(_) => Task::none(),
+                Err(e) => self.notify(format!("Não criou o arquivo: {e}"), true),
+            },
             Message::PressItem { tab, index } => self.press_item(tab, index),
             Message::PressEmpty(tab) => self.press_empty(tab),
             Message::BandMove { tab, at } => self.band_move(tab, at),

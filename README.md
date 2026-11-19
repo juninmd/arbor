@@ -176,8 +176,10 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Backspace` | Pasta acima |
 | digitar | Filtrar a pasta (`Esc` limpa) |
 | `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
-| `Ctrl+L` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
+| `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
+| `Ctrl+N` | Nova janela |
+| botões laterais do mouse | Voltar / avançar |
 | `F5` / `F6` | Copiar / mover para o outro painel |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
 | `Ctrl+Z` | Desfazer |
