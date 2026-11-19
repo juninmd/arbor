@@ -486,6 +486,7 @@ pub enum Message {
     JumpQuery(String),
     JumpRun(usize),
     PaletteRun(usize),
+    PaletteHover(usize),
     PromptChanged(String),
     PromptSubmit,
     CloseOverlay,
@@ -2152,6 +2153,12 @@ impl App {
                 if let Overlay::Palette { query, selected } = &mut self.overlay {
                     *query = q;
                     *selected = 0;
+                }
+                Task::none()
+            }
+            Message::PaletteHover(i) => {
+                if let Overlay::Palette { selected, .. } = &mut self.overlay {
+                    *selected = i;
                 }
                 Task::none()
             }

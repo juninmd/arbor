@@ -22,6 +22,7 @@ use std::path::{Component, Path, PathBuf};
 
 mod commands_view;
 mod computer_view;
+mod crumbs;
 mod details_view;
 mod sidebar_view;
 
@@ -119,7 +120,7 @@ fn pane(app: &App, index: usize) -> Element<'_, Message> {
     if app.dragging().is_some() {
         body = body.on_enter(Message::DragOver(Some(tab.path.clone())));
     }
-    let content = column![tabs_bar(p, index, is_active), toolbar(tab), bar, body, status_line(tab, app.show_hidden)];
+    let content = column![tabs_bar(p, index, is_active), toolbar(app, tab), bar, body, status_line(tab, app.show_hidden)];
     let framed = container(content).width(Fill).height(Fill).clip(true).style(move |t: &Theme| theme::glass(t, is_active && app.dual));
     mouse_area(framed).on_press(Message::FocusPane(index)).into()
 }
@@ -147,7 +148,7 @@ fn tabs_bar(p: &Pane, pane: usize, pane_active: bool) -> Element<'_, Message> {
     container(scrollable(r).direction(thin_horizontal()).style(theme::scrollbar)).padding(Padding::new(8.0).bottom(0.0)).into()
 }
 
-fn toolbar(tab: &Tab) -> Element<'_, Message> {
+fn toolbar<'a>(app: &'a App, tab: &'a Tab) -> Element<'a, Message> {
     let nav = row![
         mouse_area(icon_button(Icon::Left, Cmd::Back, Message::Run(Cmd::Back)))
             .on_right_press(Message::JumpOpen { kind: JumpKind::Back, dir: None }),
@@ -167,7 +168,7 @@ fn toolbar(tab: &Tab) -> Element<'_, Message> {
         .style(theme::input);
     let filter = stack![filter, container(icon(Icon::Search, 13.0, theme::DARK.ink3)).padding(Padding::new(0.0).left(10.0)).center_y(Fill)];
     let filter = container(filter).height(30);
-    let mut bar = row![nav, breadcrumbs(tab)].spacing(8).align_y(Alignment::Center);
+    let mut bar = row![nav, breadcrumbs(app, tab)].spacing(8).align_y(Alignment::Center);
     if let Some(badge) = latency_badge(tab) {
         bar = bar.push(badge);
     }
@@ -206,8 +207,9 @@ fn view_switch(tab: &Tab) -> Element<'_, Message> {
     container(row![seg(Icon::List, !tab.grid), seg(Icon::Grid, tab.grid)].spacing(2)).padding(2).style(|t| theme::field(t, false)).into()
 }
 
-fn breadcrumbs(tab: &Tab) -> Element<'_, Message> {
+fn breadcrumbs<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     let mut acc = PathBuf::new();
+    let mut segments: Vec<(String, PathBuf)> = Vec::new();
     let mut r = Row::new().spacing(1).align_y(Alignment::Center);
     let in_computer = computer::is(&tab.path);
     // Como no Explorer: todo caminho começa em "Este Computador".
@@ -230,8 +232,29 @@ fn breadcrumbs(tab: &Tab) -> Element<'_, Message> {
         if matches!(c, Component::Prefix(_)) && matches!(parts.get(i + 1), Some(Component::RootDir)) {
             acc.push(parts[i + 1].as_os_str());
         }
-        r = r.push(crumb(tab.id, label, acc.clone(), i == parts.len() - 1));
-        r = r.push(chevron(acc.clone()));
+        segments.push((label, acc.clone()));
+    }
+    // Largura que sobra para os degraus: painel menos botões, filtro, selo de tempo e "Este Computador".
+    let panes = if app.dual { 2.0 } else { 1.0 };
+    let details = if app.details_on { details_view::WIDTH + GAP } else { 0.0 };
+    let pane_w = (app.window.width - crate::app::SIDEBAR_W - 3.0 * GAP - details) / panes;
+    let filter_w = if tab.filter.is_empty() { 150.0 } else { 210.0 };
+    let budget = pane_w - 430.0 - filter_w - crumbs::crumb_width(computer::TITLE);
+    let widths: Vec<f32> = segments.iter().map(|(l, _)| crumbs::crumb_width(l)).collect();
+    let first = crumbs::first_visible(&widths, budget - 30.0);
+    if first > 0 {
+        let hidden = segments[first - 1].1.clone();
+        r = r.push(
+            button(text("«").size(13).style(theme::ink3))
+                .padding([4, 6])
+                .on_press(Message::JumpOpen { kind: JumpKind::Ancestors, dir: Some(hidden) })
+                .style(theme::ghost),
+        );
+    }
+    let last = segments.len().saturating_sub(1);
+    for (i, (label, path)) in segments.into_iter().enumerate().skip(first) {
+        r = r.push(crumb(tab.id, label, path.clone(), i == last));
+        r = r.push(chevron(path));
     }
     let bar = scrollable(r).direction(thin_horizontal()).anchor_right().width(Fill).style(theme::scrollbar);
     mouse_area(container(bar).width(Fill)).on_double_click(Message::Run(Cmd::GoTo)).into()
@@ -926,13 +949,12 @@ fn palette<'a>(app: &'a App, query: &'a str, selected: usize) -> Element<'a, Mes
         if !sc.is_empty() {
             line = line.push(kbd(sc));
         }
-        list = list.push(
-            button(line)
-                .width(Fill)
-                .padding([8, 12])
-                .on_press(Message::PaletteRun(i))
-                .style(move |t: &Theme, s| theme::place(t, s, active)),
-        );
+        // Um destaque só: passar o mouse move a seleção (como as setas), em vez de pintar uma segunda linha.
+        let b = button(line).width(Fill).padding([8, 12]).on_press(Message::PaletteRun(i)).style(move |t: &Theme, s| {
+            let s = if s == button::Status::Hovered { button::Status::Active } else { s };
+            theme::place(t, s, active)
+        });
+        list = list.push(mouse_area(b).on_enter(Message::PaletteHover(i)));
     }
     let foot = row![
         kbd("↑".into()),

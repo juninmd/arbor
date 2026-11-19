@@ -13,6 +13,8 @@ pub enum JumpKind {
     Children,
     Back,
     Forward,
+    /// Pastas escondidas atrás do "«" de um caminho longo (da mais funda para a raiz).
+    Ancestors,
 }
 
 pub struct Jump {
@@ -46,6 +48,7 @@ impl App {
         };
         let items = match kind {
             JumpKind::Back => Some(history_items(&self.tab().back)),
+            JumpKind::Ancestors => dir.as_deref().map(|d| d.ancestors().map(|p| (label(p), p.to_path_buf())).collect()),
             JumpKind::Forward => Some(history_items(&self.tab().forward)),
             JumpKind::Children if dir.as_deref().is_some_and(computer::is) => {
                 let places = self.places.iter().filter(|(_, p)| p.is_dir()).cloned();
@@ -84,7 +87,7 @@ impl App {
         let Some(target) = j.items.and_then(|items| items.into_iter().nth(index)).map(|(_, p)| p) else { return Task::none() };
         let pane = self.active;
         match j.kind {
-            JumpKind::Children => self.navigate(pane, target),
+            JumpKind::Children | JumpKind::Ancestors => self.navigate(pane, target),
             back_or_forward => {
                 // Pula `index + 1` passos de uma vez, mantendo o resto do histórico como no Explorer.
                 let back = back_or_forward == JumpKind::Back;
