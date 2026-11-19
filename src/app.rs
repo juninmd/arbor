@@ -330,6 +330,7 @@ pub enum Message {
     TrashListed(Result<Vec<Entry>, String>),
     TrashDone(Result<String, String>),
     Confirmed,
+    Ejected(Result<(), String>),
     TreeLoaded { path: PathBuf, dirs: Vec<PathBuf> },
     PressItem { tab: u64, index: usize },
     PressEmpty(u64),
@@ -871,6 +872,18 @@ impl App {
             Cmd::ZoomIn => self.zoom(true),
             Cmd::ZoomOut => self.zoom(false),
             Cmd::Restore | Cmd::Purge | Cmd::EmptyTrash | Cmd::DeleteNow => self.trash_cmd(cmd),
+            Cmd::Eject => {
+                let Some(path) = self.menu_target.clone().or_else(|| self.tab().current().map(|e| e.path.clone())) else {
+                    return Task::none();
+                };
+                if !self.drives.iter().any(|d| d.path == path && d.removable) {
+                    return self.notify("Só dá para ejetar mídia removível", false);
+                }
+                Task::perform(
+                    async move { tokio::task::spawn_blocking(move || computer::eject(&path)).await.unwrap_or_else(|e| Err(e.to_string())) },
+                    Message::Ejected,
+                )
+            }
             Cmd::Up => self.go_up(),
             Cmd::Back => self.history(true),
             Cmd::Forward => self.history(false),
@@ -1553,6 +1566,13 @@ impl App {
             Message::TrashListed(result) => self.on_trash_listed(result),
             Message::TrashDone(result) => self.on_trash_done(result),
             Message::Confirmed => self.confirmed(),
+            Message::Ejected(result) => {
+                let note = match result {
+                    Ok(()) => self.notify("Pode remover a mídia com segurança", false),
+                    Err(e) => self.notify(format!("Não ejetou: {e}"), true),
+                };
+                Task::batch([note, scan_drives()])
+            }
             Message::TreeLoaded { path, dirs } => {
                 self.tree.children.insert(path, dirs);
                 Task::none()
