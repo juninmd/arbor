@@ -14,7 +14,7 @@ use arbor_core::{human_count, human_size, human_time, Entry, SortKey};
 use iced::widget::text::Wrapping;
 use iced::widget::{
     button, center, column, container, image, mouse_area, opaque, progress_bar, row, scrollable, space, stack, text, text_input, tooltip,
-    Column, Row,
+    Column, MouseArea, Row,
 };
 use iced::{Alignment, Color, ContentFit, Element, Fill, Length, Padding, Theme};
 use std::path::{Component, Path, PathBuf};
@@ -33,9 +33,13 @@ pub fn view(app: &App) -> Element<'_, Message> {
         body = body.push(details_view::panel(app));
     }
     let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill).style(theme::backdrop);
-    match overlay(app) {
+    let main: Element<_> = match overlay(app) {
         Some(o) => stack![main, o].into(),
         None => main.into(),
+    };
+    match drag_ghost(app) {
+        Some(g) => stack![main, g].into(),
+        None => main,
     }
 }
 
@@ -57,7 +61,12 @@ fn sidebar(app: &App) -> Element<'_, Message> {
             .width(Fill)
             .padding([7, 10])
             .style(move |t: &Theme, s| theme::place(t, s, active));
-        mouse_area(b).on_right_press(Message::SidebarMenu(path.clone())).into()
+        let area = mouse_area(b).on_right_press(Message::SidebarMenu(path.clone()));
+        if app.dragging().is_some() {
+            area.on_enter(Message::DragOver(Some(path.clone()))).on_exit(Message::DragLeave { from: path.clone(), back: None }).into()
+        } else {
+            area.into()
+        }
     };
     let brand = row![
         icon(Icon::Logo, 26.0, theme::ICE),
@@ -164,7 +173,10 @@ fn pane(app: &App, index: usize) -> Element<'_, Message> {
     let tab = p.tab();
     let is_active = app.active == index;
     let bar: Element<_> = if is_active { commands_view::bar(app) } else { space().height(0).into() };
-    let body = mouse_area(body(app, tab, is_active)).on_right_press(Message::ContextMenu { tab: tab.id, index: None });
+    let mut body = mouse_area(body(app, tab, is_active)).on_right_press(Message::ContextMenu { tab: tab.id, index: None });
+    if app.dragging().is_some() {
+        body = body.on_enter(Message::DragOver(Some(tab.path.clone())));
+    }
     let content = column![tabs_bar(p, index, is_active), toolbar(tab), bar, body, status_line(tab, app.show_hidden)];
     let framed = container(content).width(Fill).height(Fill).clip(true).style(move |t: &Theme| theme::glass(t, is_active && app.dual));
     mouse_area(framed).on_press(Message::FocusPane(index)).into()
@@ -355,7 +367,8 @@ fn list<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
     }
     col = col.push(space().height((total - end) as f32 * ROW_H));
     let id = tab.id;
-    scrollable(col.padding(Padding::from([0, 8]).bottom(8.0)))
+    let content = surface(app, tab, col.padding(Padding::from([0, 8]).bottom(8.0)), total as f32 * ROW_H + 8.0);
+    scrollable(content)
         .id(tab.scroll_id())
         .on_scroll(move |viewport| Message::Scrolled { tab: id, viewport })
         .direction(thin_vertical())
@@ -366,6 +379,7 @@ fn list<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
 
 fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Element<'a, Message> {
     let e = tab.entry_at(i).expect("índice válido");
+    let drop_here = e.is_dir && app.dragging().is_some_and(|(_, _, over)| over == Some(e.path.as_path()));
     let drive = drive_of(app, tab, e);
     let (size, when) = match drive {
         Some(d) => d.space.map(|(free, total)| (human_size(total), human_size(free))).unwrap_or_default(),
@@ -395,9 +409,9 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
         .padding([0, 10])
         .align_y(Alignment::Center)
         .clip(true)
-        .style(move |t: &Theme| theme::row(t, selected, cursor, pane_active));
-    mouse_area(cell)
-        .on_press(Message::Click { tab: tab.id, index: i })
+        .style(move |t: &Theme| theme::row(t, selected || drop_here, cursor || drop_here, pane_active));
+    drop_zone(app, tab, e, mouse_area(cell))
+        .on_press(Message::PressItem { tab: tab.id, index: i })
         .on_double_click(Message::Activate { tab: tab.id, index: i })
         .on_right_press(Message::ContextMenu { tab: tab.id, index: Some(i) })
         .into()
@@ -420,13 +434,44 @@ fn grid<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
     }
     col = col.push(space().height((rows_total - end_row) as f32 * cell_h));
     let id = tab.id;
-    scrollable(col.padding([4, 10]))
+    let content = surface(app, tab, col.padding([4, 10]), rows_total as f32 * cell_h + 8.0);
+    scrollable(content)
         .id(tab.scroll_id())
         .on_scroll(move |viewport| Message::Scrolled { tab: id, viewport })
         .direction(thin_vertical())
         .height(Fill)
         .style(theme::scrollbar)
         .into()
+}
+
+/// Conteúdo rolável da lista/grade: área vazia que inicia o retângulo de seleção (preenchendo até o
+/// fim da janela, para dar onde clicar) e o retângulo desenhado por cima.
+fn surface<'a>(app: &'a App, tab: &'a Tab, col: Column<'a, Message>, height: f32) -> Element<'a, Message> {
+    let filler = (tab.viewport_h - height).max(0.0);
+    let col = col.push(space().height(filler));
+    let id = tab.id;
+    let mut layer: Element<_> = col.into();
+    if let Some(r) = app.band_rect(id) {
+        let band = container(space().width(r.width).height(r.height)).style(theme::band);
+        layer = stack![layer, container(band).padding(Padding::new(0.0).left(r.x).top(r.y))].into();
+    }
+    let area = mouse_area(layer).on_press(Message::PressEmpty(id));
+    if app.band_rect(id).is_some() || matches!(app.gesture, crate::app::Gesture::Band { tab, .. } if tab == id) {
+        area.on_move(move |at| Message::BandMove { tab: id, at }).into()
+    } else {
+        area.into()
+    }
+}
+
+/// Durante um arraste, passar por cima de uma pasta a marca como destino; arquivo vale a pasta atual.
+fn drop_zone<'a>(app: &App, tab: &Tab, e: &Entry, area: MouseArea<'a, Message>) -> MouseArea<'a, Message> {
+    if app.dragging().is_none() {
+        return area;
+    }
+    let target = if e.is_dir { e.path.clone() } else { tab.path.clone() };
+    // Ao sair, só volta para a pasta atual se este item ainda era o destino: a próxima linha pode já ter
+    // marcado o dela na mesma passada de eventos.
+    area.on_enter(Message::DragOver(Some(target.clone()))).on_exit(Message::DragLeave { from: target, back: Some(tab.path.clone()) })
 }
 
 fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Element<'a, Message> {
@@ -472,8 +517,8 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
             s
         });
     let cell = container(cell).padding(5);
-    mouse_area(cell)
-        .on_press(Message::Click { tab: tab.id, index: i })
+    drop_zone(app, tab, e, mouse_area(cell))
+        .on_press(Message::PressItem { tab: tab.id, index: i })
         .on_double_click(Message::Activate { tab: tab.id, index: i })
         .on_right_press(Message::ContextMenu { tab: tab.id, index: Some(i) })
         .into()
@@ -713,6 +758,24 @@ fn suggestions(app: &App, kind: PromptKind) -> Element<'_, Message> {
         );
     }
     col.into()
+}
+
+/// Etiqueta que segue o mouse no arraste: quantos itens e o que vai acontecer ao soltar.
+fn drag_ghost(app: &App) -> Option<Element<'_, Message>> {
+    let (paths, at, over) = app.dragging()?;
+    let what = if paths.len() == 1 { shorten(&paths[0].file_name()?.to_string_lossy(), 28) } else { format!("{} itens", paths.len()) };
+    let action = match over {
+        Some(dest) if crate::app::drag_valid(paths, dest) => {
+            let name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dest.display().to_string());
+            let verb = if app.drag_copies(paths, dest) { "Copiar para" } else { "Mover para" };
+            format!("{verb} {name}")
+        }
+        _ => "Solte numa pasta".to_string(),
+    };
+    let tag = container(column![text(what).size(12.5).font(theme::UI_BOLD), text(action).size(11.5).style(theme::ink2)].spacing(2))
+        .padding([6, 10])
+        .style(theme::tooltip);
+    Some(container(tag).padding(Padding::new(0.0).left(at.x + 14.0).top(at.y + 14.0)).into())
 }
 
 fn scrim<'a>() -> Element<'a, Message> {

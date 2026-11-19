@@ -338,6 +338,16 @@ pub fn progress(t: &Theme) -> iced::widget::progress_bar::Style {
     }
 }
 
+/// Retângulo de seleção: preenchimento leve e borda na cor de destaque.
+pub fn band(t: &Theme) -> container::Style {
+    let k = tokens(t);
+    container::Style {
+        background: Some(alpha(k.accent, 0.12).into()),
+        border: Border { color: alpha(k.accent, 0.6), width: 1.0, radius: 3.0.into() },
+        ..Default::default()
+    }
+}
+
 /// Disco quase cheio: mesma barra, em vermelho.
 pub fn progress_full(t: &Theme) -> iced::widget::progress_bar::Style {
     iced::widget::progress_bar::Style { bar: Background::Color(tokens(t).danger), ..progress(t) }

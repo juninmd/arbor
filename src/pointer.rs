@@ -5,6 +5,17 @@ use iced::{mouse, Event, Point};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 static POS: AtomicU64 = AtomicU64::new(0);
+/// Um gesto (arrastar, retângulo) está ativo: só então movimentos viram mensagens.
+static ARMED: AtomicBool = AtomicBool::new(false);
+
+pub fn arm(on: bool) {
+    ARMED.store(on, Ordering::Relaxed);
+}
+
+pub fn armed() -> bool {
+    ARMED.load(Ordering::Relaxed)
+}
+
 /// Ctrl (⌘ no macOS) pressionado: a roda do mouse vira zoom dos ícones.
 static CTRL: AtomicBool = AtomicBool::new(false);
 

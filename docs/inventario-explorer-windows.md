@@ -65,9 +65,9 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Feature do Explorer | arbor | Prio |
 |---|---|---|
 | Copiar, mover, renomear, lixeira, nova pasta, desfazer | ✅ | — |
-| Seleção por retângulo (arrastar com o mouse) | ❌ | P0 |
+| Seleção por retângulo (arrastar com o mouse) | ✅ (Ctrl soma à seleção) | P0 |
 | Ctrl/Shift+clique, Ctrl+A, inverter seleção | 🟡 (inverter não) | P2 |
-| Arrastar e soltar dentro do app e para outros apps | 🟡 (só soltar de fora) | P0 |
+| Arrastar e soltar dentro do app e para outros apps | 🟡 (dentro do app: pastas, barra lateral, outro painel; arrastar para outros apps não) | P0 |
 | Arrastar com botão direito (copiar/mover/criar atalho aqui) | ❌ | P2 |
 | Diálogo de conflito: substituir, pular, comparar, manter os dois | 🟡 (sempre "manter os dois" com nome único; sem perguntar) | P0 |
 | Janela de progresso com gráfico de velocidade, pausa | 🟡 (barra + cancelar) | P1 |

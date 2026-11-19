@@ -56,6 +56,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   [docs/inventario-explorer-windows.md](docs/inventario-explorer-windows.md).
 * **Barra de comandos e menu de contexto** como no Explorer (Nova pasta, recortar, copiar, colar, renomear,
   excluir, Classificar, Visualizar), com itens apagados quando não se aplicam. **Fixar pastas** na barra lateral.
+* **Mouse como no Explorer:** retângulo de seleção a partir da área vazia; arrastar itens para uma pasta, a barra
+  lateral ou o outro painel (mesmo disco move, outro disco copia; `Ctrl` copia, `Shift` move).
 * **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`).
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.

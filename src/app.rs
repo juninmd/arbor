@@ -3,9 +3,11 @@
 use crate::commands::{self, Cmd};
 mod address;
 mod details;
+mod drag;
 mod menu;
 
 pub use details::Details;
+pub use drag::{valid_target as drag_valid, Gesture};
 pub use menu::{Menu, MenuKind};
 
 use crate::computer::{self, Drive};
@@ -59,6 +61,7 @@ pub struct App {
     pub details: Option<Details>,
     /// Índice em `ZOOMS`.
     pub zoom: usize,
+    pub gesture: Gesture,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -300,6 +303,13 @@ pub enum Message {
     Suggested { generation: u64, items: Vec<PathBuf> },
     SuggestPick(usize),
     Zoom(bool),
+    PressItem { tab: u64, index: usize },
+    PressEmpty(u64),
+    BandMove { tab: u64, at: iced::Point },
+    PointerMoved(iced::Point),
+    PointerUp,
+    DragOver(Option<PathBuf>),
+    DragLeave { from: PathBuf, back: Option<PathBuf> },
     DetailsLoaded { path: PathBuf, preview: Preview, props: Vec<(String, String)> },
     Click { tab: u64, index: usize },
     Activate { tab: u64, index: usize },
@@ -371,6 +381,7 @@ impl App {
             details_on: false,
             details: None,
             zoom: 1,
+            gesture: Gesture::None,
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -453,10 +464,11 @@ impl App {
                 };
                 (y != 0.0).then_some(Message::Zoom(y > 0.0))
             }
-            Event::Mouse(_) => {
+            Event::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                 pointer::track(&event);
-                None
+                pointer::armed().then_some(Message::PointerMoved(position))
             }
+            Event::Mouse(iced::mouse::Event::ButtonReleased(iced::mouse::Button::Left)) if pointer::armed() => Some(Message::PointerUp),
             Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, text, .. }) => {
                 Some(Message::Key { key, modifiers, text: text.map(|t| t.to_string()), captured: status == event::Status::Captured })
             }
@@ -1445,6 +1457,13 @@ impl App {
             Message::Suggested { generation, items } => self.on_suggested(generation, items),
             Message::SuggestPick(i) => self.accept_suggestion(Some(i)),
             Message::Zoom(larger) => self.zoom(larger),
+            Message::PressItem { tab, index } => self.press_item(tab, index),
+            Message::PressEmpty(tab) => self.press_empty(tab),
+            Message::BandMove { tab, at } => self.band_move(tab, at),
+            Message::PointerMoved(at) => self.pointer_moved(at),
+            Message::PointerUp => self.pointer_up(),
+            Message::DragOver(target) => self.drag_over(target),
+            Message::DragLeave { from, back } => self.drag_leave(from, back),
             Message::DetailsLoaded { path, preview, props } => self.on_details(path, preview, props),
             Message::PromptSubmit => self.submit_prompt(),
             Message::CloseOverlay => {
