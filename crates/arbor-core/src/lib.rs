@@ -2,6 +2,7 @@
 //! Tudo aqui é testável sem janela e é o que o `arbor-bench` mede.
 
 pub mod entry;
+pub mod frecency;
 pub mod fuzzy;
 pub mod ops;
 pub mod scan;

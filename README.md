@@ -54,7 +54,7 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`).
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
-* **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
+* **Paleta de comandos** (`Ctrl+Shift+P`) com todos os comandos e atalhos, e **pastas frequentes** (`Ctrl+K`): digite parte do nome de uma pasta já visitada e pule para ela.
 * **Preview com Espaço** de imagens (todos os formatos do [Vislo](https://github.com/juninmd/vislo), com EXIF),
   texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) com cache em disco pelo `vislo-core`.
 * **Cópia confiável:** grava em `.nome.arbor-part`, confere o tamanho e só então renomeia. Cancelar nunca deixa
@@ -168,7 +168,8 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Espaço` | Preview (as setas trocam o arquivo) |
 | `Backspace` | Pasta acima |
 | digitar | Filtrar a pasta (`Esc` limpa) |
-| `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
+| `Ctrl+Shift+P` | Paleta de comandos |
+| `Ctrl+K` | Pular para pasta frequente |
 | `Ctrl+L` (ou duplo clique no caminho) | Ir para caminho (aceita `~`) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
 | `F5` / `F6` | Copiar / mover para o outro painel |
