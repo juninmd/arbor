@@ -18,7 +18,7 @@ pub use menu::{Menu, MenuKind};
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::session::{self, Session};
-use crate::{instance, keymap, launch, listing, network, pins, pointer, trashbin, update, watch};
+use crate::{home, instance, keymap, launch, listing, network, pins, pointer, trashbin, update, watch};
 use arbor_core::frecency::Frecency;
 use arbor_core::group::GroupBy;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
@@ -75,6 +75,9 @@ pub struct App {
     /// Caminho-sentinela de "Este Computador", guardado para a barra lateral poder emprestá-lo.
     pub computer: PathBuf,
     pub trash: PathBuf,
+    /// Caminho-sentinela de "Início" e os arquivos abertos recentemente que ele lista.
+    pub home: PathBuf,
+    recent: Vec<PathBuf>,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -480,6 +483,9 @@ pub enum Message {
         preview: Preview,
         props: Vec<(String, String)>,
     },
+    /// Recalcular "Início" (fixados, frequentes e recentes) e o resultado lido do disco.
+    HomeRefresh,
+    HomeListed(Vec<Entry>),
     /// Calcular o SHA-256 do arquivo do painel de detalhes, e o resultado.
     HashFile(PathBuf),
     Hashed {
@@ -618,6 +624,8 @@ impl App {
             tree: Default::default(),
             computer: computer::path(),
             trash: trashbin::path(),
+            home: home::path(),
+            recent: home::load(),
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -833,6 +841,9 @@ impl App {
         if trashbin::is(&path) {
             return Task::batch([scan_trash(), scroll]);
         }
+        if home::is(&path) {
+            return Task::batch([Task::done(Message::HomeRefresh), scroll]);
+        }
         if let Some(server) = network::server_root(&path) {
             tab.search = None;
             return Task::batch([
@@ -925,7 +936,11 @@ impl App {
             )
         } else {
             match launch::open(&entry.path) {
-                Ok(()) => Task::none(),
+                Ok(()) => {
+                    home::record(&mut self.recent, &entry.path);
+                    home::save(&self.recent);
+                    Task::none()
+                }
                 Err(e) => self.notify(format!("Não abriu {}: {e}", entry.name), true),
             }
         }
@@ -944,7 +959,7 @@ impl App {
         // A ordenação pode ter mudado enquanto a lista era lida; o snapshot veio na ordem antiga.
         // "Este Computador" chega já agrupado (pastas, depois discos); só reordena se pedirem.
         let sort = tab.sort;
-        let grouped = computer::is(&tab.path);
+        let grouped = computer::is(&tab.path) || home::is(&tab.path);
         tab.edit_entries(show_hidden, |entries| {
             *entries = snap.entries;
             if !grouped && !entries.is_sorted_by(|a, b| arbor_core::compare(a, b, sort).is_le()) {
@@ -2310,6 +2325,21 @@ impl App {
             Message::DragLeave { from, back } => self.drag_leave(from, back),
             Message::DetailsLoaded { path, preview, props } => self.on_details(path, preview, props),
             Message::HashFile(path) => self.hash_file(path),
+            Message::HomeRefresh => {
+                let mut quick = self.pins.clone();
+                quick.extend(self.frecency.query("", home::FREQUENT));
+                let recent = self.recent.clone();
+                Task::perform(
+                    async move { tokio::task::spawn_blocking(move || home::entries(&quick, &recent)).await.unwrap_or_default() },
+                    Message::HomeListed,
+                )
+            }
+            Message::HomeListed(entries) => {
+                let snap = Snapshot { entries: Arc::new(entries), complete: true, elapsed: Duration::ZERO, error: None };
+                let tabs: Vec<_> =
+                    self.panes.iter().flat_map(|p| &p.tabs).filter(|t| home::is(&t.path)).map(|t| (t.id, t.generation)).collect();
+                Task::batch(tabs.into_iter().map(|(id, generation)| self.on_listed(id, generation, snap.clone())).collect::<Vec<_>>())
+            }
             Message::Hashed { path, result } => self.on_hashed(path, result),
             Message::PromptSubmit => self.submit_prompt(),
             Message::CloseOverlay => {
