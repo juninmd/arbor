@@ -45,3 +45,23 @@ pub fn apply(window: &dyn iced::window::Window) -> bool {
         true
     }
 }
+
+/// `ARBOR_LOG=1` manda os avisos do wgpu e do iced para o stderr; serve para diagnosticar o vidro
+/// em máquinas onde a superfície não abre.
+pub fn log_to_stderr() {
+    struct Stderr;
+    impl log::Log for Stderr {
+        fn enabled(&self, m: &log::Metadata) -> bool {
+            m.level() <= log::Level::Info
+        }
+        fn log(&self, r: &log::Record) {
+            if self.enabled(r.metadata()) {
+                eprintln!("[{} {}] {}", r.level(), r.target(), r.args());
+            }
+        }
+        fn flush(&self) {}
+    }
+    if std::env::var_os("ARBOR_LOG").is_some() && log::set_logger(&Stderr).is_ok() {
+        log::set_max_level(log::LevelFilter::Info);
+    }
+}

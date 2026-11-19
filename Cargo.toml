@@ -18,6 +18,7 @@ repository.workspace = true
 default-run = "arbor"
 
 [dependencies]
+log = "0.4"
 arbor-core = { path = "crates/arbor-core" }
 mimalloc = { version = "0.1", default-features = false }
 iced = { version = "0.14", features = ["tokio", "image", "svg", "advanced"] }

@@ -134,6 +134,7 @@ dependencies = [
  "fast_image_resize",
  "iced",
  "image",
+ "log",
  "mimalloc",
  "notify",
  "open",
