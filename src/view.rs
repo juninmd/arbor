@@ -4,9 +4,7 @@
 //! O visual segue o protótipo "arbor Glass" (tokens em `theme.rs`): aurora ao fundo, cartões de vidro,
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
-use crate::app::{
-    App, Message, Overlay, Pane, PromptKind, Tab, UpdateState, CELL_H, CELL_W, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W,
-};
+use crate::app::{App, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H, SIDEBAR_W};
 use crate::commands::Cmd;
 use crate::computer::{self, Drive};
 use crate::media::Preview;
@@ -409,9 +407,10 @@ fn grid<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
     let cols = app.grid_cols();
     let total = tab.view.len();
     let rows_total = total.div_ceil(cols);
-    let first_row = ((tab.scroll_y / CELL_H).floor() as usize).saturating_sub(2).min(rows_total);
-    let end_row = (first_row + (tab.viewport_h / CELL_H).ceil() as usize + 4).min(rows_total);
-    let mut col = Column::new().push(space().height(first_row as f32 * CELL_H));
+    let cell_h = app.cell_h();
+    let first_row = ((tab.scroll_y / cell_h).floor() as usize).saturating_sub(2).min(rows_total);
+    let end_row = (first_row + (tab.viewport_h / cell_h).ceil() as usize + 4).min(rows_total);
+    let mut col = Column::new().push(space().height(first_row as f32 * cell_h));
     for r in first_row..end_row {
         let mut line = Row::new();
         for i in r * cols..((r + 1) * cols).min(total) {
@@ -419,7 +418,7 @@ fn grid<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
         }
         col = col.push(line);
     }
-    col = col.push(space().height((rows_total - end_row) as f32 * CELL_H));
+    col = col.push(space().height((rows_total - end_row) as f32 * cell_h));
     let id = tab.id;
     scrollable(col.padding([4, 10]))
         .id(tab.scroll_id())
@@ -437,11 +436,13 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
     let drive = drive_of(app, tab, e);
     let k = entry_kind(e, drive);
     let color = kind_color(k);
+    let z = crate::app::ZOOMS[app.zoom];
+    let thumb_h = 96.0 * z;
     let thumb: Element<_> = match app.thumbs.get(&e.path) {
-        Some(Some(h)) => image(h.clone()).content_fit(ContentFit::Cover).width(Fill).height(96).border_radius(10).into(),
-        _ => container(chip(k, 46.0))
+        Some(Some(h)) => image(h.clone()).content_fit(ContentFit::Cover).width(Fill).height(thumb_h).border_radius(10).into(),
+        _ => container(chip(k, 46.0 * z))
             .center_x(Fill)
-            .center_y(96)
+            .center_y(thumb_h)
             .style(move |_| container::Style {
                 background: Some(theme::alpha(color, 0.08).into()),
                 border: iced::border::rounded(10),
@@ -457,16 +458,19 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
         None => human_size(e.size),
     };
     let meta = text(meta).font(theme::MONO).size(10).style(theme::ink3);
-    let cell = container(column![thumb, label, meta].spacing(4)).width(CELL_W - 10.0).height(CELL_H - 10.0).padding(6).clip(true).style(
-        move |t: &Theme| {
+    let cell = container(column![thumb, label, meta].spacing(4))
+        .width(app.cell_w() - 10.0)
+        .height(app.cell_h() - 10.0)
+        .padding(6)
+        .clip(true)
+        .style(move |t: &Theme| {
             let mut s = theme::row(t, selected, cursor, pane_active);
             if !selected && !cursor {
                 s.background = Some(theme::tokens(t).glass_hi.into());
             }
             s.border.radius = 15.0.into();
             s
-        },
-    );
+        });
     let cell = container(cell).padding(5);
     mouse_area(cell)
         .on_press(Message::Click { tab: tab.id, index: i })

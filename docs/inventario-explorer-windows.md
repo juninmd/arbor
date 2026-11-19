@@ -47,8 +47,8 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Feature do Explorer | arbor | Prio |
 |---|---|---|
 | Detalhes e miniaturas | ✅ | — |
-| Ícones extra grandes/grandes/médios/pequenos, Lista, Blocos, Conteúdo | 🟡 (2 modos) | P1 |
-| Ctrl+roda muda o tamanho dos ícones | ❌ | P1 |
+| Ícones extra grandes/grandes/médios/pequenos, Lista, Blocos, Conteúdo | 🟡 (detalhes + 4 tamanhos de ícone; sem Blocos/Conteúdo) | P1 |
+| Ctrl+roda muda o tamanho dos ícones | ✅ (também Ctrl+= / Ctrl+-) | P1 |
 | Colunas configuráveis (adicionar, reordenar, redimensionar por arraste) | ❌ | P1 |
 | Agrupar por (tipo, data "Hoje/Ontem/Semana passada", tamanho) | ❌ | P2 |
 | Filtro pelo cabeçalho da coluna (por tipo, por data) | ❌ | P2 |

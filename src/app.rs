@@ -28,6 +28,8 @@ use std::time::{Duration, Instant};
 pub const ROW_H: f32 = 34.0;
 pub const CELL_W: f32 = 142.0;
 pub const CELL_H: f32 = 168.0;
+/// Tamanhos de ícone da grade (pequeno, médio, grande, extra grande), trocados com Ctrl+roda.
+pub const ZOOMS: [f32; 4] = [0.75, 1.0, 1.35, 1.8];
 pub const SIDEBAR_W: f32 = 216.0;
 
 pub struct App {
@@ -54,6 +56,8 @@ pub struct App {
     pub suggest: address::Suggest,
     pub details_on: bool,
     pub details: Option<Details>,
+    /// Índice em `ZOOMS`.
+    pub zoom: usize,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -294,6 +298,7 @@ pub enum Message {
     MenuHover(usize),
     Suggested { generation: u64, items: Vec<PathBuf> },
     SuggestPick(usize),
+    Zoom(bool),
     DetailsLoaded { path: PathBuf, preview: Preview, props: Vec<(String, String)> },
     Click { tab: u64, index: usize },
     Activate { tab: u64, index: usize },
@@ -363,6 +368,7 @@ impl App {
             suggest: Default::default(),
             details_on: false,
             details: None,
+            zoom: 1,
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -408,11 +414,43 @@ impl App {
         let panes = if self.dual { 2.0 } else { 1.0 };
         // margens da janela, espaço entre os cartões e o recuo da grade
         let width = (self.window.width - SIDEBAR_W - 30.0 - 10.0 * (panes - 1.0)) / panes - 20.0;
-        ((width / CELL_W).floor() as usize).max(1)
+        ((width / self.cell_w()).floor() as usize).max(1)
+    }
+
+    pub fn cell_w(&self) -> f32 {
+        CELL_W * ZOOMS[self.zoom]
+    }
+
+    /// Só a miniatura (96 px no médio) cresce; nome e tamanho embaixo mantêm a altura.
+    pub fn cell_h(&self) -> f32 {
+        CELL_H + 96.0 * (ZOOMS[self.zoom] - 1.0)
+    }
+
+    /// Ctrl+roda como no Explorer: aumenta os ícones; abaixo do menor volta para a lista, acima da lista vira grade.
+    fn zoom(&mut self, larger: bool) -> Task<Message> {
+        let grid = self.tab().grid;
+        match (grid, larger) {
+            (false, true) => {
+                self.zoom = 0;
+                return self.run(Cmd::ToggleGrid);
+            }
+            (false, false) => return Task::none(),
+            (true, false) if self.zoom == 0 => return self.run(Cmd::ToggleGrid),
+            (true, false) => self.zoom -= 1,
+            (true, true) => self.zoom = (self.zoom + 1).min(ZOOMS.len() - 1),
+        }
+        let id = self.tab().id;
+        Task::batch([self.reveal_cursor(id), self.request_thumbs(id)])
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
         let keys = event::listen_with(|event, status, _| match event {
+            Event::Mouse(iced::mouse::Event::WheelScrolled { delta }) if pointer::ctrl() => {
+                let y = match delta {
+                    iced::mouse::ScrollDelta::Lines { y, .. } | iced::mouse::ScrollDelta::Pixels { y, .. } => y,
+                };
+                (y != 0.0).then_some(Message::Zoom(y > 0.0))
+            }
             Event::Mouse(_) => {
                 pointer::track(&event);
                 None
@@ -420,7 +458,10 @@ impl App {
             Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, text, .. }) => {
                 Some(Message::Key { key, modifiers, text: text.map(|t| t.to_string()), captured: status == event::Status::Captured })
             }
-            Event::Keyboard(keyboard::Event::ModifiersChanged(m)) => Some(Message::Modifiers(m)),
+            Event::Keyboard(keyboard::Event::ModifiersChanged(m)) => {
+                pointer::set_ctrl(m.command());
+                Some(Message::Modifiers(m))
+            }
             Event::Window(window::Event::Resized(size)) => Some(Message::Resized(size)),
             Event::Window(window::Event::FileDropped(path)) => Some(Message::Dropped(path)),
             _ => None,
@@ -574,7 +615,7 @@ impl App {
 
     fn move_cursor(&mut self, delta: isize, extend: bool) -> Task<Message> {
         let cols = if self.tab().grid { self.grid_cols() as isize } else { 1 };
-        let page = ((self.tab().viewport_h / if self.tab().grid { CELL_H } else { ROW_H }) as isize).max(1) * cols;
+        let page = ((self.tab().viewport_h / if self.tab().grid { self.cell_h() } else { ROW_H }) as isize).max(1) * cols;
         let delta = match delta {
             isize::MIN => isize::MIN / 2,
             isize::MAX => isize::MAX / 2,
@@ -603,9 +644,9 @@ impl App {
 
     /// Rola o mínimo necessário para o cursor ficar visível.
     fn reveal_cursor(&mut self, id: u64) -> Task<Message> {
-        let cols = self.grid_cols();
+        let (cols, cell_h) = (self.grid_cols(), self.cell_h());
         let Some(tab) = self.find_tab(id) else { return Task::none() };
-        let (row, h) = if tab.grid { (tab.cursor / cols, CELL_H) } else { (tab.cursor, ROW_H) };
+        let (row, h) = if tab.grid { (tab.cursor / cols, cell_h) } else { (tab.cursor, ROW_H) };
         let top = row as f32 * h;
         let target = if top < tab.scroll_y {
             top
@@ -645,13 +686,13 @@ impl App {
     // ---------- miniaturas e preview ----------
 
     fn request_thumbs(&mut self, id: u64) -> Task<Message> {
-        let cols = self.grid_cols();
+        let (cols, cell_h) = (self.grid_cols(), self.cell_h());
         let Some(tab) = self.panes.iter().flat_map(|p| p.tabs.iter()).find(|t| t.id == id) else { return Task::none() };
         if !tab.grid {
             return Task::none();
         }
-        let first_row = (tab.scroll_y / CELL_H).floor() as usize;
-        let rows = (tab.viewport_h / CELL_H).ceil() as usize + 2;
+        let first_row = (tab.scroll_y / cell_h).floor() as usize;
+        let rows = (tab.viewport_h / cell_h).ceil() as usize + 2;
         let start = first_row.saturating_sub(1) * cols;
         let end = ((first_row + rows) * cols).min(tab.view.len());
         let wanted: Vec<PathBuf> = (start..end)
@@ -772,6 +813,8 @@ impl App {
                 self.details_on = true;
                 Task::none()
             }
+            Cmd::ZoomIn => self.zoom(true),
+            Cmd::ZoomOut => self.zoom(false),
             Cmd::Up => self.go_up(),
             Cmd::Back => self.history(true),
             Cmd::Forward => self.history(false),
@@ -1179,6 +1222,8 @@ impl App {
                 let c = c.to_lowercase();
                 let cmd = match (c.as_str(), mods.shift()) {
                     ("p", true) | ("k", false) => Some(Cmd::Palette),
+                    ("=" | "+", _) => Some(Cmd::ZoomIn),
+                    ("-", _) => Some(Cmd::ZoomOut),
                     ("c", true) => Some(Cmd::CopyPath),
                     ("n", true) => Some(Cmd::NewFolder),
                     ("t", false) => Some(Cmd::NewTab),
@@ -1393,6 +1438,7 @@ impl App {
             }
             Message::Suggested { generation, items } => self.on_suggested(generation, items),
             Message::SuggestPick(i) => self.accept_suggestion(Some(i)),
+            Message::Zoom(larger) => self.zoom(larger),
             Message::DetailsLoaded { path, preview, props } => self.on_details(path, preview, props),
             Message::PromptSubmit => self.submit_prompt(),
             Message::CloseOverlay => {

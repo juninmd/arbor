@@ -2,9 +2,19 @@
 //! janela inteira a cada pixel. Só os menus (botão direito, Classificar, Visualizar) leem a posição.
 
 use iced::{mouse, Event, Point};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 static POS: AtomicU64 = AtomicU64::new(0);
+/// Ctrl (⌘ no macOS) pressionado: a roda do mouse vira zoom dos ícones.
+static CTRL: AtomicBool = AtomicBool::new(false);
+
+pub fn set_ctrl(on: bool) {
+    CTRL.store(on, Ordering::Relaxed);
+}
+
+pub fn ctrl() -> bool {
+    CTRL.load(Ordering::Relaxed)
+}
 
 pub fn track(event: &Event) {
     if let Event::Mouse(mouse::Event::CursorMoved { position }) = event {

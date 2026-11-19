@@ -180,6 +180,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
+| `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Ícones maiores / menores |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
 | botão direito, `Shift+F10`, tecla Menu | Menu de contexto do item ou da pasta |
 | `Alt+Shift+P` / `Alt+Enter` | Painel de detalhes / propriedades |
