@@ -480,6 +480,12 @@ pub enum Message {
         preview: Preview,
         props: Vec<(String, String)>,
     },
+    /// Calcular o SHA-256 do arquivo do painel de detalhes, e o resultado.
+    HashFile(PathBuf),
+    Hashed {
+        path: PathBuf,
+        result: Result<String, String>,
+    },
     Click {
         tab: u64,
         index: usize,
@@ -707,8 +713,10 @@ impl App {
 
     fn grid_width(&self) -> f32 {
         let panes = if self.dual { 2.0 } else { 1.0 };
+        // Painel de detalhes aberto tira largura da grade; sem isso a última coluna sai cortada.
+        let details = if self.details_on { crate::view::DETAILS_W + 10.0 } else { 0.0 };
         // margens da janela, espaço entre os cartões e o recuo da grade
-        (self.window.width - SIDEBAR_W - 30.0 - 10.0 * (panes - 1.0)) / panes - 20.0
+        (self.window.width - SIDEBAR_W - 30.0 - details - 10.0 * (panes - 1.0)) / panes - 20.0
     }
 
     pub fn mode(&self) -> &'static crate::view_modes::Mode {
@@ -2301,6 +2309,8 @@ impl App {
             Message::DragOver(target) => self.drag_over(target),
             Message::DragLeave { from, back } => self.drag_leave(from, back),
             Message::DetailsLoaded { path, preview, props } => self.on_details(path, preview, props),
+            Message::HashFile(path) => self.hash_file(path),
+            Message::Hashed { path, result } => self.on_hashed(path, result),
             Message::PromptSubmit => self.submit_prompt(),
             Message::CloseOverlay => {
                 self.overlay = Overlay::None;

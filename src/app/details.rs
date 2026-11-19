@@ -12,6 +12,8 @@ pub struct Details {
     pub path: PathBuf,
     pub preview: Option<Preview>,
     pub props: Vec<(String, String)>,
+    /// `None` antes de pedir; texto "Calculando…" enquanto lê o arquivo.
+    pub hash: Option<String>,
 }
 
 impl App {
@@ -32,7 +34,7 @@ impl App {
                 if !e.is_dir {
                     props.push(("Tamanho".into(), arbor_core::human_size(e.size)));
                 }
-                self.details = Some(Details { path: e.path.clone(), preview: Some(Preview::Other { info: vec![] }), props });
+                self.details = Some(Details { path: e.path.clone(), preview: Some(Preview::Other { info: vec![] }), props, hash: None });
             }
             return Task::none();
         }
@@ -40,7 +42,7 @@ impl App {
         match (want, &self.details) {
             (Some(w), Some(d)) if d.path == w => Task::none(),
             (Some(w), _) => {
-                self.details = Some(Details { path: w.clone(), preview: None, props: vec![] });
+                self.details = Some(Details { path: w.clone(), preview: None, props: vec![], hash: None });
                 let path = w.clone();
                 Task::perform(
                     async move {
@@ -62,6 +64,24 @@ impl App {
         if let Some(d) = self.details.as_mut().filter(|d| d.path == path) {
             d.preview = Some(preview);
             d.props = props;
+        }
+        Task::none()
+    }
+
+    /// Hash sob demanda: ler um arquivo de vários GB a cada troca de cursor seria caro demais.
+    pub(super) fn hash_file(&mut self, path: PathBuf) -> Task<Message> {
+        let Some(d) = self.details.as_mut().filter(|d| d.path == path) else { return Task::none() };
+        d.hash = Some("Calculando…".into());
+        let p = path.clone();
+        Task::perform(
+            async move { tokio::task::spawn_blocking(move || props::sha256(&p)).await.unwrap_or_else(|e| Err(e.to_string())) },
+            move |result| Message::Hashed { path: path.clone(), result },
+        )
+    }
+
+    pub(super) fn on_hashed(&mut self, path: PathBuf, result: Result<String, String>) -> Task<Message> {
+        if let Some(d) = self.details.as_mut().filter(|d| d.path == path) {
+            d.hash = Some(result.unwrap_or_else(|e| format!("Não foi possível ler: {e}")));
         }
         Task::none()
     }

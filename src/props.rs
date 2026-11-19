@@ -39,6 +39,23 @@ pub fn props(path: &Path) -> Vec<(String, String)> {
     out
 }
 
+/// SHA-256 do arquivo em hexadecimal, lido em blocos para não carregar arquivos grandes na memória.
+pub fn sha256(path: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 256 * 1024];
+    loop {
+        let n = file.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
 #[cfg(unix)]
 fn attributes(meta: &std::fs::Metadata, out: &mut Vec<(String, String)>) {
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -86,5 +103,14 @@ mod tests {
         assert_eq!(get(&p, "Tipo"), Some("Pasta"));
         assert!(get(&p, "Tamanho").is_none());
         assert!(get(&props(&dir.path().join("x")), "Erro").is_some());
+    }
+
+    #[test]
+    fn sha256_matches_the_known_digest_and_reports_missing_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("abc.txt");
+        std::fs::write(&f, "abc").unwrap();
+        assert_eq!(sha256(&f).unwrap(), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+        assert!(sha256(&dir.path().join("sumiu")).is_err());
     }
 }

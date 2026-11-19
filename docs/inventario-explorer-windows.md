@@ -34,7 +34,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Menu de contexto (botão direito) em item e em área vazia | ✅ (também Shift+F10 e tecla Menu) | P0 |
 | "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (pasta e documento de texto) | P1 |
 | "Abrir com" (lista de apps + escolher outro) | 🟡 (Windows: diálogo nativo; Linux/macOS: digitar o programa) | P1 |
-| Propriedades (tamanho em disco, datas, atributos, permissões, hash) | 🟡 (Alt+Enter abre no painel de detalhes; sem hash e sem editar) | P1 |
+| Propriedades (tamanho em disco, datas, atributos, permissões, hash) | 🟡 (Alt+Enter abre no painel de detalhes, com SHA-256 sob demanda; sem editar atributos) | P1 |
 | Compactar em ZIP / extrair tudo; navegar dentro de .zip | ✅ (compactar em zip, extrair zip/7z/tar, abrir o compactado como pasta) | P1 |
 | Copiar como caminho | ✅ | — |
 | Abrir no Terminal | ✅ | — |
