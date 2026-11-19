@@ -65,9 +65,11 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
-* **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
+* **Paleta de comandos** (`Ctrl+Shift+P`) com todos os comandos e atalhos, e **pastas frequentes** (`Ctrl+K`): digite parte do nome de uma pasta já visitada e pule para ela.
 * **Preview com Espaço** de imagens (todos os formatos do [Vislo](https://github.com/juninmd/vislo), com EXIF),
-  texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) com cache em disco pelo `vislo-core`.
+  texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) de imagens (inclusive PSD e RAW), capa de MP3 e
+  FLAC, vídeo e PDF, com cache em disco limitado a 512 MB. Vídeo e PDF usam o Quick Look no macOS e, no Linux e no
+  Windows, o `ffmpeg` e o `pdftoppm` (Poppler) se estiverem no PATH; sem eles, fica o ícone do tipo.
 * **Cópia confiável:** grava em `.nome.arbor-part`, confere o tamanho e só então renomeia. Cancelar nunca deixa
   arquivo pela metade. **Desfazer** (`Ctrl+Z`) para copiar, mover, renomear, nova pasta e lixeira.
 * **Atualiza sozinho** a partir das releases deste repositório, com o SHA-256 conferido antes de trocar o executável.
@@ -179,8 +181,11 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Espaço` | Preview (as setas trocam o arquivo) |
 | `Backspace` | Pasta acima |
 | digitar | Filtrar a pasta (`Esc` limpa) |
-| `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
+| `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
+| `Ctrl+Shift+P` | Paleta de comandos |
+| `Ctrl+K` | Pular para pasta frequente |
 | `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
+| `Ctrl+Shift+T` | Reabrir aba fechada (a paleta tem *Restaurar abas ao abrir*) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
 | `Ctrl+N` | Nova janela |
 | botões laterais do mouse | Voltar / avançar |
@@ -188,6 +193,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
 | `Shift+Delete` | Excluir permanentemente (pede confirmação) |
 | `Ctrl+Z` | Desfazer |
+| `Ctrl+E` / `Ctrl+Shift+E` | Extrair compactado / compactar em zip (zip, 7z e tar abrem como pasta com `Enter`) |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
 | `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Ícones maiores / menores |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
@@ -197,7 +203,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+Shift+C` | Copiar caminho |
 | ``Ctrl+' `` | Terminal nesta pasta |
 
-No macOS, `Ctrl` vira `⌘`.
+No macOS, `Ctrl` vira `⌘`. Para trocar qualquer atalho, use *Editar atalhos* na paleta: abre o arquivo `keys` (uma linha `Tecla = Comando` por atalho) e *Recarregar atalhos* aplica sem reiniciar.
 
 ## Arquitetura
 
@@ -214,7 +220,8 @@ src/                 o app iced
   glass.rs           vidro nativo: vibrancy no macOS, transparência no Linux
   listing.rs         ponte entre a listagem do arbor-core e o iced
   update/            atualização automática (GitHub Releases + SHA-256 + self-replace)
-  media.rs           preview e miniaturas via vislo-core
+  media.rs           preview via vislo-core
+  thumbs/            miniaturas: imagens (vislo-core), capa de áudio, vídeo e PDF (ffmpeg, pdftoppm, Quick Look)
   watch.rs           pasta atualizada sozinha (notify)
   launch.rs          abrir arquivos, achar o Vislo, terminal
   commands.rs        catálogo de comandos e atalhos
@@ -225,9 +232,13 @@ plataformas no mesmo ritmo** e **índice global desligado por padrão** quando e
 
 ## Desenvolvimento
 
+A versão do Rust está fixada em [`rust-toolchain.toml`](rust-toolchain.toml): o `rustup` instala a mesma no CI e
+na sua máquina, e um lint novo do Clippy só chega quando ela sobe num commit próprio.
+
 ```sh
 cargo test --workspace                                  # núcleo, app e updater
 cargo clippy --workspace --all-targets -- -D warnings
+cargo deny check                                        # vulnerabilidades, licenças e origens (deny.toml)
 node --test scripts/*.test.mjs                          # planejador de versão
 cargo run --release -p arbor-bench -- suite /tmp/bench-100k --check
 scripts/bench-compare.sh /tmp/bench-100k                # contra ls, eza, find, fd, fzf
@@ -237,7 +248,7 @@ scripts/bench-compare.sh /tmp/bench-100k                # contra ls, eza, find, 
 
 Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.github/workflows/release.yml)):
 
-1. O CI roda (fmt, clippy, testes nas três plataformas).
+1. O CI roda (fmt, clippy, cargo-deny, testes nas três plataformas).
 2. A próxima versão sai dos [commits semânticos](https://www.conventionalcommits.org) desde a maior tag `vX.Y.Z`
    (`feat` → minor, `fix` e demais → patch, `!` → major).
 3. Windows x64, Linux x64 e arm64, macOS Apple Silicon e Intel são construídos e empacotados; o `SHA256SUMS.txt` é

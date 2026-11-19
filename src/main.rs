@@ -10,14 +10,18 @@ mod complete;
 mod computer;
 mod folder_views;
 mod glass;
+mod instance;
+mod keymap;
 mod launch;
 mod listing;
 mod media;
 mod pins;
 mod pointer;
 mod props;
+mod session;
 mod sysclip;
 mod theme;
+mod thumbs;
 mod trashbin;
 mod update;
 mod view;
@@ -35,8 +39,16 @@ fn main() -> iced::Result {
         println!("arbor {}", update::CURRENT);
         return Ok(());
     }
+    // Já tem uma janela aberta: manda a pasta para ela (vira uma aba nova) e sai.
+    let target = instance::start_arg().and_then(|p| std::fs::canonicalize(p).ok());
+    if instance::forward(target.as_deref()) {
+        return Ok(());
+    }
+    instance::listen();
+    thumbs::prune_cache();
     glass::log_to_stderr();
     glass::prepare();
+    keymap::reload();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)

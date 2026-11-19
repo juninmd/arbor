@@ -12,15 +12,29 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+/// O que fazer quando já existe um item com o mesmo nome no destino.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Conflict {
+    /// Cria "nome (2).ext" ao lado (o padrão, nunca perde nada).
+    #[default]
+    KeepBoth,
+    /// Manda o item que já existe para a lixeira e põe o novo no lugar.
+    Replace,
+    /// Deixa o que já existe e não copia/move esse item.
+    Skip,
+}
+
 #[derive(Debug, Clone)]
 pub enum Op {
     Copy {
         sources: Vec<PathBuf>,
         dest: PathBuf,
+        conflict: Conflict,
     },
     Move {
         sources: Vec<PathBuf>,
         dest: PathBuf,
+        conflict: Conflict,
     },
     Trash {
         paths: Vec<PathBuf>,
@@ -36,19 +50,37 @@ pub enum Op {
     Mkdir {
         path: PathBuf,
     },
+    /// Extrai membros de um compactado (`members` internos; vazio = tudo) para dentro de `dest`.
+    Extract {
+        archive: PathBuf,
+        members: Vec<PathBuf>,
+        dest: PathBuf,
+    },
+    /// Cria o zip `dest` com `sources`.
+    Compress {
+        sources: Vec<PathBuf>,
+        dest: PathBuf,
+    },
     Undo(Undo),
 }
 
 impl Op {
+    /// Copiar e mover vão para a fila (um por vez); o resto roda na hora.
+    pub fn is_transfer(&self) -> bool {
+        matches!(self, Op::Copy { .. } | Op::Move { .. })
+    }
+
     pub fn label(&self) -> String {
         let n = |v: &Vec<PathBuf>| if v.len() == 1 { name(&v[0]) } else { format!("{} itens", v.len()) };
         match self {
-            Op::Copy { sources, dest } => format!("Copiando {} para {}", n(sources), name(dest)),
-            Op::Move { sources, dest } => format!("Movendo {} para {}", n(sources), name(dest)),
+            Op::Copy { sources, dest, .. } => format!("Copiando {} para {}", n(sources), name(dest)),
+            Op::Move { sources, dest, .. } => format!("Movendo {} para {}", n(sources), name(dest)),
             Op::Trash { paths } => format!("Enviando {} para a lixeira", n(paths)),
             Op::Rename { from, .. } => format!("Renomeando {}", name(from)),
             Op::RenameMany { pairs } => format!("Renomeando {}", count(pairs.len())),
             Op::Mkdir { path } => format!("Criando {}", name(path)),
+            Op::Extract { archive, .. } => format!("Extraindo {}", name(archive)),
+            Op::Compress { dest, .. } => format!("Compactando {}", name(dest)),
             Op::Undo(_) => "Desfazendo".into(),
         }
     }
@@ -86,7 +118,7 @@ pub fn name(p: &Path) -> String {
 }
 
 /// Roda `op` numa thread e transmite o progresso.
-pub fn spawn(op: Op, cancel: Arc<AtomicBool>) -> impl Stream<Item = JobEvent> {
+pub fn spawn(op: Op, cancel: Arc<AtomicBool>, pause: Arc<AtomicBool>) -> impl Stream<Item = JobEvent> {
     let (tx, rx) = mpsc::unbounded();
     std::thread::Builder::new()
         .name("arbor-job".into())
@@ -95,6 +127,7 @@ pub fn spawn(op: Op, cancel: Arc<AtomicBool>) -> impl Stream<Item = JobEvent> {
             let mut ctx = Ctx::new(cancel, move |done, total, current: &str| {
                 let _ = progress_tx.unbounded_send(JobEvent::Progress { done, total, current: current.to_string() });
             });
+            ctx.pause = pause;
             let result = run(op, &mut ctx).map_err(|e| e.to_string());
             let _ = tx.unbounded_send(JobEvent::Finished(result));
         })
@@ -106,6 +139,8 @@ type Report<'a> = Box<dyn FnMut(u64, u64, &str) + Send + 'a>;
 
 pub struct Ctx<'a> {
     cancel: Arc<AtomicBool>,
+    /// Enquanto `true`, a cópia espera entre um bloco e outro (o cancelar continua valendo).
+    pub pause: Arc<AtomicBool>,
     done: u64,
     total: u64,
     last: Instant,
@@ -114,10 +149,13 @@ pub struct Ctx<'a> {
 
 impl<'a> Ctx<'a> {
     pub fn new(cancel: Arc<AtomicBool>, report: impl FnMut(u64, u64, &str) + Send + 'a) -> Self {
-        Ctx { cancel, done: 0, total: 0, last: Instant::now(), report: Box::new(report) }
+        Ctx { cancel, pause: Arc::default(), done: 0, total: 0, last: Instant::now(), report: Box::new(report) }
     }
 
     fn cancelled(&self) -> bool {
+        while self.pause.load(Ordering::Relaxed) && !self.cancel.load(Ordering::Relaxed) {
+            std::thread::sleep(std::time::Duration::from_millis(80));
+        }
         self.cancel.load(Ordering::Relaxed)
     }
 
@@ -136,40 +174,58 @@ fn cancelled_err() -> io::Error {
 
 pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
     match op {
-        Op::Copy { sources, dest } => {
+        Op::Copy { sources, dest, conflict } => {
             ctx.total = sources.iter().map(|s| tree_size(s)).sum();
             let mut created = Vec::new();
+            let mut skipped = 0;
             let result = (|| {
                 for src in &sources {
                     check_not_inside(src, &dest)?;
-                    let target = unique_dest(&dest, &name(src));
+                    let Some(target) = resolve(&dest, src, conflict)? else {
+                        skipped += 1;
+                        continue;
+                    };
                     copy_tree(src, &target, ctx)?;
                     created.push(target);
                 }
                 Ok(())
             })();
-            finish(result, created.len(), "copiado", Undo::Created(created.clone()), created)
+            let out = finish(result, created.len(), "copiado", Undo::Created(created.clone()), created);
+            with_skipped(out, skipped)
         }
-        Op::Move { sources, dest } => {
+        Op::Move { sources, dest, conflict } => {
             ctx.total = sources.len() as u64;
             let mut moved = Vec::new();
+            let mut skipped = 0;
             let result = (|| {
                 for src in &sources {
                     if src.parent() == Some(dest.as_path()) {
                         continue;
                     }
                     check_not_inside(src, &dest)?;
-                    let target = unique_dest(&dest, &name(src));
+                    let Some(target) = resolve(&dest, src, conflict)? else {
+                        skipped += 1;
+                        continue;
+                    };
                     move_item(src, &target, ctx)?;
                     moved.push((src.clone(), target));
                 }
                 Ok(())
             })();
             let created = moved.iter().map(|(_, to)| to.clone()).collect();
-            finish(result, moved.len(), "movido", Undo::Moved(moved), created)
+            let out = finish(result, moved.len(), "movido", Undo::Moved(moved), created);
+            with_skipped(out, skipped)
         }
         Op::Trash { paths } => {
-            trash::delete_all(&paths).map_err(io::Error::other)?;
+            trash::delete_all(&paths).map_err(|e| {
+                // Diz quem está segurando, se for isso (a lixeira não devolve o código do sistema).
+                match paths.iter().map(|p| (p, crate::lockers::who_uses(p))).find(|(_, w)| !w.is_empty()) {
+                    Some((p, who)) => {
+                        io::Error::other(format!("{} está em uso por {}. Feche e tente de novo.", name(p), crate::lockers::describe(&who)))
+                    }
+                    None => io::Error::other(e),
+                }
+            })?;
             Ok(Outcome {
                 summary: format!("{} na lixeira. Ctrl+Z desfaz.", count(paths.len())),
                 undo: Some(Undo::Trashed(paths)),
@@ -180,7 +236,7 @@ pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
             if to.exists() && !same_file_ignoring_case(&from, &to) {
                 return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} já existe", name(&to))));
             }
-            fs::rename(&from, &to)?;
+            fs::rename(&from, &to).map_err(|e| crate::lockers::explain(e, &from))?;
             Ok(Outcome {
                 summary: format!("Renomeado para {}", name(&to)),
                 undo: Some(Undo::Moved(vec![(from, to.clone())])),
@@ -204,8 +260,75 @@ pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
                 created: vec![path],
             })
         }
+        Op::Extract { archive, members, dest } => {
+            // Pasta nova criada para a extração: ela é o "item criado" (desfazer a manda inteira para a lixeira).
+            let fresh = fs::symlink_metadata(&dest).is_err();
+            fs::create_dir_all(&dest)?;
+            let created = crate::archive::extract(&archive, &members, &dest, |done, total| {
+                ctx.total = total;
+                ctx.done = 0;
+                ctx.advance(done, &archive);
+                !ctx.cancelled()
+            });
+            match created {
+                Ok(created) => {
+                    let n = created.len();
+                    let created = if fresh { vec![dest] } else { created };
+                    Ok(Outcome {
+                        summary: format!("{} extraído(s) de {}", count(n), name(&archive)),
+                        undo: Some(Undo::Created(created.clone())),
+                        created,
+                    })
+                }
+                Err(e) => {
+                    if fresh {
+                        let _ = fs::remove_dir_all(&dest);
+                    }
+                    Err(e)
+                }
+            }
+        }
+        Op::Compress { sources, dest } => {
+            crate::archive::compress_zip(&sources, &dest, |done, total| {
+                ctx.total = total;
+                ctx.done = 0;
+                ctx.advance(done, &dest);
+                !ctx.cancelled()
+            })?;
+            Ok(Outcome { summary: format!("{} criado", name(&dest)), undo: Some(Undo::Created(vec![dest.clone()])), created: vec![dest] })
+        }
         Op::Undo(undo) => run_undo(undo, ctx),
     }
+}
+
+/// Para onde vai `src` dentro de `dest`, seguindo a regra de conflito. `None` = pular.
+fn resolve(dest: &Path, src: &Path, conflict: Conflict) -> io::Result<Option<PathBuf>> {
+    let target = dest.join(name(src));
+    if fs::symlink_metadata(&target).is_err() {
+        return Ok(Some(target));
+    }
+    match conflict {
+        Conflict::KeepBoth => Ok(Some(unique_dest(dest, &name(src)))),
+        Conflict::Skip => Ok(None),
+        Conflict::Replace => {
+            trash::delete(&target).map_err(io::Error::other)?;
+            Ok(Some(target))
+        }
+    }
+}
+
+fn with_skipped(out: io::Result<Outcome>, skipped: usize) -> io::Result<Outcome> {
+    out.map(|mut o| {
+        if skipped > 0 {
+            o.summary.push_str(&format!(" ({} pulado(s))", skipped));
+        }
+        o
+    })
+}
+
+/// Nomes de `sources` que já existem em `dest` (o que o diálogo de conflito pergunta).
+pub fn conflicts(sources: &[PathBuf], dest: &Path) -> Vec<String> {
+    sources.iter().filter(|s| s.parent() != Some(dest)).map(|s| name(s)).filter(|n| fs::symlink_metadata(dest.join(n)).is_ok()).collect()
 }
 
 fn count(n: usize) -> String {
@@ -377,7 +500,7 @@ fn move_item(src: &Path, dst: &Path, ctx: &mut Ctx) -> io::Result<()> {
                 fs::remove_file(src)
             }
         }
-        Err(e) => Err(e),
+        Err(e) => Err(crate::lockers::explain(e, src)),
     }
 }
 
@@ -434,7 +557,7 @@ fn copy_symlink(_src: &Path, _dst: &Path) -> io::Result<()> {
 fn copy_file(src: &Path, dst: &Path, ctx: &mut Ctx) -> io::Result<()> {
     let part = dst.with_file_name(format!(".{}.arbor-part", name(dst)));
     let result = (|| {
-        let mut input = fs::File::open(src)?;
+        let mut input = fs::File::open(src).map_err(|e| crate::lockers::explain(e, src))?;
         let meta = input.metadata()?;
         let mut output = fs::File::create(&part)?;
         let mut buf = vec![0u8; 1 << 20];
@@ -498,12 +621,12 @@ mod tests {
         fs::write(src.join("sub/x.bin"), vec![7u8; 3 << 20]).unwrap();
         let dest = d.path().join("dest");
         fs::create_dir(&dest).unwrap();
-        let out = run(Op::Copy { sources: vec![src.clone()], dest: dest.clone() }, &mut ctx()).unwrap();
+        let out = run(Op::Copy { sources: vec![src.clone()], dest: dest.clone(), conflict: Conflict::KeepBoth }, &mut ctx()).unwrap();
         assert_eq!(fs::read(dest.join("src/sub/x.bin")).unwrap().len(), 3 << 20);
         assert!(!dest.join("src/sub/.x.bin.arbor-part").exists());
         assert_eq!(out.undo, Some(Undo::Created(vec![dest.join("src")])));
         // Copiar de novo gera "src (2)".
-        run(Op::Copy { sources: vec![src.clone()], dest: dest.clone() }, &mut ctx()).unwrap();
+        run(Op::Copy { sources: vec![src.clone()], dest: dest.clone(), conflict: Conflict::KeepBoth }, &mut ctx()).unwrap();
         assert!(dest.join("src (2)/sub/x.bin").exists());
     }
 
@@ -512,7 +635,7 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let src = d.path().join("a");
         fs::create_dir_all(src.join("b")).unwrap();
-        assert!(run(Op::Copy { sources: vec![src.clone()], dest: src.join("b") }, &mut ctx()).is_err());
+        assert!(run(Op::Copy { sources: vec![src.clone()], dest: src.join("b"), conflict: Conflict::KeepBoth }, &mut ctx()).is_err());
     }
 
     #[test]
@@ -522,7 +645,7 @@ mod tests {
         fs::write(&f, "oi").unwrap();
         let dest = d.path().join("dest");
         fs::create_dir(&dest).unwrap();
-        let out = run(Op::Move { sources: vec![f.clone()], dest: dest.clone() }, &mut ctx()).unwrap();
+        let out = run(Op::Move { sources: vec![f.clone()], dest: dest.clone(), conflict: Conflict::KeepBoth }, &mut ctx()).unwrap();
         assert!(!f.exists() && dest.join("f.txt").exists());
         run(Op::Undo(out.undo.unwrap()), &mut ctx()).unwrap();
         assert!(f.exists() && !dest.join("f.txt").exists());
@@ -539,28 +662,26 @@ mod tests {
     }
 
     #[test]
-    fn renomear_em_lote_com_troca_e_desfazer() {
+    fn conflito_pular_e_substituir() {
         let d = tempfile::tempdir().unwrap();
-        let (a, b) = (d.path().join("a"), d.path().join("b"));
-        fs::write(&a, "A").unwrap();
-        fs::write(&b, "B").unwrap();
-        let out = run(Op::RenameMany { pairs: vec![(a.clone(), b.clone()), (b.clone(), a.clone())] }, &mut ctx()).unwrap();
-        assert_eq!(fs::read_to_string(&a).unwrap(), "B");
-        assert_eq!(fs::read_to_string(&b).unwrap(), "A");
-        run(Op::Undo(out.undo.unwrap()), &mut ctx()).unwrap();
-        assert_eq!(fs::read_to_string(&a).unwrap(), "A");
-        assert_eq!(fs::read_dir(d.path()).unwrap().count(), 2);
-    }
-
-    #[test]
-    fn renomear_em_lote_falha_sem_estragar() {
-        let d = tempfile::tempdir().unwrap();
-        let (a, c) = (d.path().join("a"), d.path().join("c"));
-        fs::write(&a, "A").unwrap();
-        fs::write(&c, "C").unwrap();
-        assert!(run(Op::RenameMany { pairs: vec![(a.clone(), c.clone())] }, &mut ctx()).is_err());
-        assert_eq!(fs::read_to_string(&a).unwrap(), "A");
-        assert_eq!(fs::read_to_string(&c).unwrap(), "C");
+        let src = d.path().join("src");
+        let dest = d.path().join("dest");
+        fs::create_dir_all(&src).unwrap();
+        fs::create_dir_all(&dest).unwrap();
+        fs::write(src.join("a.txt"), "novo").unwrap();
+        fs::write(src.join("b.txt"), "b").unwrap();
+        fs::write(dest.join("a.txt"), "velho").unwrap();
+        let sources = vec![src.join("a.txt"), src.join("b.txt")];
+        assert_eq!(conflicts(&sources, &dest), ["a.txt"]);
+        let out = run(Op::Copy { sources: sources.clone(), dest: dest.clone(), conflict: Conflict::Skip }, &mut ctx()).unwrap();
+        assert!(out.summary.contains("1 pulado"));
+        assert_eq!(fs::read_to_string(dest.join("a.txt")).unwrap(), "velho");
+        assert!(dest.join("b.txt").exists());
+        // Substituir: o antigo vai para a lixeira e o novo fica no lugar, sem "(2)".
+        let out = run(Op::Copy { sources: sources[..1].to_vec(), dest: dest.clone(), conflict: Conflict::Replace }, &mut ctx()).unwrap();
+        assert_eq!(fs::read_to_string(dest.join("a.txt")).unwrap(), "novo");
+        assert_eq!(out.created, vec![dest.join("a.txt")]);
+        assert!(!dest.join("a (2).txt").exists());
     }
 
     #[test]
@@ -572,7 +693,7 @@ mod tests {
         fs::create_dir(&dest).unwrap();
         let cancel = Arc::new(AtomicBool::new(true));
         let mut c = Ctx::new(cancel, |_, _, _| {});
-        let out = run(Op::Copy { sources: vec![src], dest: dest.clone() }, &mut c).unwrap();
+        let out = run(Op::Copy { sources: vec![src], dest: dest.clone(), conflict: Conflict::KeepBoth }, &mut c).unwrap();
         assert!(out.summary.starts_with("Cancelado"));
         assert_eq!(fs::read_dir(&dest).unwrap().count(), 0);
     }

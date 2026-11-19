@@ -5,7 +5,7 @@
 use super::{App, Message, ROW_H};
 use crate::columns::{Col, Columns};
 use crate::{computer, pointer};
-use arbor_core::ops::Op;
+use arbor_core::ops::{Conflict, Op};
 use iced::{Point, Rectangle, Task};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -231,7 +231,8 @@ impl App {
             Gesture::Press { tab, index, collapse: true, .. } => self.click(tab, index),
             Gesture::Drag { paths, over: Some(dest), .. } if valid_target(&paths, &dest) => {
                 let copy = self.drag_copies(&paths, &dest);
-                self.start(if copy { Op::Copy { sources: paths, dest } } else { Op::Move { sources: paths, dest } })
+                let conflict = Conflict::KeepBoth;
+                self.transfer(if copy { Op::Copy { sources: paths, dest, conflict } } else { Op::Move { sources: paths, dest, conflict } })
             }
             Gesture::Resize { .. } => self.save_columns(),
             _ => Task::none(),

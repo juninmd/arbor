@@ -4,7 +4,7 @@
 //! O visual segue o protótipo "arbor Glass" (tokens em `theme.rs`): aurora ao fundo, cartões de vidro,
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
-use crate::app::{App, JumpKind, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
+use crate::app::{App, JumpKind, Message, Overlay, Pane, PromptKind, Tab, UpdateState, JUMP_INPUT, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
 use crate::columns::Col;
 use crate::commands::Cmd;
 use crate::computer::{self, Drive};
@@ -352,6 +352,14 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
         .width(Fill)
         .font(if strong { theme::UI_BOLD } else { theme::UI })
         .style(move |t: &Theme| if dim { theme::ink3(t) } else { text::Style { color: Some(theme::tokens(t).ink) } });
+    // Na busca, a pasta de cada resultado (relativa à pasta buscada) vai embaixo do nome.
+    let name: Element<_> = match (&tab.search, e.path.parent().and_then(|p| p.strip_prefix(&tab.path).ok())) {
+        (Some(_), Some(rel)) => {
+            let rel = if rel.as_os_str().is_empty() { ".".to_string() } else { rel.to_string_lossy().into_owned() };
+            column![name, text(rel).size(10.5).font(theme::MONO).wrapping(Wrapping::None).style(theme::ink3)].width(Fill).into()
+        }
+        _ => name.into(),
+    };
     let cols = &app.columns;
     let mut line = row![chip(entry_kind(e, drive), 24.0), name].spacing(10).align_y(Alignment::Center);
     if cols.shown(Col::Kind) {
@@ -533,7 +541,11 @@ fn dock(app: &App) -> Element<'_, Message> {
     let mut col = Column::new().spacing(6);
     for job in &app.jobs {
         let pct = if job.total > 0 { job.done as f32 / job.total as f32 } else { 0.0 };
-        let detail = if job.total > 1000 {
+        let detail = if job.queued {
+            "na fila".to_string()
+        } else if job.paused {
+            format!("pausado  {}", job.current)
+        } else if job.total > 1000 {
             format!("{} de {}  {}", human_size(job.done), human_size(job.total), job.current)
         } else {
             job.current.clone()
@@ -543,7 +555,16 @@ fn dock(app: &App) -> Element<'_, Message> {
                 text(job.label.as_str()).font(theme::UI_BOLD).size(12).width(Length::FillPortion(2)).wrapping(Wrapping::None),
                 progress_bar(0.0..=1.0, pct).length(Fill).girth(5).style(theme::progress),
                 text(detail).font(theme::MONO).size(10.5).style(theme::ink3).width(Length::FillPortion(2)).wrapping(Wrapping::None),
-                button(text("Cancelar").size(11)).padding([3, 9]).on_press(Message::CancelJob(job.id)).style(theme::ghost),
+                (!job.queued).then(|| {
+                    button(text(if job.paused { "Continuar" } else { "Pausar" }).size(11))
+                        .padding([3, 9])
+                        .on_press(Message::PauseJob(job.id))
+                        .style(theme::ghost)
+                }),
+                button(text(if job.queued { "Tirar da fila" } else { "Cancelar" }).size(11))
+                    .padding([3, 9])
+                    .on_press(Message::CancelJob(job.id))
+                    .style(theme::ghost),
             ]
             .spacing(12)
             .align_y(Alignment::Center),
@@ -673,6 +694,10 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
             let card = palette(app, query, *selected);
             return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
         }
+        Overlay::Frecent { query, selected } => {
+            let card = jump(app, query, *selected);
+            return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
+        }
         Overlay::Prompt { kind, value } => {
             let input = text_input("", value)
                 .id(PROMPT_INPUT)
@@ -705,6 +730,7 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
             )
         }
         Overlay::Preview { path, content } => preview(app, path, content.as_ref()),
+        Overlay::Conflict { names, .. } => conflict_sheet(names),
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
         Overlay::Jump(j) => return Some(commands_view::jump(app, j)),
         Overlay::Confirm { text: question, .. } => sheet(
@@ -723,6 +749,44 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         ),
     };
     Some(stack![scrim(), center(opaque(card)).padding(40)].into())
+}
+
+/// Já existe item com o mesmo nome no destino: o usuário escolhe uma regra para todos.
+fn conflict_sheet(names: &[String]) -> Element<'_, Message> {
+    let n = names.len();
+    let title =
+        if n == 1 { format!("\"{}\" já existe no destino", shorten(&names[0], 40)) } else { format!("{n} itens já existem no destino") };
+    let list = (n > 1).then(|| {
+        let shown: Vec<Element<_>> =
+            names.iter().take(5).map(|name| text(shorten(name, 52)).size(12).font(theme::MONO).style(theme::ink3).into()).collect();
+        let more = (n > 5).then(|| text(format!("… e mais {}", n - 5)).size(11.5).style(theme::ink3));
+        column![column(shown).spacing(2), more].spacing(4)
+    });
+    let choice = |label: &'static str, key: &'static str, c: Option<arbor_core::ops::Conflict>| {
+        button(row![kbd(key.to_string()), text(label).size(12.5)].spacing(8).align_y(Alignment::Center))
+            .padding([6, 12])
+            .on_press(Message::ResolveConflict(c))
+            .style(theme::ghost)
+    };
+    use arbor_core::ops::Conflict;
+    sheet(
+        column![
+            text(title).font(theme::DISPLAY).size(16),
+            list,
+            text("Substituir manda o que já existe para a lixeira. Manter os dois cria \"nome (2)\".").size(11.5).style(theme::ink3),
+            row![
+                choice("Substituir", "S", Some(Conflict::Replace)),
+                choice("Pular", "P", Some(Conflict::Skip)),
+                choice("Manter os dois", "M", Some(Conflict::KeepBoth)),
+                space().width(Fill),
+                choice("Cancelar", "Esc", None),
+            ]
+            .spacing(6)
+            .align_y(Alignment::Center)
+        ]
+        .spacing(12),
+        520.0,
+    )
 }
 
 /// Pastas sugeridas abaixo da caixa "Ir para"; clique ou Tab completa.
@@ -791,6 +855,53 @@ fn batch_hint<'a>(app: &'a App, value: &str) -> Element<'a, Message> {
 
 fn scrim<'a>() -> Element<'a, Message> {
     mouse_area(container(space()).width(Fill).height(Fill).style(theme::scrim)).on_press(Message::CloseOverlay).into()
+}
+
+/// Ctrl+K: pastas frequentes, filtradas pelo que se digita.
+fn jump<'a>(app: &'a App, query: &'a str, selected: usize) -> Element<'a, Message> {
+    let input = text_input("Parte do nome de uma pasta que você já visitou…", query)
+        .id(JUMP_INPUT)
+        .on_input(Message::JumpQuery)
+        .on_submit(Message::JumpRun(usize::MAX))
+        .padding(Padding::from([12, 14]).left(42.0))
+        .size(16)
+        .style(|t, s| {
+            let mut st = theme::input(t, s);
+            st.border.width = 0.0;
+            st
+        });
+    let input = stack![input, container(icon(Icon::Folder, 18.0, theme::ICE)).padding(Padding::new(0.0).left(14.0)).center_y(Fill)];
+    let items = app.jump_view();
+    let mut list = Column::new().spacing(2);
+    if items.is_empty() {
+        list = list.push(container(text("Nenhuma pasta visitada combina ainda").size(12.5).style(theme::ink3)).padding([8, 12]));
+    }
+    for (i, dir) in items.into_iter().enumerate() {
+        let active = i == selected;
+        let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dir.to_string_lossy().into_owned());
+        let parent = dir.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+        let line = row![
+            text(name).size(13.5),
+            text(shorten(&parent, 60)).size(11).font(theme::MONO).style(theme::ink3).width(Fill).wrapping(Wrapping::None)
+        ]
+        .spacing(10)
+        .align_y(Alignment::Center);
+        list = list.push(
+            button(line).width(Fill).padding([8, 12]).on_press(Message::JumpRun(i)).style(move |t: &Theme, s| theme::place(t, s, active)),
+        );
+    }
+    let foot = row![
+        kbd("↑".into()),
+        kbd("↓".into()),
+        text("navegar").size(11).style(theme::ink3),
+        kbd("Enter".into()),
+        text("abrir").size(11).style(theme::ink3),
+        kbd("Esc".into()),
+        text("fechar").size(11).style(theme::ink3)
+    ]
+    .spacing(6)
+    .align_y(Alignment::Center);
+    sheet(column![container(input).height(48), separator(), list, separator(), foot].spacing(10), 640.0)
 }
 
 fn palette<'a>(app: &'a App, query: &'a str, selected: usize) -> Element<'a, Message> {

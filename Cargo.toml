@@ -15,6 +15,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+publish = false
 default-run = "arbor"
 
 [dependencies]
@@ -31,7 +32,7 @@ arboard = { version = "3.7", default-features = false }
 # Lixeira navegável (listar, restaurar, esvaziar); mesma versão que o arbor-core já usa
 trash = "5"
 dirs = "6"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 fast_image_resize = "6"
 # atualização automática (src/update): HTTPS só para as releases deste repositório, SHA-256 conferido
 ureq = "3"

@@ -13,6 +13,7 @@ pub enum Cmd {
     Refresh,
     NewTab,
     CloseTab,
+    ReopenTab,
     NextTab,
     PrevTab,
     ToggleDual,
@@ -23,9 +24,12 @@ pub enum Cmd {
     Cut,
     Paste,
     Undo,
+    Redo,
     SelectAll,
     Rename,
     NewFolder,
+    Extract,
+    Compress,
     NewTextFile,
     NewWindow,
     InvertSelection,
@@ -35,7 +39,9 @@ pub enum Cmd {
     Purge,
     EmptyTrash,
     Filter,
+    Search,
     GoTo,
+    Jump,
     ToggleHidden,
     ToggleGrid,
     ColKind,
@@ -51,6 +57,7 @@ pub enum Cmd {
     CopyPath,
     Terminal,
     Reveal,
+    WhoUses,
     Pin,
     Eject,
     Details,
@@ -58,6 +65,11 @@ pub enum Cmd {
     ToggleFps,
     CheckUpdates,
     ToggleAutoUpdate,
+    EditKeys,
+    ReloadKeys,
+    SetDefault,
+    UnsetDefault,
+    ToggleRestore,
     Palette,
 }
 
@@ -73,6 +85,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::Refresh,
     Cmd::NewTab,
     Cmd::CloseTab,
+    Cmd::ReopenTab,
     Cmd::NextTab,
     Cmd::PrevTab,
     Cmd::ToggleDual,
@@ -83,9 +96,12 @@ pub const ALL: &[Cmd] = &[
     Cmd::Cut,
     Cmd::Paste,
     Cmd::Undo,
+    Cmd::Redo,
     Cmd::SelectAll,
     Cmd::Rename,
     Cmd::NewFolder,
+    Cmd::Extract,
+    Cmd::Compress,
     Cmd::NewTextFile,
     Cmd::NewWindow,
     Cmd::InvertSelection,
@@ -95,7 +111,9 @@ pub const ALL: &[Cmd] = &[
     Cmd::Purge,
     Cmd::EmptyTrash,
     Cmd::Filter,
+    Cmd::Search,
     Cmd::GoTo,
+    Cmd::Jump,
     Cmd::ToggleHidden,
     Cmd::ToggleGrid,
     Cmd::ColKind,
@@ -111,6 +129,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::CopyPath,
     Cmd::Terminal,
     Cmd::Reveal,
+    Cmd::WhoUses,
     Cmd::Pin,
     Cmd::Eject,
     Cmd::Details,
@@ -118,6 +137,11 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleFps,
     Cmd::CheckUpdates,
     Cmd::ToggleAutoUpdate,
+    Cmd::EditKeys,
+    Cmd::ReloadKeys,
+    Cmd::SetDefault,
+    Cmd::UnsetDefault,
+    Cmd::ToggleRestore,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -136,6 +160,7 @@ impl Cmd {
             Cmd::Refresh => "Atualizar",
             Cmd::NewTab => "Nova aba",
             Cmd::CloseTab => "Fechar aba",
+            Cmd::ReopenTab => "Reabrir aba fechada",
             Cmd::NextTab => "Próxima aba",
             Cmd::PrevTab => "Aba anterior",
             Cmd::ToggleDual => "Painel duplo",
@@ -146,9 +171,12 @@ impl Cmd {
             Cmd::Cut => "Recortar",
             Cmd::Paste => "Colar",
             Cmd::Undo => "Desfazer",
+            Cmd::Redo => "Refazer",
             Cmd::SelectAll => "Selecionar tudo",
             Cmd::Rename => "Renomear",
             Cmd::NewFolder => "Nova pasta",
+            Cmd::Extract => "Extrair (zip, 7z, tar)",
+            Cmd::Compress => "Compactar em zip",
             Cmd::NewTextFile => "Novo documento de texto",
             Cmd::NewWindow => "Nova janela",
             Cmd::InvertSelection => "Inverter seleção",
@@ -158,7 +186,9 @@ impl Cmd {
             Cmd::Purge => "Excluir da Lixeira",
             Cmd::EmptyTrash => "Esvaziar Lixeira",
             Cmd::Filter => "Filtrar pasta (fuzzy)",
+            Cmd::Search => "Buscar nesta pasta e subpastas",
             Cmd::GoTo => "Ir para caminho",
+            Cmd::Jump => "Pular para pasta frequente",
             Cmd::ToggleHidden => "Mostrar/ocultar arquivos ocultos",
             Cmd::ToggleGrid => "Alternar lista/miniaturas",
             Cmd::ColKind => "Coluna Tipo",
@@ -174,6 +204,7 @@ impl Cmd {
             Cmd::CopyPath => "Copiar caminho",
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
+            Cmd::WhoUses => "Quem está usando este arquivo?",
             Cmd::Pin => "Fixar/desafixar na barra lateral",
             Cmd::Details => "Painel de detalhes",
             Cmd::Eject => "Ejetar",
@@ -181,11 +212,21 @@ impl Cmd {
             Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
             Cmd::CheckUpdates => "Procurar atualizações",
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
+            Cmd::EditKeys => "Editar atalhos",
+            Cmd::ReloadKeys => "Recarregar atalhos",
+            Cmd::SetDefault => "Usar o arbor para abrir pastas (explorer padrão)",
+            Cmd::UnsetDefault => "Voltar a abrir pastas no gerenciador do sistema",
+            Cmd::ToggleRestore => "Ligar/desligar restaurar abas ao abrir",
             Cmd::Palette => "Paleta de comandos",
         }
     }
 
+    /// Atalho mostrado na interface: o personalizado (arquivo `keys`), se houver, senão o de fábrica.
     pub fn shortcut(self) -> String {
+        crate::keymap::custom(self).unwrap_or_else(|| self.default_shortcut())
+    }
+
+    pub fn default_shortcut(self) -> String {
         let m = MOD;
         match self {
             Cmd::Open => "Enter".into(),
@@ -197,6 +238,7 @@ impl Cmd {
             Cmd::Refresh => format!("{m}+R"),
             Cmd::NewTab => format!("{m}+T"),
             Cmd::CloseTab => format!("{m}+W"),
+            Cmd::ReopenTab => format!("{m}+Shift+T"),
             Cmd::NextTab => "Ctrl+Tab".into(),
             Cmd::PrevTab => "Ctrl+Shift+Tab".into(),
             Cmd::ToggleDual => "F3".into(),
@@ -207,9 +249,12 @@ impl Cmd {
             Cmd::Cut => format!("{m}+X"),
             Cmd::Paste => format!("{m}+V"),
             Cmd::Undo => format!("{m}+Z"),
+            Cmd::Redo => format!("{m}+Y"),
             Cmd::SelectAll => format!("{m}+A"),
             Cmd::Rename => "F2".into(),
             Cmd::NewFolder => "F7".into(),
+            Cmd::Extract => format!("{m}+E"),
+            Cmd::Compress => format!("{m}+Shift+E"),
             Cmd::NewTextFile | Cmd::InvertSelection => String::new(),
             Cmd::NewWindow => format!("{m}+N"),
             Cmd::Trash => "Delete".into(),
@@ -217,7 +262,9 @@ impl Cmd {
             Cmd::Restore | Cmd::EmptyTrash => String::new(),
             Cmd::Purge => "Delete".into(),
             Cmd::Filter => format!("{m}+F"),
+            Cmd::Search => format!("{m}+Shift+F"),
             Cmd::GoTo => format!("{m}+L"),
+            Cmd::Jump => format!("{m}+K"),
             Cmd::ToggleHidden => format!("{m}+H"),
             Cmd::ToggleGrid => format!("{m}+G"),
             Cmd::ZoomIn => format!("{m}+= / {m}+roda"),
@@ -229,13 +276,25 @@ impl Cmd {
             Cmd::ToggleTheme => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::Terminal => format!("{m}+'"),
-            Cmd::Reveal | Cmd::OpenInNewTab | Cmd::Pin | Cmd::Eject | Cmd::OpenWith | Cmd::ColKind | Cmd::ColSize | Cmd::ColModified => {
-                String::new()
-            }
+            Cmd::Reveal
+            | Cmd::OpenInNewTab
+            | Cmd::Pin
+            | Cmd::Eject
+            | Cmd::OpenWith
+            | Cmd::ColKind
+            | Cmd::ColSize
+            | Cmd::ColModified
+            | Cmd::WhoUses => String::new(),
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
-            Cmd::CheckUpdates | Cmd::ToggleAutoUpdate => String::new(),
+            Cmd::CheckUpdates
+            | Cmd::ToggleAutoUpdate
+            | Cmd::SetDefault
+            | Cmd::UnsetDefault
+            | Cmd::ToggleRestore
+            | Cmd::EditKeys
+            | Cmd::ReloadKeys => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

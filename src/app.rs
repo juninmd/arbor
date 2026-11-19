@@ -16,9 +16,11 @@ pub use menu::{Menu, MenuKind};
 
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
-use crate::{launch, listing, pins, pointer, trashbin, update, watch};
-use arbor_core::ops::{self, JobEvent, Op, Undo};
-use arbor_core::{fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
+use crate::session::{self, Session};
+use crate::{instance, keymap, launch, listing, pins, pointer, trashbin, update, watch};
+use arbor_core::frecency::Frecency;
+use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
+use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
 use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget::image::Handle;
@@ -45,7 +47,10 @@ pub struct App {
     pub overlay: Overlay,
     pub jobs: Vec<Job>,
     next_job: u64,
-    undo: Vec<Undo>,
+    /// Desfazer: o que reverte cada operação e a própria operação (para o refazer).
+    undo: Vec<(Undo, Op)>,
+    /// Operações desfeitas que Ctrl+Y refaz. Uma operação nova limpa a pilha.
+    redo: Vec<Op>,
     clip: Option<(bool, Vec<PathBuf>)>,
     sysclip: crate::sysclip::SysClip,
     pub toast: Option<Toast>,
@@ -75,6 +80,14 @@ pub struct App {
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
+    /// Pastas visitadas, para o Ctrl+K.
+    frecency: Frecency,
+    /// Abas fechadas (painel, pasta, grade), da mais antiga para a mais recente: Ctrl+Shift+T reabre.
+    closed: Vec<(usize, PathBuf, bool)>,
+    /// Última sessão gravada; só regrava quando muda.
+    saved: Option<Session>,
+    /// "Restaurar abas ao abrir" ligado (lido do disco uma vez, na abertura).
+    restore: bool,
     /// Vidro nativo ativo (vibrancy/transparência): a aurora fica translúcida e o fundo da janela some.
     pub glass: bool,
     /// Textura da aurora para o tema e o vidro atuais.
@@ -156,6 +169,8 @@ pub struct Tab {
     pub grid: bool,
     /// Selecionar este item quando ele aparecer na listagem (ao subir de pasta, depois de copiar...).
     focus_on_load: Vec<PathBuf>,
+    /// Aba de resultados de busca: consulta e se inclui ocultos. `path` é a pasta onde a busca começou.
+    pub search: Option<(String, bool)>,
 }
 
 impl Tab {
@@ -182,10 +197,14 @@ impl Tab {
             viewport_h: 600.0,
             grid: false,
             focus_on_load: vec![],
+            search: None,
         }
     }
 
     pub fn title(&self) -> String {
+        if let Some((q, _)) = &self.search {
+            return format!("Busca: {q}");
+        }
         if let Some(t) = computer::virtual_title(&self.path) {
             return t.into();
         }
@@ -264,7 +283,21 @@ pub struct Job {
     pub done: u64,
     pub total: u64,
     pub current: String,
+    /// Esperando outra cópia/movimentação terminar (a fila roda uma transferência por vez).
+    pub queued: bool,
+    pub paused: bool,
     cancel: Arc<AtomicBool>,
+    pause: Arc<AtomicBool>,
+    op: Op,
+    kind: JobKind,
+}
+
+enum JobKind {
+    Normal,
+    /// Um desfazer; se der certo, `redo` vai para a pilha do Ctrl+Y.
+    Undo {
+        redo: Op,
+    },
 }
 
 pub struct Toast {
@@ -275,7 +308,17 @@ pub struct Toast {
 
 pub enum Overlay {
     None,
+    /// Itens com o mesmo nome no destino: substituir, pular ou manter os dois.
+    Conflict {
+        op: Op,
+        names: Vec<String>,
+    },
     Palette {
+        query: String,
+        selected: usize,
+    },
+    /// Ctrl+K: pular para uma pasta frequente digitando parte do nome.
+    Frecent {
         query: String,
         selected: usize,
     },
@@ -298,6 +341,7 @@ pub enum Overlay {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptKind {
+    Search,
     Rename,
     /// F2 com vários itens selecionados: modelo ("Foto {n:3}") ou troca ("antigo => novo").
     BatchRename,
@@ -310,6 +354,7 @@ pub enum PromptKind {
 impl PromptKind {
     pub fn title(self) -> &'static str {
         match self {
+            PromptKind::Search => "Buscar nesta pasta e subpastas (palavras, ou *.pdf)",
             PromptKind::Rename => "Renomear",
             PromptKind::BatchRename => "Renomear em lote",
             PromptKind::NewFolder => "Nova pasta",
@@ -321,6 +366,7 @@ impl PromptKind {
 }
 
 pub const PALETTE_INPUT: &str = "palette-input";
+pub const JUMP_INPUT: &str = "jump-input";
 pub const PROMPT_INPUT: &str = "prompt-input";
 
 #[derive(Debug, Clone)]
@@ -437,6 +483,8 @@ pub enum Message {
     },
     FilterSubmit,
     PaletteQuery(String),
+    JumpQuery(String),
+    JumpRun(usize),
     PaletteRun(usize),
     PromptChanged(String),
     PromptSubmit,
@@ -454,6 +502,16 @@ pub enum Message {
         event: JobEvent,
     },
     CancelJob(u64),
+    /// Texto para o aviso do rodapé, vindo de uma tarefa em segundo plano.
+    Info(String),
+    /// Resultado de abrir um arquivo de dentro de um compactado.
+    Opened {
+        name: String,
+        result: Result<(), String>,
+    },
+    PauseJob(u64),
+    /// Resposta do diálogo de conflito; `None` cancela.
+    ResolveConflict(Option<Conflict>),
     ToastExpired(u64),
     DirChanged(PathBuf),
     Places(Vec<Drive>),
@@ -470,17 +528,17 @@ pub enum Message {
     UpdateProgress(update::Progress),
     UpdateRestart,
     UpdateDismiss,
+    /// Outra execução do arbor pediu esta pasta (ou só uma janela nova, se `None`).
+    Remote(Option<PathBuf>),
 }
 
 impl App {
     pub fn boot() -> (App, Task<Message>) {
-        let start = std::env::args_os()
-            .nth(1)
-            .map(PathBuf::from)
-            .and_then(|p| std::fs::canonicalize(p).ok())
-            .and_then(start_dir)
-            .unwrap_or_else(computer::path);
+        let start = instance::start_arg().and_then(|p| std::fs::canonicalize(p).ok()).and_then(start_dir).unwrap_or_else(computer::path);
         let second = dirs::download_dir().filter(|d| d.is_dir()).unwrap_or_else(|| start.clone());
+        let has_arg = std::env::args_os().nth(1).is_some();
+        let restore = session::restore_enabled();
+        let restored = if !has_arg && restore { Session::load() } else { None };
         let mut app = App {
             panes: [
                 Pane { tabs: vec![Tab::new(0, start.clone())], active: 0 },
@@ -488,10 +546,14 @@ impl App {
             ],
             active: 0,
             dual: false,
+            closed: vec![],
+            saved: None,
+            restore,
             overlay: Overlay::None,
             jobs: vec![],
             next_job: 0,
             undo: vec![],
+            redo: vec![],
             clip: None,
             sysclip: Default::default(),
             toast: None,
@@ -518,13 +580,17 @@ impl App {
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
+            frecency: load_frecency(),
             glass: false,
             aurora: crate::aurora::render(true, 1.0),
         };
+        let lists = match restored {
+            Some(session) => app.restore(session),
+            None => Task::batch([app.load(0, start, false), app.load(1, second, false)]),
+        };
         let tasks = Task::batch([
             window::oldest().and_then(|id| window::run(id, crate::glass::apply)).map(Message::Glass),
-            app.load(0, start, false),
-            app.load(1, second, false),
+            lists,
             scan_drives(),
             if update::auto_enabled() {
                 Task::perform(tokio::time::sleep(update::FIRST_CHECK), |_| Message::UpdateCheck { manual: false })
@@ -533,6 +599,42 @@ impl App {
             },
         ]);
         (app, tasks)
+    }
+
+    /// Recria as abas da sessão salva e já começa a listar todas elas.
+    fn restore(&mut self, session: Session) -> Task<Message> {
+        self.dual = session.dual;
+        self.active = session.active;
+        let mut tasks = Vec::new();
+        for (pane, (active, tabs)) in session.panes.into_iter().enumerate() {
+            let mut list = Vec::new();
+            for (path, grid) in tabs {
+                let mut tab = Tab::new(self.next_tab, path.clone());
+                self.next_tab += 1;
+                tab.grid = grid;
+                tasks.push(Self::load_tab(&mut tab, path, false));
+                list.push(tab);
+            }
+            self.panes[pane] = Pane { tabs: list, active };
+        }
+        Task::batch(tasks)
+    }
+
+    fn session(&self) -> Session {
+        let pane = |p: &Pane| (p.active, p.tabs.iter().map(|t| (t.path.clone(), t.grid)).collect());
+        Session { dual: self.dual, active: self.active, panes: [pane(&self.panes[0]), pane(&self.panes[1])] }
+    }
+
+    /// Grava a sessão se ela mudou (e se restaurar estiver ligado). Barato: compara poucas strings.
+    fn persist(&mut self) {
+        if !self.restore {
+            return;
+        }
+        let now = self.session();
+        if self.saved.as_ref() != Some(&now) {
+            now.save();
+            self.saved = Some(now);
+        }
     }
 
     pub fn title(&self) -> String {
@@ -635,8 +737,9 @@ impl App {
         } else {
             Subscription::none()
         };
+        let remote = Subscription::run(instance::requests).map(Message::Remote);
         let drives = iced::time::every(DRIVES_EVERY).map(|_| Message::DrivesTick);
-        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates, drives]))
+        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates, drives, remote]))
     }
 
     // ---------- navegação e listagem ----------
@@ -677,7 +780,20 @@ impl App {
         if trashbin::is(&path) {
             return Task::batch([scan_trash(), scroll]);
         }
-        Task::batch([Task::run(listing::list(path, sort), move |snap| Message::Listed { tab: id, generation, snap }), scroll])
+        let stream = match (tab.search.clone(), archive::split(&path)) {
+            (Some((query, hidden)), _) if refresh => {
+                Task::run(listing::search(path, query, sort, hidden), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+            (_, Some((file, inner))) => {
+                tab.search = None;
+                Task::run(listing::list_archive(file, inner, sort), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+            _ => {
+                tab.search = None;
+                Task::run(listing::list(path, sort), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+        };
+        Task::batch([stream, scroll])
     }
 
     fn navigate(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
@@ -721,8 +837,27 @@ impl App {
     }
 
     fn open_entry(&mut self, pane: usize, entry: Entry) -> Task<Message> {
-        if entry.is_dir {
+        // Compactados abrem como pasta (Shift+Enter abre no app do sistema).
+        if entry.is_dir || (archive::is_archive(&entry.path) && entry.path.is_file()) {
             self.navigate(pane, entry.path)
+        } else if let Some((file, inner)) = archive::split(&entry.path) {
+            // Arquivo de dentro de um compactado: extrai para uma pasta temporária e abre de lá.
+            let name = entry.name.clone();
+            Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        let dir = std::env::temp_dir().join(format!("arbor-{}", std::process::id()));
+                        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+                        let out = archive::extract(&file, &[inner], &dir, |_, _| true).map_err(|e| e.to_string())?;
+                        let path = out.into_iter().next().ok_or("nada extraído")?;
+                        launch::open(&path)
+                    })
+                    .await
+                    .map_err(|e| e.to_string())
+                    .and_then(|r| r)
+                },
+                move |r| Message::Opened { name: name.clone(), result: r },
+            )
         } else {
             match launch::open(&entry.path) {
                 Ok(()) => Task::none(),
@@ -752,6 +887,12 @@ impl App {
             }
         });
         if snap.complete {
+            if !tab.refreshing && snap.error.is_none() {
+                let path = tab.path.clone();
+                self.frecency.visit(&path);
+                save_frecency(&self.frecency);
+            }
+            let Some(tab) = self.find_tab(id) else { return Task::none() };
             tab.loading = false;
             tab.listed = Some((tab.entries.len(), snap.elapsed));
             if tab.refreshing {
@@ -864,7 +1005,7 @@ impl App {
         let end = ((first_row + rows) * cols).min(tab.view.len());
         let wanted: Vec<PathBuf> = (start..end)
             .filter_map(|i| tab.entry_at(i))
-            .filter(|e| !e.is_dir && media::is_image(&e.path) && !self.thumbs.contains_key(&e.path))
+            .filter(|e| !e.is_dir && crate::thumbs::supported(&e.path) && !self.thumbs.contains_key(&e.path))
             .map(|e| e.path.clone())
             .collect();
         if self.thumbs.len() + wanted.len() > 5000 {
@@ -893,12 +1034,52 @@ impl App {
 
     // ---------- operações ----------
 
+    /// Uma operação nova do usuário: limpa o refazer.
     fn start(&mut self, op: Op) -> Task<Message> {
+        self.redo.clear();
+        self.start_job(op, JobKind::Normal)
+    }
+
+    /// Copiar/mover: pergunta antes se algum nome já existe no destino.
+    fn transfer(&mut self, op: Op) -> Task<Message> {
+        let (Op::Copy { sources, dest, .. } | Op::Move { sources, dest, .. }) = &op else { return self.start(op) };
+        let names = ops::conflicts(sources, dest);
+        if names.is_empty() {
+            return self.start(op);
+        }
+        self.overlay = Overlay::Conflict { op, names };
+        Task::none()
+    }
+
+    fn start_job(&mut self, op: Op, kind: JobKind) -> Task<Message> {
         let id = self.next_job;
         self.next_job += 1;
-        let cancel = Arc::new(AtomicBool::new(false));
-        self.jobs.push(Job { id, label: op.label(), done: 0, total: 0, current: String::new(), cancel: cancel.clone() });
-        Task::run(ops::spawn(op, cancel), move |event| Message::Job { id, event })
+        let queued = op.is_transfer() && self.jobs.iter().any(|j| j.op.is_transfer() && !j.queued);
+        let (cancel, pause) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
+        let label = op.label();
+        self.jobs.push(Job { id, label, done: 0, total: 0, current: String::new(), queued, paused: false, cancel, pause, op, kind });
+        if queued {
+            return Task::none();
+        }
+        self.spawn_job(id)
+    }
+
+    fn spawn_job(&mut self, id: u64) -> Task<Message> {
+        let Some(job) = self.jobs.iter_mut().find(|j| j.id == id) else { return Task::none() };
+        job.queued = false;
+        let stream = ops::spawn(job.op.clone(), job.cancel.clone(), job.pause.clone());
+        Task::run(stream, move |event| Message::Job { id, event })
+    }
+
+    /// Depois de uma transferência terminar, começa a próxima da fila.
+    fn next_queued(&mut self) -> Task<Message> {
+        if self.jobs.iter().any(|j| j.op.is_transfer() && !j.queued) {
+            return Task::none();
+        }
+        match self.jobs.iter().find(|j| j.queued).map(|j| j.id) {
+            Some(id) => self.spawn_job(id),
+            None => Task::none(),
+        }
     }
 
     fn notify(&mut self, text: impl Into<String>, error: bool) -> Task<Message> {
@@ -918,8 +1099,36 @@ impl App {
         Task::batch(tasks)
     }
 
+    /// A pasta atual é o interior de um compactado: (compactado, caminho interno).
+    fn in_archive(&self) -> Option<(PathBuf, PathBuf)> {
+        archive::split(&self.tab().path)
+    }
+
     fn run(&mut self, cmd: Cmd) -> Task<Message> {
         let pane = self.active;
+        // Dentro de um compactado tudo é só leitura; copiar para o outro painel vira extrair.
+        if let Some((file, inner)) = self.in_archive() {
+            match cmd {
+                Cmd::CopyToOther | Cmd::Extract => {
+                    let members: Vec<PathBuf> =
+                        self.tab().targets().iter().filter_map(|p| p.strip_prefix(&file).ok().map(Path::to_path_buf)).collect();
+                    let members = if members.is_empty() && !inner.as_os_str().is_empty() { vec![inner] } else { members };
+                    let dest = if self.dual {
+                        self.panes[self.other_pane()].tab().path.clone()
+                    } else {
+                        file.parent().map(Path::to_path_buf).unwrap_or_default()
+                    };
+                    if archive::split(&dest).is_some() {
+                        return self.notify("Escolha uma pasta comum como destino", true);
+                    }
+                    return self.start(Op::Extract { archive: file, members, dest });
+                }
+                Cmd::MoveToOther | Cmd::Cut | Cmd::Paste | Cmd::Rename | Cmd::NewFolder | Cmd::Trash | Cmd::Compress => {
+                    return self.notify("Dentro de um compactado é só leitura: use Extrair (Ctrl+E)", true);
+                }
+                _ => {}
+            }
+        }
         // "Este Computador" é virtual: renomear, apagar ou colar ali agiria nas pastas e discos de verdade.
         let here = computer::is_virtual(&self.tab().path);
         let there = self.dual && computer::is_virtual(&self.panes[self.other_pane()].tab().path);
@@ -934,6 +1143,31 @@ impl App {
             return self.notify(format!("{} não aceita essa operação; abra uma pasta", computer::TITLE), true);
         }
         match cmd {
+            Cmd::Extract => {
+                let archives: Vec<PathBuf> = self.tab().targets().into_iter().filter(|p| archive::is_archive(p) && p.is_file()).collect();
+                if archives.is_empty() {
+                    return self.notify("Selecione um zip, 7z ou tar para extrair", false);
+                }
+                let dir = self.tab().path.clone();
+                let tasks: Vec<_> = archives
+                    .into_iter()
+                    .map(|file| {
+                        let stem = folder_name(&file);
+                        let dest = ops::unique_dest(&dir, &stem);
+                        self.start(Op::Extract { archive: file, members: vec![], dest })
+                    })
+                    .collect();
+                Task::batch(tasks)
+            }
+            Cmd::Compress => {
+                let sources = self.tab().targets();
+                if sources.is_empty() {
+                    return Task::none();
+                }
+                let base = if sources.len() == 1 { folder_name(&sources[0]) } else { self.tab().title() };
+                let dest = ops::unique_dest(&self.tab().path, &format!("{base}.zip"));
+                self.start(Op::Compress { sources, dest })
+            }
             Cmd::Open => match self.tab().current().cloned() {
                 Some(e) => self.open_entry(pane, e),
                 None => Task::none(),
@@ -1022,6 +1256,26 @@ impl App {
                 let i = self.panes[pane].active;
                 self.close_tab(pane, i)
             }
+            Cmd::ReopenTab => {
+                let Some((pane, path, grid)) = self.closed.pop() else { return self.notify("Nenhuma aba fechada", false) };
+                let task = self.new_tab(pane);
+                self.panes[pane].tab_mut().grid = grid;
+                let reload = self.navigate(pane, path);
+                self.panes[pane].tab_mut().back.clear();
+                Task::batch([task, reload])
+            }
+            Cmd::ToggleRestore => {
+                let on = !self.restore;
+                match session::set_restore_enabled(on) {
+                    Ok(()) => {
+                        self.restore = on;
+                        self.saved = None;
+                        self.persist();
+                        self.notify(if on { "O arbor vai abrir com estas abas" } else { "O arbor vai abrir do zero" }, false)
+                    }
+                    Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
+                }
+            }
             Cmd::NextTab | Cmd::PrevTab => {
                 let p = &mut self.panes[pane];
                 let n = p.tabs.len();
@@ -1048,7 +1302,12 @@ impl App {
                 if sources.is_empty() {
                     return Task::none();
                 }
-                self.start(if cmd == Cmd::CopyToOther { Op::Copy { sources, dest } } else { Op::Move { sources, dest } })
+                let conflict = Conflict::KeepBoth;
+                self.transfer(if cmd == Cmd::CopyToOther {
+                    Op::Copy { sources, dest, conflict }
+                } else {
+                    Op::Move { sources, dest, conflict }
+                })
             }
             Cmd::Copy | Cmd::Cut => {
                 let items = self.tab().targets();
@@ -1067,16 +1326,21 @@ impl App {
                 let system = self.sysclip.files();
                 let Some((cut, sources)) = crate::sysclip::choose(self.clip.as_ref(), system) else { return Task::none() };
                 let dest = self.tab().path.clone();
+                let conflict = Conflict::KeepBoth;
                 if cut {
                     self.clip = None;
-                    self.start(Op::Move { sources, dest })
+                    self.transfer(Op::Move { sources, dest, conflict })
                 } else {
-                    self.start(Op::Copy { sources, dest })
+                    self.transfer(Op::Copy { sources, dest, conflict })
                 }
             }
             Cmd::Undo => match self.undo.pop() {
-                Some(u) => self.start(Op::Undo(u)),
+                Some((u, op)) => self.start_job(Op::Undo(u), JobKind::Undo { redo: op }),
                 None => self.notify("Nada para desfazer", false),
+            },
+            Cmd::Redo => match self.redo.pop() {
+                Some(op) => self.start_job(op, JobKind::Normal),
+                None => self.notify("Nada para refazer", false),
             },
             Cmd::SelectAll => {
                 let tab = self.tab_mut();
@@ -1116,6 +1380,18 @@ impl App {
             Cmd::Filter => {
                 let id = self.tab().filter_id();
                 op::focus(id)
+            }
+            Cmd::Search => {
+                let filter = self.tab().filter.trim().to_string();
+                if filter.is_empty() {
+                    self.open_prompt(PromptKind::Search, String::new())
+                } else {
+                    let show = self.show_hidden;
+                    let tab = self.tab_mut();
+                    tab.filter.clear();
+                    tab.rebuild(show);
+                    self.start_search(filter)
+                }
             }
             Cmd::GoTo => {
                 let path = if here { String::new() } else { self.tab().path.to_string_lossy().into_owned() };
@@ -1171,6 +1447,33 @@ impl App {
                     Err(e) => self.notify(e, true),
                 }
             }
+            Cmd::WhoUses => {
+                let targets = self.tab().targets();
+                if targets.is_empty() {
+                    return Task::none();
+                }
+                Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            let lines: Vec<String> = targets
+                                .iter()
+                                .filter_map(|p| {
+                                    let who = arbor_core::lockers::who_uses(p);
+                                    (!who.is_empty()).then(|| format!("{}: {}", ops::name(p), arbor_core::lockers::describe(&who)))
+                                })
+                                .collect();
+                            if lines.is_empty() {
+                                "Nenhum programa está usando a seleção".to_string()
+                            } else {
+                                format!("Em uso por {}", lines.join(" · "))
+                            }
+                        })
+                        .await
+                        .unwrap_or_default()
+                    },
+                    Message::Info,
+                )
+            }
             Cmd::ToggleFps => {
                 self.fps = if self.fps.is_some() { None } else { Some(Fps::default()) };
                 Task::none()
@@ -1183,6 +1486,26 @@ impl App {
                     Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
                 }
             }
+            Cmd::EditKeys => match keymap::ensure_file().and_then(|f| launch::open_default(&f).map(|_| f)) {
+                Ok(f) => self.notify(format!("Editando {}. Salve e use \"Recarregar atalhos\".", f.display()), false),
+                Err(e) => self.notify(format!("Atalhos: {e}"), true),
+            },
+            Cmd::ReloadKeys => {
+                let (n, bad) = keymap::reload();
+                if bad.is_empty() {
+                    self.notify(format!("{n} atalho(s) personalizado(s) ativo(s)"), false)
+                } else {
+                    self.notify(format!("{n} atalho(s) ativo(s); linhas ignoradas: {}", bad.join(" | ")), true)
+                }
+            }
+            Cmd::Jump => {
+                self.overlay = Overlay::Frecent { query: String::new(), selected: 0 };
+                op::focus(JUMP_INPUT)
+            }
+            Cmd::SetDefault | Cmd::UnsetDefault => match instance::set_default(cmd == Cmd::SetDefault) {
+                Ok(msg) => self.notify(msg, false),
+                Err(e) => self.notify(e, true),
+            },
             Cmd::Palette => {
                 self.overlay = Overlay::Palette { query: String::new(), selected: 0 };
                 op::focus(PALETTE_INPUT)
@@ -1286,6 +1609,21 @@ impl App {
         }
     }
 
+    /// Abre uma aba de resultados no painel ativo, buscando `query` a partir da pasta atual.
+    fn start_search(&mut self, query: String) -> Task<Message> {
+        let pane = self.active;
+        let root = self.tab().path.clone();
+        let _ = self.new_tab(pane);
+        let hidden = self.show_hidden;
+        let tab = self.panes[pane].tab_mut();
+        // Zera a aba nova (a listagem comum é descartada) e roda a busca no lugar dela, mostrando cada lote.
+        let _ = Self::load_tab(tab, root.clone(), false);
+        tab.search = Some((query, hidden));
+        let task = Self::load_tab(tab, root, true);
+        tab.refreshing = false;
+        task
+    }
+
     fn open_prompt(&mut self, kind: PromptKind, value: String) -> Task<Message> {
         self.suggest.items.clear();
         self.suggest.selected = None;
@@ -1316,7 +1654,12 @@ impl App {
         if p.tabs.len() == 1 {
             return Task::none();
         }
-        p.tabs.remove(index);
+        let tab = p.tabs.remove(index);
+        self.closed.push((pane, tab.path, tab.grid));
+        if self.closed.len() > 30 {
+            self.closed.remove(0);
+        }
+        let p = &mut self.panes[pane];
         if p.active >= p.tabs.len() || p.active > index {
             p.active = p.active.saturating_sub(1);
         }
@@ -1328,6 +1671,23 @@ impl App {
             return commands::ALL.to_vec();
         }
         fuzzy::rank(query, commands::ALL.iter().map(|c| c.label())).into_iter().map(|i| commands::ALL[i]).collect()
+    }
+
+    /// Pastas do Ctrl+K: um caminho digitado que existe vem primeiro, depois as frequentes.
+    pub fn jump_view(&self) -> Vec<PathBuf> {
+        let Overlay::Frecent { query, .. } = &self.overlay else { return vec![] };
+        let mut items = Vec::new();
+        let typed = PathBuf::from(query.trim());
+        if typed.is_absolute() && typed.is_dir() {
+            items.push(typed);
+        }
+        for p in self.frecency.query(query, 12) {
+            if !items.contains(&p) {
+                items.push(p);
+            }
+        }
+        items.truncate(12);
+        items
     }
 
     pub fn palette_view(&self) -> Vec<Cmd> {
@@ -1364,6 +1724,7 @@ impl App {
         }
         let dir = self.tab().path.clone();
         match kind {
+            PromptKind::Search => self.start_search(value),
             PromptKind::BatchRename => match rename::plan(&value, &self.batch_items()) {
                 Ok(pairs) if pairs.is_empty() => self.notify("Nenhum nome muda com esse modelo", false),
                 Ok(pairs) => self.start(Op::RenameMany { pairs }),
@@ -1452,6 +1813,32 @@ impl App {
                 }
                 return Task::none();
             }
+            Overlay::Frecent { .. } => {
+                let n = self.jump_view().len();
+                if let Overlay::Frecent { selected, .. } = &mut self.overlay {
+                    match named {
+                        Some(Named::Escape) => self.overlay = Overlay::None,
+                        Some(Named::ArrowDown) if n > 0 => *selected = (*selected + 1) % n,
+                        Some(Named::ArrowUp) if n > 0 => *selected = (*selected + n - 1) % n,
+                        _ => {}
+                    }
+                }
+                return Task::none();
+            }
+            Overlay::Conflict { .. } => {
+                let choice = match (&key, named) {
+                    (_, Some(Named::Escape)) => Some(None),
+                    (_, Some(Named::Enter)) => Some(Some(Conflict::KeepBoth)),
+                    (Key::Character(c), _) => match c.to_lowercase().as_str() {
+                        "s" => Some(Some(Conflict::Replace)),
+                        "p" => Some(Some(Conflict::Skip)),
+                        "m" => Some(Some(Conflict::KeepBoth)),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                return choice.map_or_else(Task::none, |c| self.update(Message::ResolveConflict(c)));
+            }
             Overlay::Prompt { .. } => return self.prompt_key(named),
             Overlay::Preview { .. } => {
                 return match named {
@@ -1485,6 +1872,13 @@ impl App {
             Overlay::None => {}
         }
 
+        // Atalhos do usuário valem antes dos de fábrica. Num campo de texto, só os com Ctrl/Alt ou teclas F.
+        let is_f = matches!(&key, Key::Named(n) if format!("{n:?}").strip_prefix('F').is_some_and(|d| d.parse::<u8>().is_ok()));
+        if !captured || mods.command() || mods.alt() || is_f {
+            if let Some(cmd) = keymap::lookup(&key, mods) {
+                return self.run(cmd);
+            }
+        }
         let cmd_mod = mods.command();
         let grid = self.tab().grid;
         // Teclas que funcionam mesmo com o filtro focado.
@@ -1519,17 +1913,22 @@ impl App {
             if let Key::Character(c) = &key {
                 let c = c.to_lowercase();
                 let cmd = match (c.as_str(), mods.shift()) {
-                    ("p", true) | ("k", false) => Some(Cmd::Palette),
+                    ("p", true) => Some(Cmd::Palette),
+                    ("k", false) => Some(Cmd::Jump),
                     ("=" | "+", _) => Some(Cmd::ZoomIn),
                     ("-", _) => Some(Cmd::ZoomOut),
                     ("c", true) => Some(Cmd::CopyPath),
                     ("n", true) => Some(Cmd::NewFolder),
                     ("n", false) => Some(Cmd::NewWindow),
                     ("t", false) => Some(Cmd::NewTab),
+                    ("e", false) => Some(Cmd::Extract),
+                    ("e", true) => Some(Cmd::Compress),
+                    ("t", true) => Some(Cmd::ReopenTab),
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
                     ("f", false) => Some(Cmd::Filter),
+                    ("f", true) => Some(Cmd::Search),
                     ("h", false) => Some(Cmd::ToggleHidden),
                     ("g", false) => Some(Cmd::ToggleGrid),
                     ("1", _) => Some(Cmd::SortName),
@@ -1543,6 +1942,7 @@ impl App {
                     ("x", false) if !captured => Some(Cmd::Cut),
                     ("v", false) if !captured => Some(Cmd::Paste),
                     ("z", false) if !captured => Some(Cmd::Undo),
+                    ("z", true) | ("y", false) if !captured => Some(Cmd::Redo),
                     ("a", false) if !captured => Some(Cmd::SelectAll),
                     _ => None,
                 };
@@ -1593,7 +1993,24 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // Só mensagens que podem mudar abas ou painéis gravam a sessão; quadros, rolagem e progresso não.
+        let structural = matches!(
+            message,
+            Message::Run(_)
+                | Message::Key { .. }
+                | Message::Navigate(_)
+                | Message::NavigateIn { .. }
+                | Message::Activate { .. }
+                | Message::SelectTab { .. }
+                | Message::CloseTabAt { .. }
+                | Message::NewTabIn(_)
+                | Message::PromptSubmit
+                | Message::PaletteRun(_)
+        );
         let task = self.handle(message);
+        if structural {
+            self.persist();
+        }
         Task::batch([task, self.refresh_details()])
     }
 
@@ -1632,7 +2049,7 @@ impl App {
                 if computer::is_virtual(&dest) || path.parent() == Some(dest.as_path()) {
                     return Task::none();
                 }
-                self.start(Op::Copy { sources: vec![path], dest })
+                self.transfer(Op::Copy { sources: vec![path], dest, conflict: Conflict::KeepBoth })
             }
             Message::Run(cmd) => self.run(cmd),
             Message::ContextMenu { tab, index } => {
@@ -1727,7 +2144,8 @@ impl App {
                 Task::none()
             }
             Message::FilterSubmit => {
-                let task = self.run(Cmd::Open);
+                // Ctrl+Enter no filtro busca o mesmo texto nas subpastas.
+                let task = self.run(if self.modifiers.command() { Cmd::Search } else { Cmd::Open });
                 Task::batch([task, iced::advanced::widget::operate(focusable::unfocus())])
             }
             Message::PaletteQuery(q) => {
@@ -1743,6 +2161,26 @@ impl App {
                 let cmd = Self::palette_items(query).get(i).copied();
                 self.overlay = Overlay::None;
                 cmd.map_or_else(Task::none, |c| self.run(c))
+            }
+            Message::JumpQuery(q) => {
+                if let Overlay::Frecent { query, selected } = &mut self.overlay {
+                    *query = q;
+                    *selected = 0;
+                }
+                Task::none()
+            }
+            Message::JumpRun(index) => {
+                let Overlay::Frecent { selected, .. } = &self.overlay else { return Task::none() };
+                let i = if index == usize::MAX { *selected } else { index };
+                let target = self.jump_view().get(i).cloned();
+                self.overlay = Overlay::None;
+                match target {
+                    Some(dir) => {
+                        let pane = self.active;
+                        self.navigate(pane, dir)
+                    }
+                    None => Task::none(),
+                }
             }
             Message::PromptChanged(v) => {
                 let goto = matches!(self.overlay, Overlay::Prompt { kind: PromptKind::GoTo, .. });
@@ -1814,15 +2252,21 @@ impl App {
                     Task::none()
                 }
                 JobEvent::Finished(result) => {
-                    self.jobs.retain(|j| j.id != id);
+                    let Some(pos) = self.jobs.iter().position(|j| j.id == id) else { return Task::none() };
+                    let job = self.jobs.remove(pos);
                     let refresh = self.refresh_all();
+                    let next = self.next_queued();
                     let toast = match result {
                         Ok(outcome) => {
-                            if let Some(u) = outcome.undo {
-                                self.undo.push(u);
-                                if self.undo.len() > 100 {
-                                    self.undo.remove(0);
+                            match (outcome.undo, job.kind) {
+                                (Some(u), JobKind::Normal) => {
+                                    self.undo.push((u, job.op));
+                                    if self.undo.len() > 100 {
+                                        self.undo.remove(0);
+                                    }
                                 }
+                                (_, JobKind::Undo { redo }) => self.redo.push(redo),
+                                _ => {}
                             }
                             let tab = self.tab_mut();
                             tab.focus_on_load = outcome.created.into_iter().filter(|p| p.parent() == Some(tab.path.as_path())).collect();
@@ -1830,14 +2274,39 @@ impl App {
                         }
                         Err(e) => self.notify(format!("Erro: {e}"), true),
                     };
-                    Task::batch([refresh, toast])
+                    Task::batch([refresh, next, toast])
                 }
             },
+            Message::Info(text) => self.notify(text, false),
+            Message::Opened { name, result } => match result {
+                Ok(()) => Task::none(),
+                Err(e) => self.notify(format!("Não abriu {name}: {e}"), true),
+            },
             Message::CancelJob(id) => {
-                if let Some(j) = self.jobs.iter().find(|j| j.id == id) {
+                // Na fila, ainda não começou: basta tirar.
+                if self.jobs.iter().any(|j| j.id == id && j.queued) {
+                    self.jobs.retain(|j| j.id != id);
+                } else if let Some(j) = self.jobs.iter().find(|j| j.id == id) {
                     j.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
                 Task::none()
+            }
+            Message::PauseJob(id) => {
+                if let Some(j) = self.jobs.iter_mut().find(|j| j.id == id && !j.queued) {
+                    j.paused = !j.paused;
+                    j.pause.store(j.paused, std::sync::atomic::Ordering::Relaxed);
+                }
+                Task::none()
+            }
+            Message::ResolveConflict(choice) => {
+                let Overlay::Conflict { op, .. } = std::mem::replace(&mut self.overlay, Overlay::None) else { return Task::none() };
+                let Some(conflict) = choice else { return Task::none() };
+                let op = match op {
+                    Op::Copy { sources, dest, .. } => Op::Copy { sources, dest, conflict },
+                    Op::Move { sources, dest, .. } => Op::Move { sources, dest, conflict },
+                    other => other,
+                };
+                self.start(op)
             }
             Message::ToastExpired(id) => {
                 if self.toast.as_ref().is_some_and(|t| t.id == id) {
@@ -1847,12 +2316,31 @@ impl App {
             }
             Message::DirChanged(path) => {
                 let tasks: Vec<_> = (0..2)
-                    .filter(|&p| self.panes[p].tab().path == path && !self.panes[p].tab().loading)
+                    .filter(|&p| {
+                        let t = self.panes[p].tab();
+                        t.path == path && !t.loading && t.search.is_none()
+                    })
                     .collect::<Vec<_>>()
                     .into_iter()
                     .map(|p| self.load(p, path.clone(), true))
                     .collect();
                 Task::batch(tasks)
+            }
+            Message::Remote(target) => {
+                let pane = self.active;
+                let tab = self.new_tab(pane);
+                let go = match target.and_then(start_dir_keep) {
+                    Some((dir, file)) => {
+                        let task = self.navigate(pane, dir);
+                        let t = self.tab_mut();
+                        t.back.clear();
+                        t.focus_on_load = file.into_iter().collect();
+                        task
+                    }
+                    None => Task::none(),
+                };
+                let focus = window::latest().and_then(window::gain_focus);
+                Task::batch([tab, go, focus])
             }
             Message::DrivesTick => {
                 Task::perform(async { tokio::task::spawn_blocking(computer::drives).await.unwrap_or_default() }, Message::DrivesPolled)
@@ -1878,6 +2366,50 @@ impl App {
             }
         }
     }
+}
+
+fn frecency_file() -> Option<PathBuf> {
+    dirs::config_dir().map(|d| d.join("arbor").join("frecency"))
+}
+
+fn load_frecency() -> Frecency {
+    frecency_file().and_then(|f| std::fs::read_to_string(f).ok()).map(|t| Frecency::from_text(&t)).unwrap_or_default()
+}
+
+/// Grava numa thread à parte (arquivo pequeno, troca atômica).
+fn save_frecency(f: &Frecency) {
+    let Some(file) = frecency_file() else { return };
+    let text = f.to_text();
+    std::thread::spawn(move || {
+        if let Some(dir) = file.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let tmp = file.with_extension("tmp");
+        if std::fs::write(&tmp, text).is_ok() {
+            let _ = std::fs::rename(&tmp, &file);
+        }
+    });
+}
+
+/// Como [`start_dir`], mas lembrando o arquivo pedido para selecioná-lo na pasta.
+fn start_dir_keep(p: PathBuf) -> Option<(PathBuf, Option<PathBuf>)> {
+    if p.is_dir() {
+        Some((p, None))
+    } else {
+        p.parent().map(|d| (d.to_path_buf(), Some(p.clone())))
+    }
+}
+
+/// Nome do arquivo sem as extensões de compactado ("fotos.tar.gz" → "fotos").
+fn folder_name(p: &Path) -> String {
+    let name = ops::name(p);
+    let lower = name.to_lowercase();
+    for ext in [".tar.gz", ".tar.xz", ".tgz", ".txz", ".tar", ".zip", ".7z"] {
+        if lower.ends_with(ext) && name.len() > ext.len() {
+            return name[..name.len() - ext.len()].to_string();
+        }
+    }
+    p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or(name)
 }
 
 /// `arbor arquivo.txt` abre a pasta do arquivo em vez de tentar listar um arquivo.
@@ -1937,6 +2469,13 @@ mod tests {
         let file = std::fs::canonicalize(std::env::current_exe().unwrap()).unwrap();
         assert_eq!(start_dir(dir.clone()), Some(dir));
         assert_eq!(start_dir(file.clone()), file.parent().map(Path::to_path_buf));
+    }
+
+    #[test]
+    fn nome_da_pasta_de_extracao() {
+        assert_eq!(folder_name(Path::new("/x/fotos.tar.gz")), "fotos");
+        assert_eq!(folder_name(Path::new("/x/Pacote.ZIP")), "Pacote");
+        assert_eq!(folder_name(Path::new("/x/notas.txt")), "notas");
     }
 
     #[test]
