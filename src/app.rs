@@ -293,6 +293,7 @@ pub enum PromptKind {
     NewFolder,
     NewFile,
     GoTo,
+    OpenWith,
 }
 
 impl PromptKind {
@@ -302,6 +303,7 @@ impl PromptKind {
             PromptKind::NewFolder => "Nova pasta",
             PromptKind::NewFile => "Novo documento de texto",
             PromptKind::GoTo => "Ir para",
+            PromptKind::OpenWith => "Abrir com (programa)",
         }
     }
 }
@@ -808,7 +810,9 @@ impl App {
         // "Este Computador" é virtual: renomear, apagar ou colar ali agiria nas pastas e discos de verdade.
         let here = computer::is_virtual(&self.tab().path);
         let there = self.dual && computer::is_virtual(&self.panes[self.other_pane()].tab().path);
-        if trashbin::is(&self.tab().path) && matches!(cmd, Cmd::Open | Cmd::OpenDefault | Cmd::Copy | Cmd::CopyToOther | Cmd::Preview) {
+        if trashbin::is(&self.tab().path)
+            && matches!(cmd, Cmd::Open | Cmd::OpenDefault | Cmd::OpenWith | Cmd::Copy | Cmd::CopyToOther | Cmd::Preview)
+        {
             return self.notify("Restaure o item para abrir ou copiar", false);
         }
         let writes_here =
@@ -826,6 +830,15 @@ impl App {
                     Ok(()) => Task::none(),
                     Err(err) => self.notify(err, true),
                 },
+                None => Task::none(),
+            },
+            Cmd::OpenWith => match self.tab().current().filter(|e| !e.is_dir) {
+                // No Windows o próprio sistema mostra a lista de apps; nos outros, digita-se o programa.
+                Some(e) if cfg!(windows) => match launch::open_with_dialog(&e.path) {
+                    Ok(()) => Task::none(),
+                    Err(err) => self.notify(err, true),
+                },
+                Some(_) => self.open_prompt(PromptKind::OpenWith, String::new()),
                 None => Task::none(),
             },
             Cmd::Preview => {
@@ -1230,6 +1243,13 @@ impl App {
                     },
                     Message::Created,
                 )
+            }
+            PromptKind::OpenWith => {
+                let Some(file) = self.tab().current().map(|e| e.path.clone()) else { return Task::none() };
+                match launch::open_with(&value, &file) {
+                    Ok(()) => Task::none(),
+                    Err(err) => self.notify(err, true),
+                }
             }
             PromptKind::GoTo => {
                 let value = self.chosen_suggestion().unwrap_or(value);
