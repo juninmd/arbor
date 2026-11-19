@@ -44,14 +44,14 @@ pub fn bar(app: &App) -> Element<'_, Message> {
     let action = |cmd: Cmd| -> Element<'_, Message> {
         let ic = icon_of(cmd).expect("ícone do comando");
         let on = app.enabled(cmd);
-        let color = if on { theme::DARK.ink2 } else { theme::alpha(theme::DARK.ink3, 0.3) };
+        let color = if on { theme::now().ink2 } else { theme::alpha(theme::now().ink3, 0.3) };
         let b = button(icon(ic, 15.0, color)).padding([5, 8]).on_press_maybe(on.then_some(Message::Run(cmd))).style(theme::ghost);
         let sc = cmd.shortcut();
         let tip = if sc.is_empty() { cmd.label().to_string() } else { format!("{}  {sc}", cmd.label()) };
         tooltip(b, text(tip).size(12), tooltip::Position::Bottom).padding(8).style(theme::tooltip).into()
     };
     let labeled = |ic: Icon, label: &'static str, msg: Option<Message>| -> Element<'_, Message> {
-        let content = row![icon(ic, 14.0, theme::DARK.ink2), text(label).size(12.5)].spacing(6).align_y(Alignment::Center);
+        let content = row![icon(ic, 14.0, theme::now().ink2), text(label).size(12.5)].spacing(6).align_y(Alignment::Center);
         button(content).padding([5, 9]).on_press_maybe(msg).style(theme::ghost).into()
     };
     let new = labeled(Icon::Plus, "Novo", app.enabled(Cmd::NewFolder).then_some(Message::OpenMenu(MenuKind::New)));
@@ -67,11 +67,12 @@ pub fn bar(app: &App) -> Element<'_, Message> {
         labeled(Icon::Sort, "Classificar", Some(Message::OpenMenu(MenuKind::Sort))),
         labeled(Icon::Eye, "Visualizar", Some(Message::OpenMenu(MenuKind::View))),
         separator_v(),
-        button(icon(Icon::More, 15.0, theme::DARK.ink2))
+        button(icon(Icon::More, 15.0, theme::now().ink2))
             .padding([5, 8])
             .on_press(Message::OpenMenu(MenuKind::Background))
             .style(theme::ghost),
         space().width(Fill),
+        super::status(app, app.tab()),
         labeled(Icon::Doc, "Detalhes", Some(Message::Run(Cmd::Details))),
     ]
     .spacing(2)
@@ -91,7 +92,7 @@ pub fn menu<'a>(app: &'a App, m: &'a Menu) -> Element<'a, Message> {
         let hot = m.selected == Some(i);
         let ic: Element<_> = match icon_of(cmd) {
             None if app.checked(cmd) => text("✓").size(13).width(14).style(theme::accent).into(),
-            Some(ic) => icon(ic, 14.0, if on { theme::DARK.ink2 } else { theme::alpha(theme::DARK.ink3, 0.5) }),
+            Some(ic) => icon(ic, 14.0, if on { theme::now().ink2 } else { theme::alpha(theme::now().ink3, 0.5) }),
             None => space().width(14).into(),
         };
         let label = text(cmd.label()).size(12.5).width(Fill).wrapping(Wrapping::None).style(move |t: &Theme| {
@@ -161,7 +162,7 @@ pub fn jump<'a>(app: &'a App, j: &'a Jump) -> Element<'a, Message> {
 /// Na Lixeira a barra troca para o que faz sentido ali, como no Explorer.
 fn trash_bar(app: &App) -> Element<'_, Message> {
     let b = |ic: Icon, cmd: Cmd| -> Element<'_, Message> {
-        let content = row![icon(ic, 14.0, theme::DARK.ink2), text(cmd.label()).size(12.5)].spacing(6).align_y(Alignment::Center);
+        let content = row![icon(ic, 14.0, theme::now().ink2), text(cmd.label()).size(12.5)].spacing(6).align_y(Alignment::Center);
         button(content).padding([5, 9]).on_press_maybe(app.enabled(cmd).then_some(Message::Run(cmd))).style(theme::ghost).into()
     };
     row![b(Icon::Up, Cmd::Restore), b(Icon::Trash, Cmd::Purge), separator_v(), b(Icon::Trash, Cmd::EmptyTrash)]
