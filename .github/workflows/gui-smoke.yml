@@ -22,23 +22,25 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked
-      - name: Abrir o arbor (sem vidro, para comparar)
+      - name: Abrir o arbor (padrão, sem Mica)
         shell: pwsh
         env:
           ARBOR_NO_UPDATE: "1"
-          ARBOR_NO_GLASS: "1"
           RUST_BACKTRACE: "1"
         run: |
           $p = Start-Process -FilePath target\release\arbor.exe -ArgumentList "$PWD" -PassThru -RedirectStandardError err-plain.txt -RedirectStandardOutput out-plain.txt
           Start-Sleep -Seconds 10
           Get-Content err-plain.txt -ErrorAction SilentlyContinue | Select-Object -Last 30
-          if ($p.HasExited) { Write-Output "::warning::sem vidro o arbor também fechou (código $($p.ExitCode))" } else { Stop-Process -Id $p.Id; Write-Output "sem vidro: abriu" }
-      - name: Abrir o arbor com vidro e tirar print
+          if ($p.HasExited) { Write-Error "o arbor fechou sozinho (código $($p.ExitCode))"; exit 1 } else { Stop-Process -Id $p.Id; Write-Output "padrão: abriu" }
+      - name: Abrir o arbor com Mica (experimental) e tirar print
         shell: pwsh
+        # diagnóstico do vidro no Windows; não bloqueia o PR enquanto o Mica for opt-in
+        continue-on-error: true
         env:
           ARBOR_NO_UPDATE: "1"
           RUST_BACKTRACE: "1"
           ARBOR_LOG: "1"
+          ARBOR_GLASS: "1"
         run: |
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
           $p = Start-Process -FilePath target\release\arbor.exe -ArgumentList "$PWD" -PassThru -RedirectStandardError err.txt -RedirectStandardOutput out.txt

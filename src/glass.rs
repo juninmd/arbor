@@ -9,6 +9,11 @@
 
 /// Se o vidro nativo deve ser pedido. Decide `transparent`/`blur` ao criar a janela.
 pub fn wanted() -> bool {
+    // Windows: a swapchain de DirectComposition ainda derruba o app em algumas máquinas
+    // ("Invalid surface" no Surface::configure). Até validar, o Mica é opt-in (ARBOR_GLASS=1).
+    if cfg!(target_os = "windows") {
+        return std::env::var_os("ARBOR_GLASS").is_some();
+    }
     std::env::var_os("ARBOR_NO_GLASS").is_none()
 }
 
