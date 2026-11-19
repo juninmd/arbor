@@ -17,6 +17,8 @@ pub fn icon_of(cmd: Cmd) -> Option<Icon> {
     Some(match cmd {
         Cmd::NewFolder => Icon::Folder,
         Cmd::NewTextFile => Icon::Doc,
+        Cmd::NewZip => Icon::Archive,
+        Cmd::CreateShortcut => Icon::Right,
         Cmd::Cut => Icon::Cut,
         Cmd::Copy | Cmd::CopyPath => Icon::Copy,
         Cmd::Paste => Icon::Paste,

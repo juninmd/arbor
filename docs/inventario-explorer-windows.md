@@ -32,7 +32,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 |---|---|---|
 | Barra de comandos visível: Novo, Recortar, Copiar, Colar, Renomear, Compartilhar, Excluir, Classificar, Visualizar, "…" | ✅ (sem Compartilhar) | P0 |
 | Menu de contexto (botão direito) em item e em área vazia | ✅ (também Shift+F10 e tecla Menu) | P0 |
-| "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (pasta e documento de texto) | P1 |
+| "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (pasta, documento de texto e pasta compactada .zip; atalho pelo botão direito no item) | P1 |
 | "Abrir com" (lista de apps + escolher outro) | 🟡 (Windows: diálogo nativo; Linux/macOS: digitar o programa) | P1 |
 | Propriedades (tamanho em disco, datas, atributos, permissões, hash) | 🟡 (Alt+Enter abre no painel de detalhes, com SHA-256 sob demanda; sem editar atributos) | P1 |
 | Compactar em ZIP / extrair tudo; navegar dentro de .zip | ✅ (compactar em zip, extrair zip/7z/tar, abrir o compactado como pasta) | P1 |
@@ -75,7 +75,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Excluir permanentemente (Shift+Del) com confirmação | ✅ | P1 |
 | Renomear com F2 selecionando só o nome sem extensão; Tab vai ao próximo | 🟡 (prompt, não inline) | P1 |
 | Renomear vários: "foto (1)", "foto (2)" | ❌ | P2 |
-| Criar atalho / link simbólico | ❌ | P2 |
+| Criar atalho / link simbólico | ✅ (botão direito → Criar atalho: link simbólico no Linux/macOS, `.lnk` no Windows) | P2 |
 | Área de transferência do sistema (copiar no arbor, colar no Explorer e vice-versa) | ✅ (recortar vira mover só dentro do arbor) | P0 |
 | Executar como administrador; pedir elevação ao copiar em pasta protegida | ❌ | P2 |
 

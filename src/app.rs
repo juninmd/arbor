@@ -18,7 +18,7 @@ pub use menu::{Menu, MenuKind};
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::session::{self, Session};
-use crate::{discovery, home, instance, keymap, launch, listing, network, pins, pointer, trashbin, update, watch};
+use crate::{discovery, home, instance, keymap, launch, listing, network, pins, pointer, shortcut, trashbin, update, watch};
 use arbor_core::frecency::Frecency;
 use arbor_core::group::GroupBy;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
@@ -1469,6 +1469,28 @@ impl App {
             },
             Cmd::NewFolder => self.open_prompt(PromptKind::NewFolder, "Nova pasta".into()),
             Cmd::NewTextFile => self.open_prompt(PromptKind::NewFile, "Novo documento de texto.txt".into()),
+            Cmd::NewZip => self.open_prompt(PromptKind::NewFile, "Nova pasta compactada.zip".into()),
+            Cmd::CreateShortcut => {
+                let tasks: Vec<_> = self
+                    .tab()
+                    .targets()
+                    .into_iter()
+                    .map(|target| {
+                        Task::perform(
+                            async move {
+                                tokio::task::spawn_blocking(move || {
+                                    let link = shortcut::link_path(&target).ok_or("caminho sem nome")?;
+                                    shortcut::create(&target, &link).map(|()| link)
+                                })
+                                .await
+                                .unwrap_or_else(|e| Err(e.to_string()))
+                            },
+                            Message::Created,
+                        )
+                    })
+                    .collect();
+                Task::batch(tasks)
+            }
             Cmd::NewWindow => {
                 let arg = (!here).then(|| self.tab().path.clone());
                 match launch::new_window(arg.as_deref()) {
@@ -1878,11 +1900,16 @@ impl App {
                 Task::perform(
                     async move {
                         let p = path.clone();
-                        tokio::task::spawn_blocking(move || std::fs::OpenOptions::new().write(true).create_new(true).open(&p).map(drop))
-                            .await
-                            .map_err(|e| e.to_string())
-                            .and_then(|r| r.map_err(|e| e.to_string()))
-                            .map(|()| path)
+                        // ".zip" nasce como zip vazio válido, como "Nova pasta compactada" do Windows.
+                        let body: &'static [u8] = if shortcut::is_zip_name(&value) { &shortcut::EMPTY_ZIP } else { &[] };
+                        tokio::task::spawn_blocking(move || {
+                            use std::io::Write;
+                            std::fs::OpenOptions::new().write(true).create_new(true).open(&p)?.write_all(body)
+                        })
+                        .await
+                        .map_err(|e| e.to_string())
+                        .and_then(|r| r.map_err(|e| e.to_string()))
+                        .map(|()| path)
                     },
                     Message::Created,
                 )
