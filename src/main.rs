@@ -12,6 +12,7 @@ mod media;
 mod pins;
 mod pointer;
 mod props;
+mod sysclip;
 mod theme;
 mod update;
 mod view;

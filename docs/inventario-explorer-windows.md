@@ -76,7 +76,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Renomear com F2 selecionando só o nome sem extensão; Tab vai ao próximo | 🟡 (prompt, não inline) | P1 |
 | Renomear vários: "foto (1)", "foto (2)" | ❌ | P2 |
 | Criar atalho / link simbólico | ❌ | P2 |
-| Área de transferência do sistema (copiar no arbor, colar no Explorer e vice-versa) | ❌ (copiar/colar é interno; só "copiar caminho" vai ao sistema) | P0 |
+| Área de transferência do sistema (copiar no arbor, colar no Explorer e vice-versa) | ✅ (recortar vira mover só dentro do arbor) | P0 |
 | Executar como administrador; pedir elevação ao copiar em pasta protegida | ❌ | P2 |
 
 ## Unidades e sistema

@@ -25,6 +25,8 @@ tokio = { version = "1", features = ["rt", "fs", "sync", "time"] }
 vislo-core = { git = "https://github.com/juninmd/vislo" }
 notify = "8"
 open = "5"
+# arquivos na área de transferência do sistema (CF_HDROP, NSPasteboard, text/uri-list)
+arboard = { version = "3.7", default-features = false }
 dirs = "6"
 image = { version = "0.25", default-features = false, features = ["png"] }
 fast_image_resize = "6"

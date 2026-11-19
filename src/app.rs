@@ -41,6 +41,7 @@ pub struct App {
     next_job: u64,
     undo: Vec<Undo>,
     clip: Option<(bool, Vec<PathBuf>)>,
+    sysclip: crate::sysclip::SysClip,
     pub toast: Option<Toast>,
     next_toast: u64,
     pub dark: bool,
@@ -354,6 +355,7 @@ impl App {
             next_job: 0,
             undo: vec![],
             clip: None,
+            sysclip: Default::default(),
             toast: None,
             next_toast: 0,
             dark: true,
@@ -861,12 +863,16 @@ impl App {
                 if n == 0 {
                     return Task::none();
                 }
+                // Também vai para o sistema; recortar fica marcado só aqui (vira mover ao colar no arbor).
+                let shared = self.sysclip.set_files(&items).is_ok();
                 self.clip = Some((cmd == Cmd::Cut, items));
                 let verb = if cmd == Cmd::Cut { "recortado(s)" } else { "copiado(s)" };
-                self.notify(format!("{n} item(ns) {verb}. {} cola.", Cmd::Paste.shortcut()), false)
+                let only_here = if shared { "" } else { " (só no arbor: a área do sistema não respondeu)" };
+                self.notify(format!("{n} item(ns) {verb}. {} cola.{only_here}", Cmd::Paste.shortcut()), !shared)
             }
             Cmd::Paste => {
-                let Some((cut, sources)) = self.clip.clone() else { return Task::none() };
+                let system = self.sysclip.files();
+                let Some((cut, sources)) = crate::sysclip::choose(self.clip.as_ref(), system) else { return Task::none() };
                 let dest = self.tab().path.clone();
                 if cut {
                     self.clip = None;

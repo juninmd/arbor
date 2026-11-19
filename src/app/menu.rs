@@ -98,7 +98,8 @@ impl App {
         let here = computer::is(&self.tab().path);
         let has_target = self.tab().current().is_some();
         match cmd {
-            Cmd::Paste => self.clip.is_some() && !here,
+            // A área do sistema pode ter arquivos de outro app; lê-la a cada quadro custaria caro.
+            Cmd::Paste => !here,
             Cmd::Undo => !self.undo.is_empty(),
             Cmd::Cut | Cmd::Rename | Cmd::Trash | Cmd::MoveToOther => has_target && !here,
             Cmd::NewFolder => !here,
