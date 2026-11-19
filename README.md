@@ -33,7 +33,9 @@ o F5 que não atualiza. A regra que guia tudo: **a interface nunca espera pelo d
 ordenação de lista grande roda na thread de interface.
 
 O visual vem do protótipo *arbor Glass*: aurora ao fundo, cartões de vidro, uma cor por tipo de arquivo, a pílula de
-seleção em gelo e íris e a velocidade visível ("N itens em X ms"). O escopo é enxuto de propósito, a lição do
+seleção em gelo e íris e a velocidade visível ("N itens em X ms"). A janela é de vidro de verdade onde o sistema
+deixa: vibrancy no macOS e transparência com desfoque do compositor no Linux; no Windows o vidro é o da aurora
+(`ARBOR_NO_GLASS=1` desliga o vidro do sistema). O escopo é enxuto de propósito, a lição do
 Spacedrive: nada de nuvem, sincronização ou tags.
 
 ## Índice
@@ -207,6 +209,8 @@ src/                 o app iced
   app.rs             estado e update: navegação, seleção, atalhos, tarefas, atualização
   view.rs            interface: lista virtualizada, grade de miniaturas, paleta, preview, doca
   theme.rs           tokens do protótipo Glass: cores, fontes, raios, estilos e ícones
+  aurora.rs          a aurora do protótipo (manchas gelo, íris, rosa e menta) pintada numa textura
+  glass.rs           vidro nativo: vibrancy no macOS, transparência no Linux
   listing.rs         ponte entre a listagem do arbor-core e o iced
   update/            atualização automática (GitHub Releases + SHA-256 + self-replace)
   media.rs           preview e miniaturas via vislo-core
@@ -246,7 +250,7 @@ Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.githu
 |---|---|---|
 | 0. Base | workspace, `arbor-core`, benchmark de 100 mil arquivos no CI, tema do protótipo | ✅ |
 | 1. Velocidade | listagem paralela, ordem natural por bytes, filtro paralelo e incremental, mimalloc | ✅ |
-| 2. Beleza | tema Glass, fontes, ícones por tipo, selo de ms e medidor de fps; Mica/Acrylic e animações com mola | 🟡 |
+| 2. Beleza | tema Glass, fontes, ícones por tipo, selo de ms e medidor de fps; vidro nativo no macOS e Linux; Mica no Windows e animações com mola | 🟡 |
 | 3. Poder | fila de operações com pausa, desfazer persistente, navegar em .zip/.7z/.tar, instância única | ⬜ |
 | 4. Busca global | índice opcional (MFT/USN no Windows, varredura + observador nos outros) | ⬜ |
 
