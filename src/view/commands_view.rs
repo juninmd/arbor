@@ -24,6 +24,7 @@ pub fn icon_of(cmd: Cmd) -> Option<Icon> {
         Cmd::SortName | Cmd::SortSize | Cmd::SortModified | Cmd::SortKind => Icon::Sort,
         Cmd::ToggleGrid => Icon::Grid,
         Cmd::ToggleHidden | Cmd::Preview => Icon::Eye,
+        Cmd::Details | Cmd::Properties => Icon::Doc,
         Cmd::Pin => Icon::Pin,
         Cmd::Open | Cmd::OpenInNewTab => Icon::Folder,
         Cmd::Up => Icon::Up,
@@ -64,6 +65,8 @@ pub fn bar(app: &App) -> Element<'_, Message> {
             .padding([5, 8])
             .on_press(Message::OpenMenu(MenuKind::Background))
             .style(theme::ghost),
+        space().width(Fill),
+        labeled(Icon::Doc, "Detalhes", Some(Message::Run(Cmd::Details))),
     ]
     .spacing(2)
     .align_y(Alignment::Center)

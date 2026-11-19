@@ -182,6 +182,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
 | botão direito, `Shift+F10`, tecla Menu | Menu de contexto do item ou da pasta |
+| `Alt+Shift+P` / `Alt+Enter` | Painel de detalhes / propriedades |
 | `F12` | Medidor de fps |
 | `Ctrl+Shift+C` | Copiar caminho |
 | ``Ctrl+' `` | Terminal nesta pasta |

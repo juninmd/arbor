@@ -38,7 +38,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             if dir {
                 v.push(Some(Pin));
             }
-            v.extend([Some(Reveal), None, Some(CopyToOther), Some(MoveToOther)]);
+            v.extend([Some(Reveal), None, Some(CopyToOther), Some(MoveToOther), None, Some(Properties)]);
             v
         }
         MenuKind::Background => vec![
@@ -60,10 +60,12 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Terminal),
             Some(CopyPath),
             Some(Pin),
+            None,
+            Some(Details),
         ],
         MenuKind::Sidebar => vec![Some(OpenInNewTab), Some(Pin)],
         MenuKind::Sort => vec![Some(SortName), Some(SortSize), Some(SortModified), Some(SortKind)],
-        MenuKind::View => vec![Some(ToggleGrid), Some(ToggleHidden), None, Some(ToggleDual), Some(ToggleTheme)],
+        MenuKind::View => vec![Some(ToggleGrid), Some(ToggleHidden), None, Some(Details), Some(ToggleDual), Some(ToggleTheme)],
     };
     // Em "Este Computador" não há pasta real para fixar, colar ou abrir terminal.
     let hide = |c: &Cmd| here_virtual && matches!(kind, MenuKind::Background) && matches!(c, Cmd::Pin | Cmd::Terminal | Cmd::CopyPath);

@@ -2,8 +2,10 @@
 
 use crate::commands::{self, Cmd};
 mod address;
+mod details;
 mod menu;
 
+pub use details::Details;
 pub use menu::{Menu, MenuKind};
 
 use crate::computer::{self, Drive};
@@ -50,6 +52,8 @@ pub struct App {
     /// Alvo do menu de onde o comando atual veio (fixar ou abrir uma pasta da barra lateral).
     menu_target: Option<PathBuf>,
     pub suggest: address::Suggest,
+    pub details_on: bool,
+    pub details: Option<Details>,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -290,6 +294,7 @@ pub enum Message {
     MenuHover(usize),
     Suggested { generation: u64, items: Vec<PathBuf> },
     SuggestPick(usize),
+    DetailsLoaded { path: PathBuf, preview: Preview, props: Vec<(String, String)> },
     Click { tab: u64, index: usize },
     Activate { tab: u64, index: usize },
     Scrolled { tab: u64, viewport: Viewport },
@@ -356,6 +361,8 @@ impl App {
             pins: pins::load(pins::file().as_deref()),
             menu_target: None,
             suggest: Default::default(),
+            details_on: false,
+            details: None,
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -753,6 +760,17 @@ impl App {
                     }
                     Err(e) => self.notify(format!("Não salvou as pastas fixadas: {e}"), true),
                 }
+            }
+            Cmd::Details => {
+                self.details_on = !self.details_on;
+                if !self.details_on {
+                    self.details = None;
+                }
+                Task::none()
+            }
+            Cmd::Properties => {
+                self.details_on = true;
+                Task::none()
             }
             Cmd::Up => self.go_up(),
             Cmd::Back => self.history(true),
@@ -1187,10 +1205,14 @@ impl App {
                 return cmd.map_or_else(Task::none, |c| self.run(c));
             }
         }
+        if mods.alt() && mods.shift() && matches!(&key, Key::Character(c) if c.eq_ignore_ascii_case("p")) {
+            return self.run(Cmd::Details);
+        }
         if captured {
             return Task::none();
         }
         match named {
+            Some(Named::Enter) if mods.alt() => return self.run(Cmd::Properties),
             Some(Named::Enter) => return self.run(if mods.shift() { Cmd::OpenDefault } else { Cmd::Open }),
             Some(Named::Space) => return self.run(Cmd::Preview),
             Some(Named::Backspace) => return self.go_up(),
@@ -1221,6 +1243,11 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        let task = self.handle(message);
+        Task::batch([task, self.refresh_details()])
+    }
+
+    fn handle(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Listed { tab, generation, snap } => self.on_listed(tab, generation, snap),
             Message::Frame(at) => {
@@ -1366,6 +1393,7 @@ impl App {
             }
             Message::Suggested { generation, items } => self.on_suggested(generation, items),
             Message::SuggestPick(i) => self.accept_suggestion(Some(i)),
+            Message::DetailsLoaded { path, preview, props } => self.on_details(path, preview, props),
             Message::PromptSubmit => self.submit_prompt(),
             Message::CloseOverlay => {
                 self.overlay = Overlay::None;

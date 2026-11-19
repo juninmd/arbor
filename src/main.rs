@@ -11,6 +11,7 @@ mod listing;
 mod media;
 mod pins;
 mod pointer;
+mod props;
 mod theme;
 mod update;
 mod view;

@@ -23,13 +23,17 @@ use std::path::{Component, Path, PathBuf};
 
 mod commands_view;
 mod computer_view;
+mod details_view;
 
 const OVERSCAN: usize = 8;
 const GAP: f32 = 10.0;
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let panes: Element<_> = if app.dual { row![pane(app, 0), pane(app, 1)].spacing(GAP).into() } else { pane(app, app.active) };
-    let body = row![sidebar(app), container(panes).width(Fill).height(Fill)].spacing(GAP).height(Fill);
+    let mut body = row![sidebar(app), container(panes).width(Fill).height(Fill)].spacing(GAP).height(Fill);
+    if app.details_on {
+        body = body.push(details_view::panel(app));
+    }
     let main = container(column![body, dock(app)].spacing(GAP)).padding(GAP).width(Fill).height(Fill).style(theme::backdrop);
     match overlay(app) {
         Some(o) => stack![main, o].into(),

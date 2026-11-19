@@ -34,7 +34,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Menu de contexto (botão direito) em item e em área vazia | ✅ (também Shift+F10 e tecla Menu) | P0 |
 | "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (só pasta) | P1 |
 | "Abrir com" (lista de apps + escolher outro) | 🟡 (só app padrão) | P1 |
-| Propriedades (tamanho em disco, datas, atributos, permissões, hash) | ❌ | P1 |
+| Propriedades (tamanho em disco, datas, atributos, permissões, hash) | 🟡 (Alt+Enter abre no painel de detalhes; sem hash e sem editar) | P1 |
 | Compactar em ZIP / extrair tudo; navegar dentro de .zip | ❌ (fase 3) | P1 |
 | Copiar como caminho | ✅ | — |
 | Abrir no Terminal | ✅ | — |
@@ -53,7 +53,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Agrupar por (tipo, data "Hoje/Ontem/Semana passada", tamanho) | ❌ | P2 |
 | Filtro pelo cabeçalho da coluna (por tipo, por data) | ❌ | P2 |
 | Cada pasta lembra visão e ordenação | ❌ | P1 |
-| Painel de detalhes à direita (Alt+Shift+P) | ❌ | P1 |
+| Painel de detalhes à direita (Alt+Shift+P) | ✅ | P1 |
 | Painel de visualização à direita (Alt+P) | 🟡 (preview em sobreposição, Espaço) | P1 |
 | Miniaturas de vídeo, PDF, Office | 🟡 (só imagem) | P2 |
 | Ícones reais dos programas (.exe, .lnk) e da associação | ❌ | P1 |
