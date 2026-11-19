@@ -58,6 +58,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   [docs/inventario-explorer-windows.md](docs/inventario-explorer-windows.md).
 * **Barra de comandos e menu de contexto** como no Explorer (Nova pasta, recortar, copiar, colar, renomear,
   excluir, Classificar, Visualizar), com itens apagados quando não se aplicam. **Fixar pastas** na barra lateral.
+* **Agrupar por** tipo, data de modificação ("Hoje", "Ontem", "Semana passada"…) ou tamanho, pelo menu Classificar
+  ou pelo botão direito na área vazia: em Detalhes cada grupo ganha um cabeçalho com a contagem.
 * **Mouse como no Explorer:** retângulo de seleção a partir da área vazia; arrastar itens para uma pasta, a barra
   lateral ou o outro painel (mesmo disco move, outro disco copia; `Ctrl` copia, `Shift` move).
 * **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`; botão direito em Voltar/Avançar lista o histórico). O `›` da barra de endereço lista as subpastas daquele nível e cada pasta lembra ordenação e lista/grade.

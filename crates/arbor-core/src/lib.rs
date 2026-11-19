@@ -5,6 +5,7 @@ pub mod archive;
 pub mod entry;
 pub mod frecency;
 pub mod fuzzy;
+pub mod group;
 pub mod lockers;
 pub mod ops;
 pub mod rename;

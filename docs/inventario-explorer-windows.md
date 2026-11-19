@@ -50,7 +50,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Ícones extra grandes/grandes/médios/pequenos, Lista, Blocos, Conteúdo | 🟡 (Detalhes, Lista, Blocos e 4 tamanhos de ícone; sem Conteúdo) | P1 |
 | Ctrl+roda percorre Detalhes → Lista → Blocos → ícones P/M/G/XG | ✅ (também Ctrl+= / Ctrl+-; o modo aparece na barra de status) | P1 |
 | Colunas configuráveis (adicionar, mostrar/ocultar, redimensionar por arraste) | 🟡 (mostrar/ocultar pelo botão direito no cabeçalho e largura por arraste; reordenar colunas não implementado) | P1 |
-| Agrupar por (tipo, data "Hoje/Ontem/Semana passada", tamanho) | ❌ | P2 |
+| Agrupar por (tipo, data "Hoje/Ontem/Semana passada", tamanho) | 🟡 (Classificar ou botão direito → Agrupar por; cabeçalhos com contagem em Detalhes; na grade só ordena por grupo, sem cabeçalho, e não fica salvo por pasta) | P2 |
 | Filtro pelo cabeçalho da coluna (por tipo, por data) | ❌ | P2 |
 | Cada pasta lembra visão e ordenação | ✅ (`~/.config/arbor/views`) | P1 |
 | Painel de detalhes à direita (Alt+Shift+P) | ✅ | P1 |
