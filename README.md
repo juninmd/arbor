@@ -174,6 +174,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `F5` / `F6` | Copiar / mover para o outro painel |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
 | `Ctrl+Z` | Desfazer |
+| `Ctrl+E` / `Ctrl+Shift+E` | Extrair compactado / compactar em zip (zip, 7z e tar abrem como pasta com `Enter`) |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
 | `F12` | Medidor de fps |

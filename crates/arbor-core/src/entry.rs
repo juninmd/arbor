@@ -37,6 +37,21 @@ impl Entry {
         }
     }
 
+    /// Entrada de dentro de um compactado: sem `Metadata` do disco, com tamanho e data do índice.
+    pub fn virtual_entry(name: &str, path: PathBuf, is_dir: bool, size: u64, modified: Option<SystemTime>) -> Entry {
+        Entry {
+            name: name.to_string(),
+            path,
+            is_dir,
+            is_link: false,
+            hidden: name.starts_with('.'),
+            size: if is_dir { 0 } else { size },
+            modified,
+            ext: if is_dir { Ext::default() } else { extension(name) },
+            key: natural_key(name),
+        }
+    }
+
     /// Entrada sem metadados do disco (testes e benchmarks).
     pub fn synthetic(name: &str, is_dir: bool, size: u64) -> Entry {
         Entry {
