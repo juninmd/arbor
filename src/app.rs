@@ -4,12 +4,14 @@ use crate::commands::{self, Cmd};
 mod address;
 mod details;
 mod drag;
+mod jump;
 mod menu;
 mod trash_view;
 mod tree;
 
 pub use details::Details;
 pub use drag::{valid_target as drag_valid, Gesture};
+pub use jump::{Jump, JumpKind};
 pub use menu::{Menu, MenuKind};
 
 use crate::computer::{self, Drive};
@@ -281,6 +283,7 @@ pub enum Overlay {
         content: Option<Preview>,
     },
     Menu(Menu),
+    Jump(jump::Jump),
     /// Pergunta antes do que não tem volta (excluir de vez, esvaziar a Lixeira).
     Confirm {
         text: String,
@@ -324,6 +327,10 @@ pub enum Message {
     SidebarMenu(PathBuf),
     OpenMenu(MenuKind),
     MenuRun(Cmd),
+    JumpOpen { kind: JumpKind, dir: Option<PathBuf> },
+    JumpListed { generation: u64, dirs: Vec<PathBuf> },
+    JumpPick(usize),
+    JumpHover(usize),
     MenuHover(usize),
     Suggested { generation: u64, items: Vec<PathBuf> },
     SuggestPick(usize),
@@ -1332,6 +1339,7 @@ impl App {
                 };
             }
             Overlay::Menu(_) => return self.menu_key(named),
+            Overlay::Jump(_) => return self.jump_key(named),
             Overlay::Confirm { .. } => {
                 return match named {
                     Some(Named::Enter) => self.confirmed(),
@@ -1515,6 +1523,15 @@ impl App {
             Message::SidebarMenu(path) => self.open_menu(MenuKind::Sidebar, Some(path)),
             Message::OpenMenu(kind) => self.open_menu(kind, None),
             Message::MenuRun(cmd) => self.run_from_menu(cmd),
+            Message::JumpOpen { kind, dir } => self.open_jump(kind, dir),
+            Message::JumpListed { generation, dirs } => self.jump_listed(generation, dirs),
+            Message::JumpPick(i) => self.jump_pick(i),
+            Message::JumpHover(i) => {
+                if let Overlay::Jump(j) = &mut self.overlay {
+                    j.selected = Some(i);
+                }
+                Task::none()
+            }
             Message::MenuHover(i) => {
                 if let Overlay::Menu(m) = &mut self.overlay {
                     m.selected = Some(i);

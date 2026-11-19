@@ -12,11 +12,11 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Abrir em "Este Computador" com pastas do usuário e unidades | ✅ (este PR) | P0 |
 | Unidades com barra de uso (vermelha quando quase cheia) e "X livres de Y" | ✅ (este PR) | P0 |
 | Breadcrumb começando em "Este Computador"; subir da raiz volta para ele | ✅ (este PR) | P0 |
-| Breadcrumb com seta `›` que abre um menu das subpastas | ❌ | P1 |
+| Breadcrumb com seta `›` que abre um menu das subpastas | ✅ (em "Este Computador" lista pastas e discos) | P1 |
 | Barra de endereço editável ao clicar, com autocomplete de caminho | ✅ (Ctrl+L ou duplo clique; Tab completa, setas escolhem) | P0 |
 | Caixa "Pesquisar em <pasta>" com busca recursiva em subpastas | ❌ (só filtro da pasta) | P0 |
 | Abas (Ctrl+T/W), arrastar aba para virar janela | 🟡 (abas sim, destacar não) | P2 |
-| Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | 🟡 (Alt+←/→ e botões do mouse; sem menu de histórico) | P1 |
+| Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | ✅ (Alt+←/→, botões do mouse; botão direito em Voltar/Avançar mostra o histórico) | P1 |
 | Árvore de pastas expansível na barra lateral | ✅ (locais, fixados e discos; até 500 subpastas por nó) | P1 |
 | "Início" com Recentes, Favoritos e Acesso rápido | ❌ | P1 |
 | Fixar pastas na barra lateral (arrastar para fixar, desafixar) | 🟡 (pelo menu; arrastar não) | P0 |
@@ -33,7 +33,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Barra de comandos visível: Novo, Recortar, Copiar, Colar, Renomear, Compartilhar, Excluir, Classificar, Visualizar, "…" | ✅ (sem Compartilhar) | P0 |
 | Menu de contexto (botão direito) em item e em área vazia | ✅ (também Shift+F10 e tecla Menu) | P0 |
 | "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (pasta e documento de texto) | P1 |
-| "Abrir com" (lista de apps + escolher outro) | 🟡 (só app padrão) | P1 |
+| "Abrir com" (lista de apps + escolher outro) | 🟡 (Windows: diálogo nativo; Linux/macOS: digitar o programa) | P1 |
 | Propriedades (tamanho em disco, datas, atributos, permissões, hash) | 🟡 (Alt+Enter abre no painel de detalhes; sem hash e sem editar) | P1 |
 | Compactar em ZIP / extrair tudo; navegar dentro de .zip | ❌ (fase 3) | P1 |
 | Copiar como caminho | ✅ | — |
@@ -52,7 +52,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Colunas configuráveis (adicionar, reordenar, redimensionar por arraste) | ❌ | P1 |
 | Agrupar por (tipo, data "Hoje/Ontem/Semana passada", tamanho) | ❌ | P2 |
 | Filtro pelo cabeçalho da coluna (por tipo, por data) | ❌ | P2 |
-| Cada pasta lembra visão e ordenação | ❌ | P1 |
+| Cada pasta lembra visão e ordenação | ✅ (`~/.config/arbor/views`) | P1 |
 | Painel de detalhes à direita (Alt+Shift+P) | ✅ | P1 |
 | Painel de visualização à direita (Alt+P) | 🟡 (preview em sobreposição, Espaço) | P1 |
 | Miniaturas de vídeo, PDF, Office | 🟡 (só imagem) | P2 |
@@ -83,8 +83,8 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 
 | Feature do Explorer | arbor | Prio |
 |---|---|---|
-| Nome do volume ("Disco Local", "Backup") e ícone por tipo (SSD, USB, DVD, rede) | 🟡 (letra/ponto de montagem) | P1 |
-| Ejetar unidade removível | ❌ | P1 |
+| Nome do volume ("Disco Local", "Backup") e ícone por tipo (SSD, USB, DVD, rede) | 🟡 (nome do volume no Windows; ícone único) | P1 |
+| Ejetar unidade removível | ✅ (menu do disco em Este Computador) | P1 |
 | Atualizar a lista quando um pendrive entra ou sai | ❌ (F5 em Este Computador) | P1 |
 | Formatar, BitLocker, propriedades da unidade | ❌ | P3 |
 | Gerenciador de arquivos padrão (abrir pastas do sistema no arbor), instância única | ❌ (fase 3) | P1 |

@@ -2,11 +2,11 @@
 //! menu flutuante usado pelo botão direito e pelos botões da barra.
 
 use super::{separator, separator_v};
-use crate::app::{App, Menu, MenuKind, Message};
+use crate::app::{App, Jump, Menu, MenuKind, Message};
 use crate::commands::Cmd;
 use crate::theme::{self, icon, Icon};
 use iced::widget::text::Wrapping;
-use iced::widget::{button, container, mouse_area, opaque, row, space, stack, text, tooltip, Column};
+use iced::widget::{button, container, mouse_area, opaque, row, scrollable, space, stack, text, tooltip, Column};
 use iced::{Alignment, Element, Fill, Padding, Theme};
 
 const MENU_W: f32 = 300.0;
@@ -109,15 +109,51 @@ pub fn menu<'a>(app: &'a App, m: &'a Menu) -> Element<'a, Message> {
             .style(move |t: &Theme, s| theme::place(t, if hot { button::Status::Hovered } else { s }, false));
         col = col.push(mouse_area(b).on_enter(Message::MenuHover(i)));
     }
-    let card = container(col).width(MENU_W).padding(5).style(theme::tooltip);
-    // Abre na posição do mouse, sem passar da borda da janela.
     let seps = m.items.iter().filter(|c| c.is_none()).count() as f32;
     let h = (m.items.len() as f32 - seps) * ITEM_H + seps * SEP_H + 12.0;
-    let x = m.at.x.min(app.window.width - MENU_W - 8.0).max(0.0);
-    let y = if m.at.y + h > app.window.height - 8.0 { (m.at.y - h).max(0.0) } else { m.at.y };
+    floating(app, col.into(), m.at, h)
+}
+
+/// Cartão flutuante na posição do mouse, sem passar da borda da janela; clique fora fecha.
+fn floating<'a>(app: &App, content: Element<'a, Message>, at: iced::Point, h: f32) -> Element<'a, Message> {
+    let card = container(content).width(MENU_W).padding(5).style(theme::tooltip);
+    let x = at.x.min(app.window.width - MENU_W - 8.0).max(0.0);
+    let y = if at.y + h > app.window.height - 8.0 { (at.y - h).max(0.0) } else { at.y };
     let catcher =
         mouse_area(container(space()).width(Fill).height(Fill)).on_press(Message::CloseOverlay).on_right_press(Message::CloseOverlay);
     stack![catcher, container(opaque(card)).padding(Padding::new(0.0).left(x).top(y))].into()
+}
+
+/// Até onde a lista de salto cresce antes de rolar.
+const JUMP_ROWS: usize = 14;
+
+/// Subpastas do "›" ou histórico de Voltar/Avançar.
+pub fn jump<'a>(app: &'a App, j: &'a Jump) -> Element<'a, Message> {
+    let Some(items) = &j.items else {
+        return floating(app, container(text("Lendo…").size(12.5).style(theme::ink3)).padding([6, 10]).into(), j.at, ITEM_H + 12.0);
+    };
+    if items.is_empty() {
+        return floating(app, container(text("Sem subpastas").size(12.5).style(theme::ink3)).padding([6, 10]).into(), j.at, ITEM_H + 12.0);
+    }
+    let current = &app.tab().path;
+    let mut col = Column::new().spacing(0);
+    for (i, (label, path)) in items.iter().enumerate() {
+        let hot = j.selected == Some(i);
+        let here = path == current;
+        let content = row![icon(Icon::Folder, 14.0, theme::ICE), text(label.as_str()).size(12.5).width(Fill).wrapping(Wrapping::None)]
+            .spacing(10)
+            .align_y(Alignment::Center);
+        let b = button(content)
+            .height(ITEM_H)
+            .width(Fill)
+            .padding([6, 10])
+            .on_press(Message::JumpPick(i))
+            .style(move |t: &Theme, s| theme::place(t, if hot { button::Status::Hovered } else { s }, here));
+        col = col.push(mouse_area(b).on_enter(Message::JumpHover(i)));
+    }
+    let rows = items.len().min(JUMP_ROWS) as f32;
+    let list = scrollable(col).height(rows * ITEM_H).style(theme::scrollbar);
+    floating(app, list.into(), j.at, rows * ITEM_H + 12.0)
 }
 
 /// Na Lixeira a barra troca para o que faz sentido ali, como no Explorer.

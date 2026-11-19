@@ -4,7 +4,7 @@
 //! O visual segue o protótipo "arbor Glass" (tokens em `theme.rs`): aurora ao fundo, cartões de vidro,
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
-use crate::app::{App, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
+use crate::app::{App, JumpKind, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
 use crate::commands::Cmd;
 use crate::computer::{self, Drive};
 use crate::media::Preview;
@@ -140,8 +140,10 @@ fn tabs_bar(p: &Pane, pane: usize, pane_active: bool) -> Element<'_, Message> {
 
 fn toolbar(tab: &Tab) -> Element<'_, Message> {
     let nav = row![
-        icon_button(Icon::Left, Cmd::Back, Message::Run(Cmd::Back)),
-        icon_button(Icon::Right, Cmd::Forward, Message::Run(Cmd::Forward)),
+        mouse_area(icon_button(Icon::Left, Cmd::Back, Message::Run(Cmd::Back)))
+            .on_right_press(Message::JumpOpen { kind: JumpKind::Back, dir: None }),
+        mouse_area(icon_button(Icon::Right, Cmd::Forward, Message::Run(Cmd::Forward)))
+            .on_right_press(Message::JumpOpen { kind: JumpKind::Forward, dir: None }),
         icon_button(Icon::Up, Cmd::Up, Message::Run(Cmd::Up)),
     ]
     .spacing(2);
@@ -206,9 +208,7 @@ fn breadcrumbs(tab: &Tab) -> Element<'_, Message> {
     }
     r = r.push(crumb(tab.id, computer::TITLE.into(), computer::path(), in_computer));
     let parts: Vec<_> = if in_computer { vec![] } else { tab.path.components().collect() };
-    if !parts.is_empty() {
-        r = r.push(text("›").size(12).style(theme::ink3));
-    }
+    r = r.push(chevron(computer::path()));
     for (i, c) in parts.iter().enumerate() {
         acc.push(c.as_os_str());
         let label = match c {
@@ -217,10 +217,12 @@ fn breadcrumbs(tab: &Tab) -> Element<'_, Message> {
             Component::Prefix(p) => p.as_os_str().to_string_lossy().into_owned(),
             other => other.as_os_str().to_string_lossy().into_owned(),
         };
-        if i > 0 && !matches!(parts[i - 1], Component::RootDir | Component::Prefix(_)) {
-            r = r.push(text("›").size(12).style(theme::ink3));
+        // No Windows "C:" e "\\" formam um só degrau: o "›" vem depois da raiz.
+        if matches!(c, Component::Prefix(_)) && matches!(parts.get(i + 1), Some(Component::RootDir)) {
+            acc.push(parts[i + 1].as_os_str());
         }
         r = r.push(crumb(tab.id, label, acc.clone(), i == parts.len() - 1));
+        r = r.push(chevron(acc.clone()));
     }
     let bar = scrollable(r).direction(thin_horizontal()).anchor_right().width(Fill).style(theme::scrollbar);
     mouse_area(container(bar).width(Fill)).on_double_click(Message::Run(Cmd::GoTo)).into()
@@ -488,6 +490,15 @@ fn status_line(tab: &Tab, show_hidden: bool) -> Element<'_, Message> {
     container(text(parts.join("  ·  ")).size(11.5).style(theme::ink3)).padding([6, 16]).into()
 }
 
+/// "›" entre os degraus: clicar lista as subpastas daquele nível, como no Explorer.
+fn chevron<'a>(dir: PathBuf) -> Element<'a, Message> {
+    button(text("›").size(12).style(theme::ink3))
+        .padding([4, 4])
+        .on_press(Message::JumpOpen { kind: JumpKind::Children, dir: Some(dir) })
+        .style(theme::ghost)
+        .into()
+}
+
 fn crumb<'a>(tab: u64, label: String, path: PathBuf, last: bool) -> Element<'a, Message> {
     let label = text(label).size(12.5).wrapping(Wrapping::None).font(if last { theme::UI_BOLD } else { theme::UI });
     button(label)
@@ -682,6 +693,7 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         }
         Overlay::Preview { path, content } => preview(app, path, content.as_ref()),
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
+        Overlay::Jump(j) => return Some(commands_view::jump(app, j)),
         Overlay::Confirm { text: question, .. } => sheet(
             column![
                 text("Confirmar").font(theme::DISPLAY).size(16),

@@ -58,7 +58,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   excluir, Classificar, Visualizar), com itens apagados quando não se aplicam. **Fixar pastas** na barra lateral.
 * **Mouse como no Explorer:** retângulo de seleção a partir da área vazia; arrastar itens para uma pasta, a barra
   lateral ou o outro painel (mesmo disco move, outro disco copia; `Ctrl` copia, `Shift` move).
-* **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`).
+* **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`; botão direito em Voltar/Avançar lista o histórico). O `›` da barra de endereço lista as subpastas daquele nível e cada pasta lembra ordenação e lista/grade.
+* **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
 * **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
