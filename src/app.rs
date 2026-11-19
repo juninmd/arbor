@@ -18,6 +18,7 @@ use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
 use crate::session::{self, Session};
 use crate::{instance, launch, listing, pins, pointer, trashbin, update, watch};
+use arbor_core::frecency::Frecency;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
 use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
@@ -78,6 +79,8 @@ pub struct App {
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
+    /// Pastas visitadas, para o Ctrl+K.
+    frecency: Frecency,
     /// Abas fechadas (painel, pasta, grade), da mais antiga para a mais recente: Ctrl+Shift+T reabre.
     closed: Vec<(usize, PathBuf, bool)>,
     /// Última sessão gravada; só regrava quando muda.
@@ -313,6 +316,11 @@ pub enum Overlay {
         query: String,
         selected: usize,
     },
+    /// Ctrl+K: pular para uma pasta frequente digitando parte do nome.
+    Frecent {
+        query: String,
+        selected: usize,
+    },
     Prompt {
         kind: PromptKind,
         value: String,
@@ -357,6 +365,7 @@ impl PromptKind {
 }
 
 pub const PALETTE_INPUT: &str = "palette-input";
+pub const JUMP_INPUT: &str = "jump-input";
 pub const PROMPT_INPUT: &str = "prompt-input";
 
 #[derive(Debug, Clone)]
@@ -471,6 +480,8 @@ pub enum Message {
     },
     FilterSubmit,
     PaletteQuery(String),
+    JumpQuery(String),
+    JumpRun(usize),
     PaletteRun(usize),
     PromptChanged(String),
     PromptSubmit,
@@ -565,6 +576,7 @@ impl App {
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
+            frecency: load_frecency(),
             glass: false,
             aurora: crate::aurora::render(true, 1.0),
         };
@@ -871,6 +883,12 @@ impl App {
             }
         });
         if snap.complete {
+            if !tab.refreshing && snap.error.is_none() {
+                let path = tab.path.clone();
+                self.frecency.visit(&path);
+                save_frecency(&self.frecency);
+            }
+            let Some(tab) = self.find_tab(id) else { return Task::none() };
             tab.loading = false;
             tab.listed = Some((tab.entries.len(), snap.elapsed));
             if tab.refreshing {
@@ -1460,6 +1478,10 @@ impl App {
                     Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
                 }
             }
+            Cmd::Jump => {
+                self.overlay = Overlay::Frecent { query: String::new(), selected: 0 };
+                op::focus(JUMP_INPUT)
+            }
             Cmd::SetDefault | Cmd::UnsetDefault => match instance::set_default(cmd == Cmd::SetDefault) {
                 Ok(msg) => self.notify(msg, false),
                 Err(e) => self.notify(e, true),
@@ -1631,6 +1653,23 @@ impl App {
         fuzzy::rank(query, commands::ALL.iter().map(|c| c.label())).into_iter().map(|i| commands::ALL[i]).collect()
     }
 
+    /// Pastas do Ctrl+K: um caminho digitado que existe vem primeiro, depois as frequentes.
+    pub fn jump_view(&self) -> Vec<PathBuf> {
+        let Overlay::Frecent { query, .. } = &self.overlay else { return vec![] };
+        let mut items = Vec::new();
+        let typed = PathBuf::from(query.trim());
+        if typed.is_absolute() && typed.is_dir() {
+            items.push(typed);
+        }
+        for p in self.frecency.query(query, 12) {
+            if !items.contains(&p) {
+                items.push(p);
+            }
+        }
+        items.truncate(12);
+        items
+    }
+
     pub fn palette_view(&self) -> Vec<Cmd> {
         match &self.overlay {
             Overlay::Palette { query, .. } => Self::palette_items(query),
@@ -1754,6 +1793,18 @@ impl App {
                 }
                 return Task::none();
             }
+            Overlay::Frecent { .. } => {
+                let n = self.jump_view().len();
+                if let Overlay::Frecent { selected, .. } = &mut self.overlay {
+                    match named {
+                        Some(Named::Escape) => self.overlay = Overlay::None,
+                        Some(Named::ArrowDown) if n > 0 => *selected = (*selected + 1) % n,
+                        Some(Named::ArrowUp) if n > 0 => *selected = (*selected + n - 1) % n,
+                        _ => {}
+                    }
+                }
+                return Task::none();
+            }
             Overlay::Conflict { .. } => {
                 let choice = match (&key, named) {
                     (_, Some(Named::Escape)) => Some(None),
@@ -1835,7 +1886,8 @@ impl App {
             if let Key::Character(c) = &key {
                 let c = c.to_lowercase();
                 let cmd = match (c.as_str(), mods.shift()) {
-                    ("p", true) | ("k", false) => Some(Cmd::Palette),
+                    ("p", true) => Some(Cmd::Palette),
+                    ("k", false) => Some(Cmd::Jump),
                     ("=" | "+", _) => Some(Cmd::ZoomIn),
                     ("-", _) => Some(Cmd::ZoomOut),
                     ("c", true) => Some(Cmd::CopyPath),
@@ -2083,6 +2135,26 @@ impl App {
                 self.overlay = Overlay::None;
                 cmd.map_or_else(Task::none, |c| self.run(c))
             }
+            Message::JumpQuery(q) => {
+                if let Overlay::Frecent { query, selected } = &mut self.overlay {
+                    *query = q;
+                    *selected = 0;
+                }
+                Task::none()
+            }
+            Message::JumpRun(index) => {
+                let Overlay::Frecent { selected, .. } = &self.overlay else { return Task::none() };
+                let i = if index == usize::MAX { *selected } else { index };
+                let target = self.jump_view().get(i).cloned();
+                self.overlay = Overlay::None;
+                match target {
+                    Some(dir) => {
+                        let pane = self.active;
+                        self.navigate(pane, dir)
+                    }
+                    None => Task::none(),
+                }
+            }
             Message::PromptChanged(v) => {
                 let goto = matches!(self.overlay, Overlay::Prompt { kind: PromptKind::GoTo, .. });
                 if let Overlay::Prompt { value, .. } = &mut self.overlay {
@@ -2265,6 +2337,29 @@ impl App {
             }
         }
     }
+}
+
+fn frecency_file() -> Option<PathBuf> {
+    dirs::config_dir().map(|d| d.join("arbor").join("frecency"))
+}
+
+fn load_frecency() -> Frecency {
+    frecency_file().and_then(|f| std::fs::read_to_string(f).ok()).map(|t| Frecency::from_text(&t)).unwrap_or_default()
+}
+
+/// Grava numa thread à parte (arquivo pequeno, troca atômica).
+fn save_frecency(f: &Frecency) {
+    let Some(file) = frecency_file() else { return };
+    let text = f.to_text();
+    std::thread::spawn(move || {
+        if let Some(dir) = file.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let tmp = file.with_extension("tmp");
+        if std::fs::write(&tmp, text).is_ok() {
+            let _ = std::fs::rename(&tmp, &file);
+        }
+    });
 }
 
 /// Como [`start_dir`], mas lembrando o arquivo pedido para selecioná-lo na pasta.

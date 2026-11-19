@@ -4,7 +4,7 @@
 //! O visual segue o protótipo "arbor Glass" (tokens em `theme.rs`): aurora ao fundo, cartões de vidro,
 //! ficha de cor por tipo, pílula de seleção e velocidade visível ("N itens em X ms").
 
-use crate::app::{App, JumpKind, Message, Overlay, Pane, PromptKind, Tab, UpdateState, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
+use crate::app::{App, JumpKind, Message, Overlay, Pane, PromptKind, Tab, UpdateState, JUMP_INPUT, PALETTE_INPUT, PROMPT_INPUT, ROW_H};
 use crate::commands::Cmd;
 use crate::computer::{self, Drive};
 use crate::media::Preview;
@@ -691,6 +691,10 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
             let card = palette(app, query, *selected);
             return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
         }
+        Overlay::Frecent { query, selected } => {
+            let card = jump(app, query, *selected);
+            return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
+        }
         Overlay::Prompt { kind, value } => {
             let input = text_input("", value)
                 .id(PROMPT_INPUT)
@@ -848,6 +852,53 @@ fn batch_hint<'a>(app: &'a App, value: &str) -> Element<'a, Message> {
 
 fn scrim<'a>() -> Element<'a, Message> {
     mouse_area(container(space()).width(Fill).height(Fill).style(theme::scrim)).on_press(Message::CloseOverlay).into()
+}
+
+/// Ctrl+K: pastas frequentes, filtradas pelo que se digita.
+fn jump<'a>(app: &'a App, query: &'a str, selected: usize) -> Element<'a, Message> {
+    let input = text_input("Parte do nome de uma pasta que você já visitou…", query)
+        .id(JUMP_INPUT)
+        .on_input(Message::JumpQuery)
+        .on_submit(Message::JumpRun(usize::MAX))
+        .padding(Padding::from([12, 14]).left(42.0))
+        .size(16)
+        .style(|t, s| {
+            let mut st = theme::input(t, s);
+            st.border.width = 0.0;
+            st
+        });
+    let input = stack![input, container(icon(Icon::Folder, 18.0, theme::ICE)).padding(Padding::new(0.0).left(14.0)).center_y(Fill)];
+    let items = app.jump_view();
+    let mut list = Column::new().spacing(2);
+    if items.is_empty() {
+        list = list.push(container(text("Nenhuma pasta visitada combina ainda").size(12.5).style(theme::ink3)).padding([8, 12]));
+    }
+    for (i, dir) in items.into_iter().enumerate() {
+        let active = i == selected;
+        let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dir.to_string_lossy().into_owned());
+        let parent = dir.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+        let line = row![
+            text(name).size(13.5),
+            text(shorten(&parent, 60)).size(11).font(theme::MONO).style(theme::ink3).width(Fill).wrapping(Wrapping::None)
+        ]
+        .spacing(10)
+        .align_y(Alignment::Center);
+        list = list.push(
+            button(line).width(Fill).padding([8, 12]).on_press(Message::JumpRun(i)).style(move |t: &Theme, s| theme::place(t, s, active)),
+        );
+    }
+    let foot = row![
+        kbd("↑".into()),
+        kbd("↓".into()),
+        text("navegar").size(11).style(theme::ink3),
+        kbd("Enter".into()),
+        text("abrir").size(11).style(theme::ink3),
+        kbd("Esc".into()),
+        text("fechar").size(11).style(theme::ink3)
+    ]
+    .spacing(6)
+    .align_y(Alignment::Center);
+    sheet(column![container(input).height(48), separator(), list, separator(), foot].spacing(10), 640.0)
 }
 
 fn palette<'a>(app: &'a App, query: &'a str, selected: usize) -> Element<'a, Message> {

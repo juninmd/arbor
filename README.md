@@ -64,7 +64,7 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
-* **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
+* **Paleta de comandos** (`Ctrl+Shift+P`) com todos os comandos e atalhos, e **pastas frequentes** (`Ctrl+K`): digite parte do nome de uma pasta já visitada e pule para ela.
 * **Preview com Espaço** de imagens (todos os formatos do [Vislo](https://github.com/juninmd/vislo), com EXIF),
   texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) de imagens (inclusive PSD e RAW), capa de MP3 e
   FLAC, vídeo e PDF, com cache em disco limitado a 512 MB. Vídeo e PDF usam o Quick Look no macOS e, no Linux e no
@@ -181,7 +181,8 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Backspace` | Pasta acima |
 | digitar | Filtrar a pasta (`Esc` limpa) |
 | `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
-| `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
+| `Ctrl+Shift+P` | Paleta de comandos |
+| `Ctrl+K` | Pular para pasta frequente |
 | `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
 | `Ctrl+Shift+T` | Reabrir aba fechada (a paleta tem *Restaurar abas ao abrir*) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
