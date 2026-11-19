@@ -929,7 +929,7 @@ impl App {
         let end = ((first_row + rows) * cols).min(tab.view.len());
         let wanted: Vec<PathBuf> = (start..end)
             .filter_map(|i| tab.entry_at(i))
-            .filter(|e| !e.is_dir && media::is_image(&e.path) && !self.thumbs.contains_key(&e.path))
+            .filter(|e| !e.is_dir && crate::thumbs::supported(&e.path) && !self.thumbs.contains_key(&e.path))
             .map(|e| e.path.clone())
             .collect();
         if self.thumbs.len() + wanted.len() > 5000 {
