@@ -7,6 +7,7 @@ mod commands;
 mod launch;
 mod listing;
 mod media;
+mod session;
 mod theme;
 mod update;
 mod view;

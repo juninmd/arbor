@@ -2,6 +2,7 @@
 
 use crate::commands::{self, Cmd};
 use crate::media::{self, Preview};
+use crate::session::{self, Session};
 use crate::{launch, listing, update, watch};
 use arbor_core::ops::{self, JobEvent, Op, Undo};
 use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
@@ -43,6 +44,12 @@ pub struct App {
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
+    /// Abas fechadas (painel, pasta, grade), da mais antiga para a mais recente: Ctrl+Shift+T reabre.
+    closed: Vec<(usize, PathBuf, bool)>,
+    /// Última sessão gravada; só regrava quando muda.
+    saved: Option<Session>,
+    /// "Restaurar abas ao abrir" ligado (lido do disco uma vez, na abertura).
+    restore: bool,
 }
 
 /// Estado da atualização automática mostrado no rodapé.
@@ -312,6 +319,9 @@ impl App {
             .or_else(dirs::home_dir)
             .unwrap_or_else(|| PathBuf::from("/"));
         let second = dirs::download_dir().filter(|d| d.is_dir()).unwrap_or_else(|| start.clone());
+        let has_arg = std::env::args_os().nth(1).is_some();
+        let restore = session::restore_enabled();
+        let restored = if !has_arg && restore { Session::load() } else { None };
         let mut app = App {
             panes: [
                 Pane { tabs: vec![Tab::new(0, start.clone())], active: 0 },
@@ -319,6 +329,9 @@ impl App {
             ],
             active: 0,
             dual: false,
+            closed: vec![],
+            saved: None,
+            restore,
             overlay: Overlay::None,
             jobs: vec![],
             next_job: 0,
@@ -337,9 +350,12 @@ impl App {
             update: UpdateState::Idle,
             fps: None,
         };
+        let lists = match restored {
+            Some(session) => app.restore(session),
+            None => Task::batch([app.load(0, start, false), app.load(1, second, false)]),
+        };
         let tasks = Task::batch([
-            app.load(0, start, false),
-            app.load(1, second, false),
+            lists,
             Task::perform(async { tokio::task::spawn_blocking(drives).await.unwrap_or_default() }, Message::Places),
             if update::auto_enabled() {
                 Task::perform(tokio::time::sleep(update::FIRST_CHECK), |_| Message::UpdateCheck { manual: false })
@@ -348,6 +364,42 @@ impl App {
             },
         ]);
         (app, tasks)
+    }
+
+    /// Recria as abas da sessão salva e já começa a listar todas elas.
+    fn restore(&mut self, session: Session) -> Task<Message> {
+        self.dual = session.dual;
+        self.active = session.active;
+        let mut tasks = Vec::new();
+        for (pane, (active, tabs)) in session.panes.into_iter().enumerate() {
+            let mut list = Vec::new();
+            for (path, grid) in tabs {
+                let mut tab = Tab::new(self.next_tab, path.clone());
+                self.next_tab += 1;
+                tab.grid = grid;
+                tasks.push(Self::load_tab(&mut tab, path, false));
+                list.push(tab);
+            }
+            self.panes[pane] = Pane { tabs: list, active };
+        }
+        Task::batch(tasks)
+    }
+
+    fn session(&self) -> Session {
+        let pane = |p: &Pane| (p.active, p.tabs.iter().map(|t| (t.path.clone(), t.grid)).collect());
+        Session { dual: self.dual, active: self.active, panes: [pane(&self.panes[0]), pane(&self.panes[1])] }
+    }
+
+    /// Grava a sessão se ela mudou (e se restaurar estiver ligado). Barato: compara poucas strings.
+    fn persist(&mut self) {
+        if !self.restore {
+            return;
+        }
+        let now = self.session();
+        if self.saved.as_ref() != Some(&now) {
+            now.save();
+            self.saved = Some(now);
+        }
     }
 
     pub fn title(&self) -> String {
@@ -698,6 +750,26 @@ impl App {
                 let i = self.panes[pane].active;
                 self.close_tab(pane, i)
             }
+            Cmd::ReopenTab => {
+                let Some((pane, path, grid)) = self.closed.pop() else { return self.notify("Nenhuma aba fechada", false) };
+                let task = self.new_tab(pane);
+                self.panes[pane].tab_mut().grid = grid;
+                let reload = self.navigate(pane, path);
+                self.panes[pane].tab_mut().back.clear();
+                Task::batch([task, reload])
+            }
+            Cmd::ToggleRestore => {
+                let on = !self.restore;
+                match session::set_restore_enabled(on) {
+                    Ok(()) => {
+                        self.restore = on;
+                        self.saved = None;
+                        self.persist();
+                        self.notify(if on { "O arbor vai abrir com estas abas" } else { "O arbor vai abrir do zero" }, false)
+                    }
+                    Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
+                }
+            }
             Cmd::NextTab | Cmd::PrevTab => {
                 let p = &mut self.panes[pane];
                 let n = p.tabs.len();
@@ -945,7 +1017,12 @@ impl App {
         if p.tabs.len() == 1 {
             return Task::none();
         }
-        p.tabs.remove(index);
+        let tab = p.tabs.remove(index);
+        self.closed.push((pane, tab.path, tab.grid));
+        if self.closed.len() > 30 {
+            self.closed.remove(0);
+        }
+        let p = &mut self.panes[pane];
         if p.active >= p.tabs.len() || p.active > index {
             p.active = p.active.saturating_sub(1);
         }
@@ -1089,6 +1166,7 @@ impl App {
                     ("c", true) => Some(Cmd::CopyPath),
                     ("n", true) => Some(Cmd::NewFolder),
                     ("t", false) => Some(Cmd::NewTab),
+                    ("t", true) => Some(Cmd::ReopenTab),
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
@@ -1146,6 +1224,28 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // Só mensagens que podem mudar abas ou painéis gravam a sessão; quadros, rolagem e progresso não.
+        let structural = matches!(
+            message,
+            Message::Run(_)
+                | Message::Key { .. }
+                | Message::Navigate(_)
+                | Message::NavigateIn { .. }
+                | Message::Activate { .. }
+                | Message::SelectTab { .. }
+                | Message::CloseTabAt { .. }
+                | Message::NewTabIn(_)
+                | Message::PromptSubmit
+                | Message::PaletteRun(_)
+        );
+        let task = self.dispatch(message);
+        if structural {
+            self.persist();
+        }
+        task
+    }
+
+    fn dispatch(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Listed { tab, generation, snap } => self.on_listed(tab, generation, snap),
             Message::Frame(at) => {

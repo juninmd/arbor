@@ -170,6 +170,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | digitar | Filtrar a pasta (`Esc` limpa) |
 | `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
 | `Ctrl+L` (ou duplo clique no caminho) | Ir para caminho (aceita `~`) |
+| `Ctrl+Shift+T` | Reabrir aba fechada (a paleta tem *Restaurar abas ao abrir*) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
 | `F5` / `F6` | Copiar / mover para o outro painel |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
