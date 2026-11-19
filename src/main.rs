@@ -8,6 +8,8 @@ mod computer;
 mod launch;
 mod listing;
 mod media;
+mod pins;
+mod pointer;
 mod theme;
 mod update;
 mod view;

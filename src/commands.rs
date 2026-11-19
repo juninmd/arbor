@@ -3,6 +3,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cmd {
     Open,
+    OpenInNewTab,
     OpenDefault,
     Preview,
     Up,
@@ -37,6 +38,7 @@ pub enum Cmd {
     CopyPath,
     Terminal,
     Reveal,
+    Pin,
     ToggleFps,
     CheckUpdates,
     ToggleAutoUpdate,
@@ -45,6 +47,7 @@ pub enum Cmd {
 
 pub const ALL: &[Cmd] = &[
     Cmd::Open,
+    Cmd::OpenInNewTab,
     Cmd::OpenDefault,
     Cmd::Preview,
     Cmd::Up,
@@ -79,6 +82,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::CopyPath,
     Cmd::Terminal,
     Cmd::Reveal,
+    Cmd::Pin,
     Cmd::ToggleFps,
     Cmd::CheckUpdates,
     Cmd::ToggleAutoUpdate,
@@ -90,6 +94,7 @@ impl Cmd {
     pub fn label(self) -> &'static str {
         match self {
             Cmd::Open => "Abrir",
+            Cmd::OpenInNewTab => "Abrir em nova aba",
             Cmd::OpenDefault => "Abrir com o app do sistema",
             Cmd::Preview => "Preview rápido",
             Cmd::Up => "Pasta acima",
@@ -124,6 +129,7 @@ impl Cmd {
             Cmd::CopyPath => "Copiar caminho",
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
+            Cmd::Pin => "Fixar/desafixar na barra lateral",
             Cmd::ToggleFps => "Mostrar/ocultar medidor de fps",
             Cmd::CheckUpdates => "Procurar atualizações",
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
@@ -168,7 +174,7 @@ impl Cmd {
             Cmd::ToggleTheme => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::Terminal => format!("{m}+'"),
-            Cmd::Reveal => String::new(),
+            Cmd::Reveal | Cmd::OpenInNewTab | Cmd::Pin => String::new(),
             Cmd::ToggleFps => "F12".into(),
             Cmd::CheckUpdates | Cmd::ToggleAutoUpdate => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),

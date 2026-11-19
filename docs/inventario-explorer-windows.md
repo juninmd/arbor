@@ -19,7 +19,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Voltar/avançar com histórico em menu (clique longo) e botões 4/5 do mouse | 🟡 (Alt+←/→) | P1 |
 | Árvore de pastas expansível na barra lateral | ❌ | P1 |
 | "Início" com Recentes, Favoritos e Acesso rápido | ❌ | P1 |
-| Fixar pastas na barra lateral (arrastar para fixar, desafixar) | ❌ | P0 |
+| Fixar pastas na barra lateral (arrastar para fixar, desafixar) | 🟡 (pelo menu; arrastar não) | P0 |
 | Galeria (fotos de todas as pastas de imagens por data) | ❌ | P3 |
 | OneDrive/nuvem com estado de sincronização | ❌ (fora do escopo, ver plano) | — |
 | Locais de rede, compartilhamentos SMB, mapear unidade | ❌ | P2 |
@@ -30,8 +30,8 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 
 | Feature do Explorer | arbor | Prio |
 |---|---|---|
-| Barra de comandos visível: Novo, Recortar, Copiar, Colar, Renomear, Compartilhar, Excluir, Classificar, Visualizar, "…" | ❌ (só paleta e atalhos) | P0 |
-| Menu de contexto (botão direito) em item e em área vazia | ❌ | P0 |
+| Barra de comandos visível: Novo, Recortar, Copiar, Colar, Renomear, Compartilhar, Excluir, Classificar, Visualizar, "…" | ✅ (sem Compartilhar) | P0 |
+| Menu de contexto (botão direito) em item e em área vazia | ✅ (também Shift+F10 e tecla Menu) | P0 |
 | "Novo" com tipos (pasta, atalho, documento de texto, .zip…) | 🟡 (só pasta) | P1 |
 | "Abrir com" (lista de apps + escolher outro) | 🟡 (só app padrão) | P1 |
 | Propriedades (tamanho em disco, datas, atributos, permissões, hash) | ❌ | P1 |

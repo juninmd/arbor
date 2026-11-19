@@ -59,5 +59,9 @@ fn tile<'a>(tab: &'a Tab, i: usize, e: &'a Entry, drive: Option<&'a Drive>, pane
     }
     let content = row![chip(entry_kind(e, drive), 40.0), info].spacing(10).align_y(Alignment::Center);
     let cell = container(content).width(TILE_W).padding(8).clip(true).style(move |t: &Theme| theme::row(t, selected, cursor, pane_active));
-    mouse_area(cell).on_press(Message::Click { tab: tab.id, index: i }).on_double_click(Message::Activate { tab: tab.id, index: i }).into()
+    mouse_area(cell)
+        .on_press(Message::Click { tab: tab.id, index: i })
+        .on_double_click(Message::Activate { tab: tab.id, index: i })
+        .on_right_press(Message::ContextMenu { tab: tab.id, index: Some(i) })
+        .into()
 }

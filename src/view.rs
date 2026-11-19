@@ -19,6 +19,7 @@ use iced::widget::{
 use iced::{Alignment, Color, ContentFit, Element, Fill, Length, Padding, Theme};
 use std::path::{Component, Path, PathBuf};
 
+mod commands_view;
 mod computer_view;
 
 const OVERSCAN: usize = 8;
@@ -47,12 +48,12 @@ fn sidebar(app: &App) -> Element<'_, Message> {
         let active = current == path;
         let content =
             row![icon(ic, 16.0, color), text(label.to_string()).size(13).wrapping(Wrapping::None)].spacing(10).align_y(Alignment::Center);
-        button(content)
+        let b = button(content)
             .on_press(Message::Navigate(path.clone()))
             .width(Fill)
             .padding([7, 10])
-            .style(move |t: &Theme, s| theme::place(t, s, active))
-            .into()
+            .style(move |t: &Theme, s| theme::place(t, s, active));
+        mouse_area(b).on_right_press(Message::SidebarMenu(path.clone())).into()
     };
     let brand = row![
         icon(Icon::Logo, 26.0, theme::ICE),
@@ -70,6 +71,13 @@ fn sidebar(app: &App) -> Element<'_, Message> {
     for (label, path) in &app.places {
         let (ic, color) = place_icon(label);
         col = col.push(item(label, path, ic, color));
+    }
+    if !app.pins.is_empty() {
+        col = col.push(space().height(12)).push(heading("Fixados"));
+        for path in &app.pins {
+            let label = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
+            col = col.push(item(&label, path, Icon::Pin, theme::ICE));
+        }
     }
     if !app.drives.is_empty() {
         col = col.push(space().height(12)).push(heading("Discos"));
@@ -151,7 +159,9 @@ fn pane(app: &App, index: usize) -> Element<'_, Message> {
     let p = &app.panes[index];
     let tab = p.tab();
     let is_active = app.active == index;
-    let content = column![tabs_bar(p, index, is_active), toolbar(tab), body(app, tab, is_active), status_line(tab, app.show_hidden)];
+    let bar: Element<_> = if is_active { commands_view::bar(app) } else { space().height(0).into() };
+    let body = mouse_area(body(app, tab, is_active)).on_right_press(Message::ContextMenu { tab: tab.id, index: None });
+    let content = column![tabs_bar(p, index, is_active), toolbar(tab), bar, body, status_line(tab, app.show_hidden)];
     let framed = container(content).width(Fill).height(Fill).clip(true).style(move |t: &Theme| theme::glass(t, is_active && app.dual));
     mouse_area(framed).on_press(Message::FocusPane(index)).into()
 }
@@ -382,7 +392,11 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
         .align_y(Alignment::Center)
         .clip(true)
         .style(move |t: &Theme| theme::row(t, selected, cursor, pane_active));
-    mouse_area(cell).on_press(Message::Click { tab: tab.id, index: i }).on_double_click(Message::Activate { tab: tab.id, index: i }).into()
+    mouse_area(cell)
+        .on_press(Message::Click { tab: tab.id, index: i })
+        .on_double_click(Message::Activate { tab: tab.id, index: i })
+        .on_right_press(Message::ContextMenu { tab: tab.id, index: Some(i) })
+        .into()
 }
 
 fn grid<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Message> {
@@ -448,7 +462,11 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
         },
     );
     let cell = container(cell).padding(5);
-    mouse_area(cell).on_press(Message::Click { tab: tab.id, index: i }).on_double_click(Message::Activate { tab: tab.id, index: i }).into()
+    mouse_area(cell)
+        .on_press(Message::Click { tab: tab.id, index: i })
+        .on_double_click(Message::Activate { tab: tab.id, index: i })
+        .on_right_press(Message::ContextMenu { tab: tab.id, index: Some(i) })
+        .into()
 }
 
 fn status_line(tab: &Tab, show_hidden: bool) -> Element<'_, Message> {
@@ -656,6 +674,7 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
             )
         }
         Overlay::Preview { path, content } => preview(app, path, content.as_ref()),
+        Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
     };
     Some(stack![scrim(), center(opaque(card)).padding(40)].into())
 }
@@ -784,6 +803,14 @@ fn separator<'a>() -> Element<'a, Message> {
     container(space())
         .width(Fill)
         .height(1)
+        .style(|t: &Theme| iced::widget::container::Style { background: Some(theme::tokens(t).stroke.into()), ..Default::default() })
+        .into()
+}
+
+fn separator_v<'a>() -> Element<'a, Message> {
+    container(space())
+        .width(1)
+        .height(18)
         .style(|t: &Theme| iced::widget::container::Style { background: Some(theme::tokens(t).stroke.into()), ..Default::default() })
         .into()
 }

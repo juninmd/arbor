@@ -1,9 +1,13 @@
 //! Estado e lógica do app (o `update` do iced). A interface fica em `view.rs`.
 
 use crate::commands::{self, Cmd};
+mod menu;
+
+pub use menu::{Menu, MenuKind};
+
 use crate::computer::{self, Drive};
 use crate::media::{self, Preview};
-use crate::{launch, listing, update, watch};
+use crate::{launch, listing, pins, pointer, update, watch};
 use arbor_core::ops::{self, JobEvent, Op, Undo};
 use arbor_core::{fuzzy, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
@@ -41,6 +45,9 @@ pub struct App {
     pub window: Size,
     pub places: Vec<(String, PathBuf)>,
     pub drives: Vec<Drive>,
+    pub pins: Vec<PathBuf>,
+    /// Alvo do menu de onde o comando atual veio (fixar ou abrir uma pasta da barra lateral).
+    menu_target: Option<PathBuf>,
     next_tab: u64,
     pub update: UpdateState,
     pub fps: Option<Fps>,
@@ -243,6 +250,7 @@ pub enum Overlay {
     Palette { query: String, selected: usize },
     Prompt { kind: PromptKind, value: String },
     Preview { path: PathBuf, content: Option<Preview> },
+    Menu(Menu),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -273,6 +281,11 @@ pub enum Message {
     Resized(Size),
     Dropped(PathBuf),
     Run(Cmd),
+    ContextMenu { tab: u64, index: Option<usize> },
+    SidebarMenu(PathBuf),
+    OpenMenu(MenuKind),
+    MenuRun(Cmd),
+    MenuHover(usize),
     Click { tab: u64, index: usize },
     Activate { tab: u64, index: usize },
     Scrolled { tab: u64, viewport: Viewport },
@@ -336,6 +349,8 @@ impl App {
             window: Size::new(1280.0, 800.0),
             places: computer::places(),
             drives: vec![],
+            pins: pins::load(pins::file().as_deref()),
+            menu_target: None,
             next_tab: 2,
             update: UpdateState::Idle,
             fps: None,
@@ -386,6 +401,10 @@ impl App {
 
     pub fn subscription(&self) -> Subscription<Message> {
         let keys = event::listen_with(|event, status, _| match event {
+            Event::Mouse(_) => {
+                pointer::track(&event);
+                None
+            }
             Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, text, .. }) => {
                 Some(Message::Key { key, modifiers, text: text.map(|t| t.to_string()), captured: status == event::Status::Captured })
             }
@@ -708,6 +727,28 @@ impl App {
                     self.open_preview()
                 }
             }
+            Cmd::OpenInNewTab => {
+                let current_dir = self.tab().current().filter(|e| e.is_dir).map(|e| e.path.clone());
+                match self.menu_target.clone().or(current_dir) {
+                    Some(path) => self.new_tab_at(pane, path),
+                    None => Task::none(),
+                }
+            }
+            Cmd::Pin => {
+                let current_dir = self.tab().current().filter(|e| e.is_dir).map(|e| e.path.clone());
+                let path = self.menu_target.clone().or(current_dir).unwrap_or_else(|| self.tab().path.clone());
+                if computer::is(&path) {
+                    return Task::none();
+                }
+                let pinned = pins::toggle(&mut self.pins, &path);
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
+                match pins::save(pins::file().as_deref(), &self.pins) {
+                    Ok(()) => {
+                        self.notify(if pinned { format!("{name} fixada na barra lateral") } else { format!("{name} desafixada") }, false)
+                    }
+                    Err(e) => self.notify(format!("Não salvou as pastas fixadas: {e}"), true),
+                }
+            }
             Cmd::Up => self.go_up(),
             Cmd::Back => self.history(true),
             Cmd::Forward => self.history(false),
@@ -952,6 +993,10 @@ impl App {
 
     fn new_tab(&mut self, pane: usize) -> Task<Message> {
         let path = self.panes[pane].tab().path.clone();
+        self.new_tab_at(pane, path)
+    }
+
+    fn new_tab_at(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
         let id = self.next_tab;
         self.next_tab += 1;
         let p = &mut self.panes[pane];
@@ -1075,6 +1120,7 @@ impl App {
                     _ => Task::none(),
                 };
             }
+            Overlay::Menu(_) => return self.menu_key(named),
             Overlay::None => {}
         }
 
@@ -1096,6 +1142,8 @@ impl App {
             Some(Named::PageDown) => return self.move_cursor(1000, mods.shift()),
             Some(Named::PageUp) => return self.move_cursor(-1000, mods.shift()),
             Some(Named::Tab) if mods.control() => return self.run(if mods.shift() { Cmd::PrevTab } else { Cmd::NextTab }),
+            Some(Named::ContextMenu) => return self.keyboard_menu(),
+            Some(Named::F10) if mods.shift() => return self.keyboard_menu(),
             Some(Named::F2) => return self.run(Cmd::Rename),
             Some(Named::F3) => return self.run(Cmd::ToggleDual),
             Some(Named::F5) => return self.run(Cmd::CopyToOther),
@@ -1202,6 +1250,37 @@ impl App {
                 self.start(Op::Copy { sources: vec![path], dest })
             }
             Message::Run(cmd) => self.run(cmd),
+            Message::ContextMenu { tab, index } => {
+                if let Some(pane) = self.pane_of(tab) {
+                    self.active = pane;
+                }
+                let Some(t) = self.find_tab(tab) else { return Task::none() };
+                let Some(i) = index else {
+                    let target = Some(t.path.clone());
+                    return self.open_menu(MenuKind::Background, target);
+                };
+                let Some(entry) = t.entry_at(i).cloned() else { return Task::none() };
+                // Como no Explorer: botão direito fora da seleção seleciona só o item clicado.
+                let task = if t.selected.contains(&entry.path) {
+                    t.cursor = i;
+                    Task::none()
+                } else {
+                    let saved = std::mem::take(&mut self.modifiers);
+                    let task = self.click(tab, i);
+                    self.modifiers = saved;
+                    task
+                };
+                Task::batch([task, self.open_menu(MenuKind::Item { dir: entry.is_dir }, Some(entry.path))])
+            }
+            Message::SidebarMenu(path) => self.open_menu(MenuKind::Sidebar, Some(path)),
+            Message::OpenMenu(kind) => self.open_menu(kind, None),
+            Message::MenuRun(cmd) => self.run_from_menu(cmd),
+            Message::MenuHover(i) => {
+                if let Overlay::Menu(m) = &mut self.overlay {
+                    m.selected = Some(i);
+                }
+                Task::none()
+            }
             Message::Click { tab, index } => self.click(tab, index),
             Message::Activate { tab, index } => {
                 let Some(pane) = self.pane_of(tab) else { return Task::none() };
