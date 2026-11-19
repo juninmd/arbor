@@ -5,11 +5,21 @@
 mod app;
 mod aurora;
 mod commands;
+mod complete;
+mod computer;
+mod folder_views;
 mod glass;
 mod launch;
 mod listing;
 mod media;
+mod pins;
+mod pointer;
+mod props;
+mod session;
+mod sysclip;
 mod theme;
+mod thumbs;
+mod trashbin;
 mod update;
 mod view;
 mod watch;
@@ -26,6 +36,7 @@ fn main() -> iced::Result {
         println!("arbor {}", update::CURRENT);
         return Ok(());
     }
+    thumbs::prune_cache();
     glass::log_to_stderr();
     glass::prepare();
     let mut app = iced::application(App::boot, App::update, view::view)

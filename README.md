@@ -34,8 +34,8 @@ ordenação de lista grande roda na thread de interface.
 
 O visual vem do protótipo *arbor Glass*: aurora ao fundo, cartões de vidro, uma cor por tipo de arquivo, a pílula de
 seleção em gelo e íris e a velocidade visível ("N itens em X ms"). A janela é de vidro de verdade onde o sistema
-deixa: vibrancy no macOS e transparência com desfoque do compositor no Linux; no Windows o vidro é o da aurora
-(`ARBOR_NO_GLASS=1` desliga o vidro do sistema). O escopo é enxuto de propósito, a lição do
+deixa: vibrancy no macOS e transparência com desfoque do compositor no Linux; no Windows o vidro é o da aurora, e o Mica é experimental (`ARBOR_GLASS=1`)
+(`ARBOR_NO_GLASS=1` desliga o vidro no macOS e no Linux). O escopo é enxuto de propósito, a lição do
 Spacedrive: nada de nuvem, sincronização ou tags.
 
 ## Índice
@@ -53,12 +53,22 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   (pasta, imagem, código, documento, áudio, vídeo, compactado), tema claro com os mesmos tokens.
 * **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
   de fps com o pior quadro do último segundo.
-* **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`).
+* **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
+  livre. Subir da raiz de um disco volta para lá. O que falta para a paridade está em
+  [docs/inventario-explorer-windows.md](docs/inventario-explorer-windows.md).
+* **Barra de comandos e menu de contexto** como no Explorer (Nova pasta, recortar, copiar, colar, renomear,
+  excluir, Classificar, Visualizar), com itens apagados quando não se aplicam. **Fixar pastas** na barra lateral.
+* **Mouse como no Explorer:** retângulo de seleção a partir da área vazia; arrastar itens para uma pasta, a barra
+  lateral ou o outro painel (mesmo disco move, outro disco copia; `Ctrl` copia, `Shift` move).
+* **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`; botão direito em Voltar/Avançar lista o histórico). O `›` da barra de endereço lista as subpastas daquele nível e cada pasta lembra ordenação e lista/grade.
+* **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
 * **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
 * **Preview com Espaço** de imagens (todos os formatos do [Vislo](https://github.com/juninmd/vislo), com EXIF),
-  texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) com cache em disco pelo `vislo-core`.
+  texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) de imagens (inclusive PSD e RAW), capa de MP3 e
+  FLAC, vídeo e PDF, com cache em disco limitado a 512 MB. Vídeo e PDF usam o Quick Look no macOS e, no Linux e no
+  Windows, o `ffmpeg` e o `pdftoppm` (Poppler) se estiverem no PATH; sem eles, fica o ícone do tipo.
 * **Cópia confiável:** grava em `.nome.arbor-part`, confere o tamanho e só então renomeia. Cancelar nunca deixa
   arquivo pela metade. **Desfazer** (`Ctrl+Z`) para copiar, mover, renomear, nova pasta e lixeira.
 * **Atualiza sozinho** a partir das releases deste repositório, com o SHA-256 conferido antes de trocar o executável.
@@ -170,15 +180,23 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Espaço` | Preview (as setas trocam o arquivo) |
 | `Backspace` | Pasta acima |
 | digitar | Filtrar a pasta (`Esc` limpa) |
+| `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
 | `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
-| `Ctrl+L` (ou duplo clique no caminho) | Ir para caminho (aceita `~`) |
+| `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
+| `Ctrl+Shift+T` | Reabrir aba fechada (a paleta tem *Restaurar abas ao abrir*) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
+| `Ctrl+N` | Nova janela |
+| botões laterais do mouse | Voltar / avançar |
 | `F5` / `F6` | Copiar / mover para o outro painel |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
+| `Shift+Delete` | Excluir permanentemente (pede confirmação) |
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+E` / `Ctrl+Shift+E` | Extrair compactado / compactar em zip (zip, 7z e tar abrem como pasta com `Enter`) |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
+| `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Ícones maiores / menores |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
+| botão direito, `Shift+F10`, tecla Menu | Menu de contexto do item ou da pasta |
+| `Alt+Shift+P` / `Alt+Enter` | Painel de detalhes / propriedades |
 | `F12` | Medidor de fps |
 | `Ctrl+Shift+C` | Copiar caminho |
 | ``Ctrl+' `` | Terminal nesta pasta |
@@ -200,7 +218,8 @@ src/                 o app iced
   glass.rs           vidro nativo: vibrancy no macOS, transparência no Linux
   listing.rs         ponte entre a listagem do arbor-core e o iced
   update/            atualização automática (GitHub Releases + SHA-256 + self-replace)
-  media.rs           preview e miniaturas via vislo-core
+  media.rs           preview via vislo-core
+  thumbs/            miniaturas: imagens (vislo-core), capa de áudio, vídeo e PDF (ffmpeg, pdftoppm, Quick Look)
   watch.rs           pasta atualizada sozinha (notify)
   launch.rs          abrir arquivos, achar o Vislo, terminal
   commands.rs        catálogo de comandos e atalhos
@@ -211,9 +230,13 @@ plataformas no mesmo ritmo** e **índice global desligado por padrão** quando e
 
 ## Desenvolvimento
 
+A versão do Rust está fixada em [`rust-toolchain.toml`](rust-toolchain.toml): o `rustup` instala a mesma no CI e
+na sua máquina, e um lint novo do Clippy só chega quando ela sobe num commit próprio.
+
 ```sh
 cargo test --workspace                                  # núcleo, app e updater
 cargo clippy --workspace --all-targets -- -D warnings
+cargo deny check                                        # vulnerabilidades, licenças e origens (deny.toml)
 node --test scripts/*.test.mjs                          # planejador de versão
 cargo run --release -p arbor-bench -- suite /tmp/bench-100k --check
 scripts/bench-compare.sh /tmp/bench-100k                # contra ls, eza, find, fd, fzf
@@ -223,7 +246,7 @@ scripts/bench-compare.sh /tmp/bench-100k                # contra ls, eza, find, 
 
 Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.github/workflows/release.yml)):
 
-1. O CI roda (fmt, clippy, testes nas três plataformas).
+1. O CI roda (fmt, clippy, cargo-deny, testes nas três plataformas).
 2. A próxima versão sai dos [commits semânticos](https://www.conventionalcommits.org) desde a maior tag `vX.Y.Z`
    (`feat` → minor, `fix` e demais → patch, `!` → major).
 3. Windows x64, Linux x64 e arm64, macOS Apple Silicon e Intel são construídos e empacotados; o `SHA256SUMS.txt` é

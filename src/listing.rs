@@ -33,3 +33,13 @@ pub fn list_archive(archive: PathBuf, inner: PathBuf, sort: Sort) -> impl Stream
         .expect("thread de compactado");
     rx
 }
+
+/// Busca `query` em `root` e subpastas numa thread própria, com os mesmos snapshots da listagem.
+pub fn search(root: PathBuf, query: String, sort: Sort, show_hidden: bool) -> impl Stream<Item = Snapshot> {
+    let (tx, rx) = mpsc::unbounded();
+    std::thread::Builder::new()
+        .name("arbor-search".into())
+        .spawn(move || arbor_core::search::search(&root, &query, sort, show_hidden, |snap| tx.unbounded_send(snap).is_ok()))
+        .expect("thread de busca");
+    rx
+}
