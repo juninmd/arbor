@@ -898,6 +898,7 @@ fn drag_ghost(app: &App) -> Option<Element<'_, Message>> {
     let (paths, at, over) = app.dragging()?;
     let what = if paths.len() == 1 { shorten(&paths[0].file_name()?.to_string_lossy(), 28) } else { format!("{} itens", paths.len()) };
     let action = match over {
+        Some(dest) if crate::pins::is_drop(dest) => "Fixar na barra lateral".to_string(),
         Some(dest) if crate::app::drag_valid(paths, dest) => {
             let name = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dest.display().to_string());
             let verb = if app.drag_copies(paths, dest) { "Copiar para" } else { "Mover para" };

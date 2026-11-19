@@ -44,6 +44,14 @@ fn node<'a>(app: &'a App, label: String, path: &Path, ic: Icon, color: Color, de
     }
 }
 
+/// Área que aparece durante um arrasto: soltar pastas aqui as fixa.
+fn pin_drop<'a>(hot: bool) -> Element<'a, Message> {
+    let content = row![icon(Icon::Pin, 14.0, theme::ICE), text("Solte para fixar").size(12)].spacing(10).align_y(Alignment::Center);
+    let zone = container(content).width(Fill).padding([7, 10]).style(move |t: &Theme| theme::drop_zone(t, hot));
+    let p = crate::pins::drop_target();
+    mouse_area(zone).on_enter(Message::DragOver(Some(p.clone()))).on_exit(Message::DragLeave { from: p, back: None }).into()
+}
+
 /// O nó e, se aberto, suas subpastas (recursivo).
 fn branch<'a>(
     mut col: Column<'a, Message>,
@@ -96,11 +104,15 @@ pub fn sidebar(app: &App) -> Element<'_, Message> {
         let (ic, color) = place_icon(label);
         col = branch(col, app, label.clone(), path, ic, color, 0);
     }
-    if !app.pins.is_empty() {
+    let drag = app.dragging();
+    if !app.pins.is_empty() || drag.is_some() {
         col = col.push(space().height(12)).push(heading("Fixados"));
         for path in &app.pins {
             let label = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
             col = branch(col, app, label, path, Icon::Pin, theme::ICE, 0);
+        }
+        if let Some((_, _, over)) = drag {
+            col = col.push(pin_drop(over.is_some_and(crate::pins::is_drop)));
         }
     }
     if !app.drives.is_empty() {
