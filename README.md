@@ -53,7 +53,15 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   (pasta, imagem, código, documento, áudio, vídeo, compactado), tema claro com os mesmos tokens.
 * **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
   de fps com o pior quadro do último segundo.
-* **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`).
+* **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
+  livre. Subir da raiz de um disco volta para lá. O que falta para a paridade está em
+  [docs/inventario-explorer-windows.md](docs/inventario-explorer-windows.md).
+* **Barra de comandos e menu de contexto** como no Explorer (Nova pasta, recortar, copiar, colar, renomear,
+  excluir, Classificar, Visualizar), com itens apagados quando não se aplicam. **Fixar pastas** na barra lateral.
+* **Mouse como no Explorer:** retângulo de seleção a partir da área vazia; arrastar itens para uma pasta, a barra
+  lateral ou o outro painel (mesmo disco move, outro disco copia; `Ctrl` copia, `Shift` move).
+* **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`; botão direito em Voltar/Avançar lista o histórico). O `›` da barra de endereço lista as subpastas daquele nível e cada pasta lembra ordenação e lista/grade.
+* **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
 * **Paleta de comandos** (`Ctrl+Shift+P` / `Ctrl+K`) com todos os comandos e atalhos.
@@ -171,13 +179,19 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Backspace` | Pasta acima |
 | digitar | Filtrar a pasta (`Esc` limpa) |
 | `Ctrl+Shift+P`, `Ctrl+K` | Paleta de comandos |
-| `Ctrl+L` (ou duplo clique no caminho) | Ir para caminho (aceita `~`) |
+| `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
+| `Ctrl+N` | Nova janela |
+| botões laterais do mouse | Voltar / avançar |
 | `F5` / `F6` | Copiar / mover para o outro painel |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
+| `Shift+Delete` | Excluir permanentemente (pede confirmação) |
 | `Ctrl+Z` | Desfazer |
 | `Ctrl+G` / `Ctrl+H` | Miniaturas / ocultos |
+| `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Ícones maiores / menores |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
+| botão direito, `Shift+F10`, tecla Menu | Menu de contexto do item ou da pasta |
+| `Alt+Shift+P` / `Alt+Enter` | Painel de detalhes / propriedades |
 | `F12` | Medidor de fps |
 | `Ctrl+Shift+C` | Copiar caminho |
 | ``Ctrl+' `` | Terminal nesta pasta |
