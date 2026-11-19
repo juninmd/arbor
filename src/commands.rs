@@ -44,6 +44,9 @@ pub enum Cmd {
     Jump,
     ToggleHidden,
     ToggleGrid,
+    ColKind,
+    ColSize,
+    ColModified,
     ZoomIn,
     ZoomOut,
     SortName,
@@ -113,6 +116,9 @@ pub const ALL: &[Cmd] = &[
     Cmd::Jump,
     Cmd::ToggleHidden,
     Cmd::ToggleGrid,
+    Cmd::ColKind,
+    Cmd::ColSize,
+    Cmd::ColModified,
     Cmd::ZoomIn,
     Cmd::ZoomOut,
     Cmd::SortName,
@@ -185,6 +191,9 @@ impl Cmd {
             Cmd::Jump => "Pular para pasta frequente",
             Cmd::ToggleHidden => "Mostrar/ocultar arquivos ocultos",
             Cmd::ToggleGrid => "Alternar lista/miniaturas",
+            Cmd::ColKind => "Coluna Tipo",
+            Cmd::ColSize => "Coluna Tamanho",
+            Cmd::ColModified => "Coluna Modificado",
             Cmd::ZoomIn => "Ícones maiores",
             Cmd::ZoomOut => "Ícones menores",
             Cmd::SortName => "Ordenar por nome",
@@ -267,7 +276,15 @@ impl Cmd {
             Cmd::ToggleTheme => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::Terminal => format!("{m}+'"),
-            Cmd::Reveal | Cmd::OpenInNewTab | Cmd::Pin | Cmd::Eject | Cmd::OpenWith | Cmd::WhoUses => String::new(),
+            Cmd::Reveal
+            | Cmd::OpenInNewTab
+            | Cmd::Pin
+            | Cmd::Eject
+            | Cmd::OpenWith
+            | Cmd::ColKind
+            | Cmd::ColSize
+            | Cmd::ColModified
+            | Cmd::WhoUses => String::new(),
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),

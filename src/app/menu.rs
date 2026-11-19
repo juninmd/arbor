@@ -11,12 +11,16 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuKind {
-    Item { dir: bool },
+    Item {
+        dir: bool,
+    },
     Background,
     Sidebar,
     Sort,
     View,
     New,
+    /// Botão direito no cabeçalho da lista.
+    Columns,
 }
 
 pub struct Menu {
@@ -87,10 +91,15 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(ZoomOut),
             Some(ToggleHidden),
             None,
+            Some(ColKind),
+            Some(ColSize),
+            Some(ColModified),
+            None,
             Some(Details),
             Some(ToggleDual),
             Some(ToggleTheme),
         ],
+        MenuKind::Columns => vec![Some(ColKind), Some(ColSize), Some(ColModified)],
     };
     // Em "Este Computador" não há pasta real para fixar, colar ou abrir terminal.
     let hide = |c: &Cmd| here_virtual && matches!(kind, MenuKind::Background) && matches!(c, Cmd::Pin | Cmd::Terminal | Cmd::CopyPath);
@@ -110,6 +119,11 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
 
 impl App {
     /// Comandos que não fariam nada agora aparecem apagados, como no Explorer.
+    /// Itens liga/desliga do menu que estão ligados (mostram ✓).
+    pub fn checked(&self, cmd: Cmd) -> bool {
+        super::column_of(cmd).is_some_and(|c| self.columns.shown(c))
+    }
+
     pub fn enabled(&self, cmd: Cmd) -> bool {
         let here = computer::is_virtual(&self.tab().path);
         let in_trash = crate::trashbin::is(&self.tab().path);

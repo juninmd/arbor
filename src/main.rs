@@ -4,6 +4,7 @@
 
 mod app;
 mod aurora;
+mod columns;
 mod commands;
 mod complete;
 mod computer;

@@ -89,6 +89,7 @@ pub fn menu<'a>(app: &'a App, m: &'a Menu) -> Element<'a, Message> {
         let on = app.enabled(cmd);
         let hot = m.selected == Some(i);
         let ic: Element<_> = match icon_of(cmd) {
+            None if app.checked(cmd) => text("✓").size(13).width(14).style(theme::accent).into(),
             Some(ic) => icon(ic, 14.0, if on { theme::DARK.ink2 } else { theme::alpha(theme::DARK.ink3, 0.5) }),
             None => space().width(14).into(),
         };
