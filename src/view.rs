@@ -821,7 +821,7 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
             )
         }
         Overlay::Preview { path, content } => preview(app, path, content.as_ref()),
-        Overlay::Conflict { names, .. } => conflict_sheet(names),
+        Overlay::Conflict { clashes, .. } => conflict_sheet(clashes),
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
         Overlay::Jump(j) => return Some(commands_view::jump(app, j)),
         Overlay::Confirm { text: question, .. } => sheet(
@@ -842,41 +842,61 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
     Some(stack![scrim(), center(opaque(card)).padding(40)].into())
 }
 
-/// Já existe item com o mesmo nome no destino: o usuário escolhe uma regra para todos.
-fn conflict_sheet(names: &[String]) -> Element<'_, Message> {
-    let n = names.len();
-    let title =
-        if n == 1 { format!("\"{}\" já existe no destino", shorten(&names[0], 40)) } else { format!("{n} itens já existem no destino") };
-    let list = (n > 1).then(|| {
-        let shown: Vec<Element<_>> =
-            names.iter().take(5).map(|name| text(shorten(name, 52)).size(12).font(theme::MONO).style(theme::ink3).into()).collect();
-        let more = (n > 5).then(|| text(format!("… e mais {}", n - 5)).size(11.5).style(theme::ink3));
-        column![column(shown).spacing(2), more].spacing(4)
-    });
-    let choice = |label: &'static str, key: &'static str, c: Option<arbor_core::ops::Conflict>| {
+/// Já existe item com o mesmo nome no destino: compara os dois lados e o usuário escolhe uma regra para todos.
+fn conflict_sheet(clashes: &[crate::clash::Clash]) -> Element<'_, Message> {
+    let n = clashes.len();
+    let title = match clashes {
+        [one] => format!("\"{}\" já existe no destino", shorten(&one.name, 40)),
+        _ => format!("{n} itens já existem no destino"),
+    };
+    let side = |label: &'static str, info: String| {
+        row![text(label).size(11.5).style(theme::ink3).width(58), text(info).size(11.5).font(theme::MONO).style(theme::ink2)].spacing(6)
+    };
+    let shown: Vec<Element<_>> = clashes
+        .iter()
+        .take(4)
+        .map(|c| {
+            let newer = c.source_newer();
+            let older = !newer && !c.same() && c.source.modified.is_some() && c.dest.modified.is_some();
+            let same = c.same().then(|| text("mesmo tamanho e data").size(11).style(theme::ink3));
+            column![
+                row![text(shorten(&c.name, 52)).size(12.5), same].spacing(8).align_y(Alignment::Center),
+                side("Origem", crate::clash::describe(&c.source, newer)),
+                side("Destino", crate::clash::describe(&c.dest, older)),
+            ]
+            .spacing(1)
+            .into()
+        })
+        .collect();
+    let more = (n > 4).then(|| text(format!("… e mais {}", n - 4)).size(11.5).style(theme::ink3));
+    let choice = |label: &'static str, key: &'static str, msg: Message| {
         button(row![kbd(key.to_string()), text(label).size(12.5)].spacing(8).align_y(Alignment::Center))
             .padding([6, 12])
-            .on_press(Message::ResolveConflict(c))
+            .on_press(msg)
             .style(theme::ghost)
     };
     use arbor_core::ops::Conflict;
     sheet(
         column![
             text(title).font(theme::DISPLAY).size(16),
-            list,
-            text("Substituir manda o que já existe para a lixeira. Manter os dois cria \"nome (2)\".").size(11.5).style(theme::ink3),
+            column(shown).spacing(8),
+            more,
+            text("Substituir manda o que já existe para a lixeira. Manter os dois cria \"nome (2)\". Só os mais novos substitui onde a origem é mais recente e pula o resto.")
+                .size(11.5)
+                .style(theme::ink3),
             row![
-                choice("Substituir", "S", Some(Conflict::Replace)),
-                choice("Pular", "P", Some(Conflict::Skip)),
-                choice("Manter os dois", "M", Some(Conflict::KeepBoth)),
+                choice("Substituir", "S", Message::ResolveConflict(Some(Conflict::Replace))),
+                choice("Pular", "P", Message::ResolveConflict(Some(Conflict::Skip))),
+                choice("Manter os dois", "M", Message::ResolveConflict(Some(Conflict::KeepBoth))),
+                choice("Só os mais novos", "N", Message::KeepNewer),
                 space().width(Fill),
-                choice("Cancelar", "Esc", None),
+                choice("Cancelar", "Esc", Message::ResolveConflict(None)),
             ]
-            .spacing(6)
+            .spacing(4)
             .align_y(Alignment::Center)
         ]
         .spacing(12),
-        520.0,
+        660.0,
     )
 }
 
