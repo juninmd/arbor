@@ -18,19 +18,33 @@ pub fn list(path: PathBuf, sort: Sort) -> impl Stream<Item = Snapshot> {
 
 /// Compartilhamentos de `\\servidor` numa thread: a rede pode demorar a responder.
 pub fn list_shares(server: String, sort: Sort) -> impl Stream<Item = Snapshot> {
+    once("arbor-shares", sort, move || crate::network::shares(&server).map(|names| crate::network::share_entries(&server, &names)))
+}
+
+/// Computadores da rede local ("Rede"), também numa thread.
+pub fn list_network(sort: Sort) -> impl Stream<Item = Snapshot> {
+    once("arbor-network", sort, || crate::discovery::computers().map(|names| crate::discovery::computer_entries(&names)))
+}
+
+/// Roda `fetch` numa thread e entrega um único snapshot completo, ordenado.
+fn once(
+    name: &str,
+    sort: Sort,
+    fetch: impl FnOnce() -> Result<Vec<arbor_core::Entry>, String> + Send + 'static,
+) -> impl Stream<Item = Snapshot> {
     let (tx, rx) = mpsc::unbounded();
     std::thread::Builder::new()
-        .name("arbor-shares".into())
+        .name(name.into())
         .spawn(move || {
             let start = std::time::Instant::now();
-            let (mut entries, error) = match crate::network::shares(&server) {
-                Ok(names) => (crate::network::share_entries(&server, &names), None),
+            let (mut entries, error) = match fetch() {
+                Ok(entries) => (entries, None),
                 Err(e) => (vec![], Some(e)),
             };
             arbor_core::sort_entries(&mut entries, sort);
             let _ = tx.unbounded_send(Snapshot { entries: std::sync::Arc::new(entries), complete: true, elapsed: start.elapsed(), error });
         })
-        .expect("thread de compartilhamentos");
+        .expect("thread de rede");
     rx
 }
 

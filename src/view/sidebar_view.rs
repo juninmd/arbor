@@ -95,6 +95,7 @@ pub fn sidebar(app: &App) -> Element<'_, Message> {
         theme::ICE,
         0,
     ));
+    col = col.push(node(app, crate::discovery::TITLE.into(), &app.network, Icon::Network, theme::IRIS, 0));
     if crate::trashbin::SUPPORTED {
         col = col.push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::STEEL, 0));
     }

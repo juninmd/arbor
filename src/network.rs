@@ -67,7 +67,7 @@ pub fn shares(server: &str) -> Result<Vec<String>, String> {
 }
 
 #[cfg(windows)]
-unsafe fn wide_str(p: *const u16) -> String {
+pub(crate) unsafe fn wide_str(p: *const u16) -> String {
     if p.is_null() {
         return String::new();
     }
@@ -79,9 +79,65 @@ unsafe fn wide_str(p: *const u16) -> String {
     String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(p, len) })
 }
 
+/// Sem a API do Windows, pergunta ao `smbclient` (Samba) como convidado.
 #[cfg(not(windows))]
 pub fn shares(server: &str) -> Result<Vec<String>, String> {
-    Err(format!("Listar os compartilhamentos de {server} só funciona no Windows; monte com o gerenciador do sistema."))
+    let out = std::process::Command::new("smbclient")
+        .args(["-g", "-N", "-L", &format!("//{server}")])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|_| format!("Para listar os compartilhamentos de {server}, instale o smbclient."))?;
+    let names = parse_smbclient(&String::from_utf8_lossy(&out.stdout));
+    if names.is_empty() && !out.status.success() {
+        return Err(format!("O servidor {server} não respondeu ou pediu senha; monte com o gerenciador do sistema."));
+    }
+    Ok(names)
+}
+
+/// Linhas `Disk|nome|comentário` de `smbclient -g -L`; os administrativos (`C$`) ficam de fora.
+#[cfg(any(not(windows), test))]
+fn parse_smbclient(out: &str) -> Vec<String> {
+    let mut names: Vec<String> = out
+        .lines()
+        .filter_map(|l| l.strip_prefix("Disk|")?.split('|').next())
+        .filter(|n| !n.is_empty() && !n.ends_with('$'))
+        .map(str::to_string)
+        .collect();
+    names.sort_by_key(|s| s.to_lowercase());
+    names
+}
+
+#[cfg(any(target_os = "linux", test))]
+/// `\\servidor\compartilhamento` vira (servidor, compartilhamento).
+pub fn split_share(path: &Path) -> Option<(String, String)> {
+    let server = share_parent(path)?;
+    let share = path.to_str()?.trim_end_matches(['\\', '/']).rsplit(['\\', '/']).next()?.to_string();
+    Some((server_root(&server)?, share))
+}
+
+/// No Linux um compartilhamento não é caminho do sistema: monta pelo GVFS (`gio mount`) e devolve a pasta.
+#[cfg(target_os = "linux")]
+pub fn mount_share(server: &str, share: &str) -> Result<PathBuf, String> {
+    // SAFETY: getuid não tem pré-condições.
+    let dir = PathBuf::from(format!(
+        "/run/user/{}/gvfs/smb-share:server={},share={}",
+        unsafe { libc::getuid() },
+        server.to_lowercase(),
+        share.to_lowercase()
+    ));
+    if dir.is_dir() {
+        return Ok(dir);
+    }
+    let out = std::process::Command::new("gio")
+        .args(["mount", &format!("smb://{server}/{share}")])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|_| "Para abrir compartilhamentos, instale o gvfs (gio).".to_string())?;
+    if dir.is_dir() {
+        Ok(dir)
+    } else {
+        Err(format!("Não montou \\\\{server}\\{share}: {}", String::from_utf8_lossy(&out.stderr).trim()))
+    }
 }
 
 /// Nome legível de uma montagem do GVFS: "smb-share:server=nas,share=fotos" vira "fotos em nas".
@@ -134,5 +190,18 @@ mod tests {
         assert_eq!(gvfs_label("smb-share:server=nas.local,share=fotos"), "fotos em nas.local");
         assert_eq!(gvfs_label("sftp:host=pi"), "pi (sftp)");
         assert_eq!(gvfs_label("estranho"), "estranho");
+    }
+
+    #[test]
+    fn smbclient_lists_disk_shares_without_admin_ones() {
+        let out = "Disk|fotos|Fotos da casa\nIPC|IPC$|IPC Service\nDisk|C$|Default share\nDisk|Backup|\n";
+        assert_eq!(parse_smbclient(out), ["Backup", "fotos"]);
+    }
+
+    #[test]
+    fn share_paths_split_into_server_and_share() {
+        assert_eq!(split_share(Path::new(r"\\nas\fotos")), Some(("nas".into(), "fotos".into())));
+        assert_eq!(split_share(Path::new(r"\\nas")), None);
+        assert_eq!(split_share(Path::new(r"\\nas\fotos\2024")), None);
     }
 }

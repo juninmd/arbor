@@ -58,6 +58,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   [docs/inventario-explorer-windows.md](docs/inventario-explorer-windows.md).
 * **Início**: Acesso rápido (pastas fixadas e as mais visitadas) e Recentes (os últimos 30 arquivos abertos
   pelo arbor, salvos na pasta de configuração do arbor).
+* **Rede**: computadores da rede local (Windows pelo serviço Navegador; Linux pelo `avahi-browse`, com
+  `smbclient` para listar compartilhamentos e `gio` para montá-los).
 * **Barra de comandos e menu de contexto** como no Explorer (Nova pasta, recortar, copiar, colar, renomear,
   excluir, Classificar, Visualizar), com itens apagados quando não se aplicam. **Fixar pastas** na barra lateral.
 * **Agrupar por** tipo, data de modificação ("Hoje", "Ontem", "Semana passada"…) ou tamanho, pelo menu Classificar
