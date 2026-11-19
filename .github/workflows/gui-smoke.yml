@@ -1,0 +1,53 @@
+name: gui-smoke
+
+# Abre o arbor de verdade no Windows e tira um print da tela: confere que a janela com vidro
+# (swapchain DX12 com alfa + Mica/Acrylic) sobe e não fica preta. O print fica nos artefatos.
+
+on:
+  pull_request:
+    paths: ["src/**", "patches/**", "Cargo.toml", "Cargo.lock", ".github/workflows/gui-smoke.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked
+      - name: Abrir o arbor e tirar print
+        shell: pwsh
+        env:
+          ARBOR_NO_UPDATE: "1"
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $p = Start-Process -FilePath target\release\arbor.exe -ArgumentList "$PWD" -PassThru
+          Start-Sleep -Seconds 12
+          if ($p.HasExited) { Write-Error "o arbor fechou sozinho (código $($p.ExitCode))"; exit 1 }
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$PWD\gui-windows.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          # miniatura em JPEG no log, para conferir sem baixar o artefato
+          $w = 640; $h = [int]($b.Height * $w / $b.Width)
+          $small = New-Object System.Drawing.Bitmap $bmp, $w, $h
+          $ms = New-Object System.IO.MemoryStream
+          $small.Save($ms, [System.Drawing.Imaging.ImageFormat]::Jpeg)
+          Write-Output "SHOT-BEGIN"
+          Write-Output ([Convert]::ToBase64String($ms.ToArray()))
+          Write-Output "SHOT-END"
+          Stop-Process -Id $p.Id
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gui-windows
+          path: gui-windows.png
+          if-no-files-found: ignore
