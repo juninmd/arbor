@@ -13,6 +13,7 @@ mod computer;
 mod diff;
 mod discovery;
 mod folder_views;
+mod git_branch;
 mod glass;
 mod home;
 mod instance;

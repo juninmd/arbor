@@ -210,6 +210,8 @@ pub struct Tab {
     pub locked: bool,
     /// Pastas desta listagem já têm o tamanho somado em `entries`; `sizes_stop` cancela a soma em andamento.
     pub dir_sizes: bool,
+    /// Branch do git da pasta, mostrada na barra de status.
+    pub branch: Option<String>,
     sizes_stop: Arc<AtomicBool>,
 }
 
@@ -243,6 +245,7 @@ impl Tab {
             repos: HashSet::new(),
             locked: false,
             dir_sizes: false,
+            branch: None,
             sizes_stop: Arc::default(),
         }
     }
@@ -658,6 +661,11 @@ pub enum Message {
         tab: u64,
         dir: PathBuf,
         repos: HashSet<PathBuf>,
+    },
+    Branch {
+        tab: u64,
+        dir: PathBuf,
+        branch: Option<String>,
     },
     DirSizes {
         tab: u64,
@@ -1173,8 +1181,8 @@ impl App {
                 task = self.reveal_cursor(id);
             }
         }
-        let (repos, sizes) = if complete { (self.scan_repos(id), self.measure_dirs(id)) } else { (Task::none(), Task::none()) };
-        Task::batch([task, self.request_thumbs(id), repos, sizes])
+        let extras = if complete { Task::batch([self.scan_repos(id), self.measure_dirs(id), self.read_branch(id)]) } else { Task::none() };
+        Task::batch([task, self.request_thumbs(id), extras])
     }
 
     // ---------- seleção e rolagem ----------
@@ -2417,6 +2425,7 @@ impl App {
             Message::PropsLoaded { path, preview, props } => self.on_props(path, preview, props),
             Message::DetailsResizeStart => self.details_resize_start(),
             Message::Repos { tab, dir, repos } => self.on_repos(tab, dir, repos),
+            Message::Branch { tab, dir, branch } => self.on_branch(tab, dir, branch),
             Message::DirSizes { tab, dir, sizes } => self.on_dir_sizes(tab, dir, sizes),
             Message::Dropped(path) => {
                 let dest = self.tab().path.clone();

@@ -630,6 +630,9 @@ fn status<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     if tab.loading {
         parts.push(format!("lendo… {}", human_count(tab.entries.len())));
     }
+    if let Some(b) = &tab.branch {
+        parts.push(format!("⎇ {b}"));
+    }
     if app.sync_nav && app.dual {
         parts.push("⇄ sincronizado".into());
     }

@@ -57,6 +57,7 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Janela própria**, no jeito do Explorer do Windows 11: abas na barra de título, faixa com endereço e barra de
   comandos, minimizar/maximizar/fechar, arrastar e redimensionar pelas bordas (`ARBOR_NATIVE_FRAME=1` volta para
   a moldura do sistema). **Abas verticais** opcionais (menu do tema ou "Abas verticais" na paleta).
+* **Branch do git** da pasta aberta na barra de status (`⎇ main`), lida do `.git/HEAD` sem rodar o `git`.
 * **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
   de fps com o pior quadro do último segundo.
 * **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
