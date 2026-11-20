@@ -16,6 +16,9 @@ pub struct Diff {
     pub left: Vec<PathBuf>,
     pub right: Vec<PathBuf>,
     pub same: usize,
+    /// Mesmo nome, mas pasta de um lado e arquivo do outro (caminho da esquerda). Nenhum lado "ganha":
+    /// sincronizar mandaria uma pasta inteira para a lixeira para pôr um arquivo no lugar (ou o contrário).
+    pub kind_clash: Vec<PathBuf>,
 }
 
 /// Windows e macOS não diferenciam maiúsculas nos nomes; Linux diferencia.
@@ -52,10 +55,14 @@ pub fn compare(left: &[Entry], right: &[Entry]) -> Diff {
             diff.same += 1;
             continue;
         }
+        if l.is_dir != r.is_dir {
+            diff.kind_clash.push(l.path.clone());
+            continue;
+        }
         match newer(l.modified, r.modified) {
             Some(true) => diff.left.push(l.path.clone()),
             Some(false) => diff.right.push(r.path.clone()),
-            None if l.size != r.size || l.is_dir != r.is_dir => {
+            None if l.size != r.size => {
                 diff.left.push(l.path.clone());
                 diff.right.push(r.path.clone());
             }
@@ -111,6 +118,21 @@ mod tests {
         assert_eq!(names(&d.left), ["novo.txt", "so-esq.txt", "tam.txt"]);
         assert_eq!(names(&d.right), ["so-dir.txt", "tam.txt"]);
         assert_eq!(d.same, 2);
+    }
+
+    #[test]
+    fn pasta_e_arquivo_com_o_mesmo_nome_nao_entram_na_copia() {
+        let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        fs::write(a.path().join("dados"), "arquivo novo").unwrap();
+        fs::create_dir(b.path().join("dados")).unwrap();
+        fs::write(b.path().join("dados/importante.txt"), "x").unwrap();
+        let old = SystemTime::now() - Duration::from_secs(3600);
+        fs::File::options().write(true).open(b.path().join("dados/importante.txt")).unwrap().set_modified(old).unwrap();
+        let d = compare(&list(a.path()), &list(b.path()));
+        // Antes, o arquivo mais novo da esquerda entrava em `left` e "Sincronizar" trocava a pasta por ele.
+        assert!(d.left.is_empty() && d.right.is_empty(), "{d:?}");
+        assert_eq!(names(&d.kind_clash), ["dados"]);
+        assert_eq!(d.same, 0);
     }
 
     #[test]
