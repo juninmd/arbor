@@ -20,9 +20,18 @@ pub const MAX_RESULTS: usize = 20_000;
 /// Começa com um caractere de controle para ninguém digitar sem querer.
 pub const FLAT: &str = "\u{1}plana";
 
+/// Prefixo da consulta de conteúdo: o resto é o texto procurado dentro dos arquivos (sem diferenciar
+/// maiúsculas). Também começa com caractere de controle.
+pub const CONTENT: &str = "\u{1}conteudo:";
+
+/// Arquivos maiores que isso não entram na busca de conteúdo (logs e imagens de disco só atrasam).
+const CONTENT_MAX_BYTES: u64 = 32 * 1024 * 1024;
+
 /// Como a consulta casa com um nome.
 #[derive(Debug, Clone)]
 pub enum Query {
+    /// Texto dentro dos arquivos: só arquivos de texto (binário é pulado), sem diferenciar maiúsculas.
+    Content(grep_regex::RegexMatcher),
     Words(Vec<String>),
     Glob(Vec<char>),
     /// Visão plana: todo arquivo casa, nenhuma pasta entra.
@@ -33,6 +42,11 @@ impl Query {
     pub fn parse(q: &str) -> Option<Query> {
         if q == FLAT {
             return Some(Query::Files);
+        }
+        if let Some(text) = q.strip_prefix(CONTENT) {
+            let text = text.trim();
+            let matcher = grep_regex::RegexMatcherBuilder::new().case_insensitive(true).fixed_strings(true).build(text);
+            return if text.is_empty() { None } else { matcher.ok().map(Query::Content) };
         }
         let q = q.trim().to_lowercase();
         if q.is_empty() {
@@ -51,8 +65,33 @@ impl Query {
             Query::Words(words) => words.iter().all(|w| name.contains(w.as_str())),
             Query::Glob(pattern) => glob(pattern, &name.chars().collect::<Vec<_>>()),
             Query::Files => true,
+            Query::Content(_) => false,
         }
     }
+
+    /// Casa o item da varredura: pelo nome, ou, na busca de conteúdo, pelo texto dentro do arquivo.
+    fn hits(&self, path: &Path, name: &str, ft: std::fs::FileType) -> bool {
+        match self {
+            Query::Files => !ft.is_dir(),
+            Query::Content(m) => ft.is_file() && file_contains(m, path),
+            other => other.matches(name),
+        }
+    }
+}
+
+/// O arquivo tem o texto? Binário (byte NUL) e arquivo grande demais contam como "não".
+fn file_contains(matcher: &grep_regex::RegexMatcher, path: &Path) -> bool {
+    use grep_searcher::{sinks::Bytes, BinaryDetection, SearcherBuilder};
+    if std::fs::metadata(path).map_or(true, |m| m.len() > CONTENT_MAX_BYTES) {
+        return false;
+    }
+    let mut searcher = SearcherBuilder::new().binary_detection(BinaryDetection::quit(0)).build();
+    let mut found = false;
+    let sink = Bytes(|_, _| {
+        found = true;
+        Ok(false)
+    });
+    searcher.search_path(matcher, path, sink).is_ok() && found
 }
 
 /// Máscara de seleção e de filtro: um ou mais padrões separados por `;` (`*.jpg;*.png`), como no Total
@@ -180,7 +219,7 @@ fn walk_dir<'s>(scope: &rayon::Scope<'s>, ctx: &'s Walk<'s>, dir: &Path) {
             let path = item.path();
             scope.spawn(move |s| walk_dir(s, ctx, &path));
         }
-        if ctx.query.matches(&name) && !(ft.is_dir() && matches!(ctx.query, Query::Files)) {
+        if ctx.query.hits(&item.path(), &name, ft) {
             let Ok(meta) = item.metadata() else { continue };
             if ctx.found.fetch_add(1, Ordering::Relaxed) >= MAX_RESULTS {
                 ctx.stop.store(true, Ordering::Relaxed);
@@ -221,6 +260,24 @@ mod tests {
         });
         names.sort();
         assert_eq!(names, ["fundo.txt", "raiz.md"]);
+    }
+
+    #[test]
+    fn busca_texto_dentro_dos_arquivos_e_pula_binarios() {
+        let d = tempfile::tempdir().unwrap();
+        fs::create_dir_all(d.path().join("sub")).unwrap();
+        fs::write(d.path().join("sub/nota.txt"), "Reunião sobre o ORÇAMENTO de 2026").unwrap();
+        fs::write(d.path().join("outra.txt"), "nada aqui").unwrap();
+        fs::write(d.path().join("binario.bin"), b"orcamento\0\x01\x02").unwrap();
+        let mut names = vec![];
+        search(d.path(), &format!("{CONTENT}orçamento"), Sort::default(), false, |s| {
+            if s.complete {
+                names = s.entries.iter().map(|e| e.name.clone()).collect();
+            }
+            true
+        });
+        assert_eq!(names, ["nota.txt"]);
+        assert!(Query::parse(&format!("{CONTENT}  ")).is_none());
     }
 
     #[test]

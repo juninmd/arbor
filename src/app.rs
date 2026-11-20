@@ -217,6 +217,8 @@ pub struct Tab {
     /// Branch do git da pasta, mostrada na barra de status.
     pub branch: Option<String>,
     sizes_stop: Arc<AtomicBool>,
+    /// Pastas cuja soma ficou incompleta (sem permissão ou erro de leitura): a coluna mostra "?".
+    pub unknown_sizes: std::collections::HashSet<PathBuf>,
 }
 
 impl Tab {
@@ -253,6 +255,7 @@ impl Tab {
             dir_sizes: false,
             branch: None,
             sizes_stop: Arc::default(),
+            unknown_sizes: Default::default(),
         }
     }
 
@@ -268,6 +271,9 @@ impl Tab {
         }
         if flat::is_flat(&self.search) {
             return format!("Plana: {}", ops::name(&self.path));
+        }
+        if let Some(text) = self.search.as_ref().and_then(|(q, _)| q.strip_prefix(arbor_core::search::CONTENT)) {
+            return format!("Conteúdo: {text}");
         }
         if let Some((q, _)) = &self.search {
             return format!("Busca: {q}");
@@ -452,6 +458,7 @@ pub enum Overlay {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PromptKind {
     Search,
+    ContentSearch,
     Rename,
     /// F2 com vários itens selecionados: modelo ("Foto {n:3}") ou troca ("antigo => novo").
     BatchRename,
@@ -470,6 +477,7 @@ impl PromptKind {
     pub fn title(self) -> &'static str {
         match self {
             PromptKind::Search => "Buscar nesta pasta e subpastas (palavras, ou *.pdf)",
+            PromptKind::ContentSearch => "Buscar texto dentro dos arquivos desta pasta e subpastas",
             PromptKind::Rename => "Renomear",
             PromptKind::BatchRename => "Renomear em lote",
             PromptKind::NewFolder => "Nova pasta",
@@ -693,7 +701,7 @@ pub enum Message {
     DirSizes {
         tab: u64,
         dir: PathBuf,
-        sizes: Option<Vec<(PathBuf, u64)>>,
+        sizes: Option<Vec<(PathBuf, arbor_core::du::Size)>>,
     },
     UpdateCheck {
         manual: bool,
@@ -1564,6 +1572,8 @@ impl App {
                 Err(e) => self.notify(format!("Não abriu o diálogo de mapear unidade: {e}"), true),
             },
             Cmd::Up => self.go_up(),
+            Cmd::CursorUp => self.move_cursor(-1, false),
+            Cmd::CursorDown => self.move_cursor(1, false),
             Cmd::Back => self.history(true),
             Cmd::Forward => self.history(false),
             Cmd::Refresh => {
@@ -1751,6 +1761,7 @@ impl App {
                 }
                 self.start(Op::Trash { paths })
             }
+            Cmd::ContentSearch => self.open_prompt(PromptKind::ContentSearch, String::new()),
             Cmd::Filter => {
                 let id = self.tab().filter_id();
                 op::focus(id)
@@ -2139,6 +2150,7 @@ impl App {
         let dir = self.tab().path.clone();
         match kind {
             PromptKind::Search => self.start_search(value),
+            PromptKind::ContentSearch => self.start_search(format!("{}{value}", arbor_core::search::CONTENT)),
             PromptKind::GlobalSearch => self.start_search(format!("{}{value}", crate::global_search::PREFIX)),
             PromptKind::SelectMask | PromptKind::DeselectMask => self.submit_mask(kind, &value),
             PromptKind::SaveLayout => match crate::layouts::save(&value, &self.session()) {
@@ -2372,6 +2384,7 @@ impl App {
                     ("f", false) if mods.alt() => Some(Cmd::GlobalSearch),
                     ("f", false) => Some(Cmd::Filter),
                     ("f", true) => Some(Cmd::Search),
+                    ("g", true) => Some(Cmd::ContentSearch),
                     ("h", false) => Some(Cmd::ToggleHidden),
                     ("g", false) => Some(Cmd::ToggleGrid),
                     ("b", false) => Some(Cmd::FlatView),
@@ -2423,6 +2436,10 @@ impl App {
             Some(Named::ArrowRight) => return self.run(Cmd::Open),
             Some(Named::ArrowLeft) => return self.go_up(),
             _ => {}
+        }
+        // "?" abre a paleta, que lista todos os comandos com o atalho de cada um (os do arquivo `keys` incluídos).
+        if text.as_deref() == Some("?") && !cmd_mod && !mods.alt() && self.tab().filter.is_empty() {
+            return self.run(Cmd::Palette);
         }
         // Digitar filtra a pasta na hora, sem precisar clicar no campo.
         if let Some(t) = text.filter(|t| !mods.alt() && !cmd_mod && t.chars().all(|c| !c.is_control()) && !t.trim().is_empty()) {

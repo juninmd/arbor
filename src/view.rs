@@ -406,13 +406,25 @@ fn group_header<'a>(tab: &'a Tab, row: usize) -> Element<'a, Message> {
     container(line).height(ROW_H).padding([0, 12]).align_y(Alignment::Center).into()
 }
 
+/// Tamanho da coluna: vazio até a soma chegar, "?" quando a soma ficou incompleta.
+fn folder_size_text(tab: &Tab, e: &arbor_core::Entry) -> String {
+    match (e.is_dir, tab.dir_sizes) {
+        (true, false) => String::new(),
+        (true, true) if tab.unknown_sizes.contains(&e.path) => match e.size {
+            0 => "?".to_string(),
+            n => format!("≥ {}", human_size(n)),
+        },
+        _ => human_size(e.size),
+    }
+}
+
 fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Element<'a, Message> {
     let e = tab.entry_at(i).expect("índice válido");
     let drop_here = e.is_dir && app.dragging().is_some_and(|(_, _, over)| over == Some(e.path.as_path()));
     let drive = drive_of(app, tab, e);
     let (size, when) = match drive {
         Some(d) => d.space.map(|(free, total)| (human_size(total), human_size(free))).unwrap_or_default(),
-        None => (if e.is_dir && !tab.dir_sizes { String::new() } else { human_size(e.size) }, human_time(e.modified)),
+        None => (folder_size_text(tab, e), human_time(e.modified)),
     };
     let selected = tab.selected.contains(&e.path);
     let cursor = i == tab.cursor;

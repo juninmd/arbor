@@ -107,6 +107,11 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   Windows, o `ffmpeg` e o `pdftoppm` (Poppler) se estiverem no PATH; sem eles, fica o ícone do tipo.
 * **Copiar listagem** (menu da área vazia ou paleta): os itens visíveis, ou só os selecionados, como tabela
   (nome, tipo, tamanho em bytes, data, caminho) que cola direto numa planilha.
+* **Busca no conteúdo** (`Ctrl+Shift+G`): abre uma aba com os arquivos de texto da pasta e das subpastas que contêm o
+  texto (sem diferenciar maiúsculas; binários e arquivos acima de 32 MB são pulados). Usa o motor do ripgrep.
+* **Tamanho de pasta confiável:** a soma não entra em outro dispositivo (rede, autofs, FUSE, discos montados dentro
+  da pasta) e mostra `?` ou `≥ N` quando algo não pôde ser lido.
+* **`?`** abre a paleta com todos os comandos e atalhos; no arquivo `keys`, `preset = vim` liga Alt+H/J/K/L.
 * **Procurar duplicados** (paleta): abre uma aba com os arquivos repetidos da pasta e das subpastas, do que mais
   desperdiça espaço para o que menos. Compara tamanho, depois hash e por fim byte a byte: nunca acusa falso positivo.
 * **Comparar dois arquivos** (paleta, com dois selecionados ou um em cada painel): diz na hora se são idênticos;
