@@ -2,9 +2,11 @@
 
 use crate::commands::{self, Cmd};
 mod address;
+mod compare_dirs;
 mod details;
 mod drag;
 mod flat;
+mod folder_sizes;
 pub mod groups;
 mod jump;
 mod menu;
@@ -70,6 +72,8 @@ pub struct App {
     pub palette: crate::palettes::Palette,
     /// Abas numa coluna à esquerda em vez de na barra de título.
     pub vertical_tabs: bool,
+    /// Calcular o tamanho das pastas na coluna Tamanho (ver `folder_sizes`).
+    pub folder_sizes: bool,
     pub show_hidden: bool,
     /// "Extensões de nomes de arquivos" do Explorer; desligado, a lista mostra só o nome.
     pub hide_ext: bool,
@@ -202,6 +206,9 @@ pub struct Tab {
     pub repos: HashSet<PathBuf>,
     /// Aba travada: navegar a partir dela abre outra aba, e ela não fecha junto com as outras.
     pub locked: bool,
+    /// Pastas desta listagem já têm o tamanho somado em `entries`; `sizes_stop` cancela a soma em andamento.
+    pub dir_sizes: bool,
+    sizes_stop: Arc<AtomicBool>,
 }
 
 impl Tab {
@@ -233,6 +240,8 @@ impl Tab {
             grouped: groups::Grouped::default(),
             repos: HashSet::new(),
             locked: false,
+            dir_sizes: false,
+            sizes_stop: Arc::default(),
         }
     }
 
@@ -643,6 +652,11 @@ pub enum Message {
         dir: PathBuf,
         repos: HashSet<PathBuf>,
     },
+    DirSizes {
+        tab: u64,
+        dir: PathBuf,
+        sizes: Option<Vec<(PathBuf, u64)>>,
+    },
     UpdateCheck {
         manual: bool,
     },
@@ -689,6 +703,7 @@ impl App {
             next_toast: 0,
             palette,
             vertical_tabs: crate::session::setting("vertical_tabs").as_deref() == Some("true"),
+            folder_sizes: folder_sizes::enabled(),
             show_hidden: false,
             hide_ext: false,
             thumbs: HashMap::new(),
@@ -937,6 +952,7 @@ impl App {
 
     fn load_tab(tab: &mut Tab, path: PathBuf, refresh: bool) -> Task<Message> {
         tab.generation += 1;
+        folder_sizes::cancel(tab);
         tab.loading = true;
         tab.refreshing = refresh;
         if !refresh {
@@ -1147,8 +1163,8 @@ impl App {
                 task = self.reveal_cursor(id);
             }
         }
-        let repos = if complete { self.scan_repos(id) } else { Task::none() };
-        Task::batch([task, self.request_thumbs(id), repos])
+        let (repos, sizes) = if complete { (self.scan_repos(id), self.measure_dirs(id)) } else { (Task::none(), Task::none()) };
+        Task::batch([task, self.request_thumbs(id), repos, sizes])
     }
 
     // ---------- seleção e rolagem ----------
@@ -1512,6 +1528,9 @@ impl App {
             }
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::FolderSizes => self.toggle_folder_sizes(),
+            Cmd::CompareDirs => self.compare_dirs(),
+            Cmd::SyncDirs => self.sync_dirs(),
             Cmd::DuplicateTab => self.duplicate_tab(),
             Cmd::CloseOtherTabs => self.close_many(tabs::Close::Others),
             Cmd::CloseTabsLeft => self.close_many(tabs::Close::Left),
@@ -2183,7 +2202,8 @@ impl App {
             Overlay::Jump(_) => return self.jump_key(named),
             Overlay::Confirm { .. } => {
                 return match named {
-                    Some(Named::Enter) => self.confirmed(),
+                    // Enter capturado é o mesmo Enter que rodou o comando na paleta: não confirma sozinho.
+                    Some(Named::Enter) if !captured => self.confirmed(),
                     Some(Named::Escape) => {
                         self.overlay = Overlay::None;
                         Task::none()
@@ -2221,6 +2241,7 @@ impl App {
             Some(Named::Tab) if mods.control() => return self.run(if mods.shift() { Cmd::PrevTab } else { Cmd::NextTab }),
             Some(Named::ContextMenu) => return self.keyboard_menu(),
             Some(Named::F10) if mods.shift() => return self.keyboard_menu(),
+            Some(Named::F2) if mods.shift() => return self.run(Cmd::CompareDirs),
             Some(Named::F2) => return self.run(Cmd::Rename),
             Some(Named::F3) => return self.run(Cmd::ToggleDual),
             Some(Named::F5) => return self.run(Cmd::CopyToOther),
@@ -2381,6 +2402,7 @@ impl App {
             Message::PropsLoaded { path, preview, props } => self.on_props(path, preview, props),
             Message::DetailsResizeStart => self.details_resize_start(),
             Message::Repos { tab, dir, repos } => self.on_repos(tab, dir, repos),
+            Message::DirSizes { tab, dir, sizes } => self.on_dir_sizes(tab, dir, sizes),
             Message::Dropped(path) => {
                 let dest = self.tab().path.clone();
                 if computer::is_virtual(&dest) || path.parent() == Some(dest.as_path()) {

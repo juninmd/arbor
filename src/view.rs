@@ -409,7 +409,7 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
     let drive = drive_of(app, tab, e);
     let (size, when) = match drive {
         Some(d) => d.space.map(|(free, total)| (human_size(total), human_size(free))).unwrap_or_default(),
-        None => (if e.is_dir { String::new() } else { human_size(e.size) }, human_time(e.modified)),
+        None => (if e.is_dir && !tab.dir_sizes { String::new() } else { human_size(e.size) }, human_time(e.modified)),
     };
     let selected = tab.selected.contains(&e.path);
     let cursor = i == tab.cursor;
@@ -870,14 +870,14 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         Overlay::Conflict { clashes, .. } => conflict_sheet(clashes),
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
         Overlay::Jump(j) => return Some(commands_view::jump(app, j)),
-        Overlay::Confirm { text: question, .. } => sheet(
+        Overlay::Confirm { text: question, action } => sheet(
             column![
                 text("Confirmar").font(theme::DISPLAY).size(16),
                 text(question.as_str()).size(13.5),
                 row![
                     space().width(Fill),
                     button(text("Cancelar").size(13)).padding([7, 14]).on_press(Message::CloseOverlay).style(theme::ghost),
-                    button(text("Excluir").size(13)).padding([7, 14]).on_press(Message::Confirmed).style(theme::primary),
+                    button(text(action.verb()).size(13)).padding([7, 14]).on_press(Message::Confirmed).style(theme::primary),
                 ]
                 .spacing(8)
             ]
