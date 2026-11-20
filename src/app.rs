@@ -206,6 +206,10 @@ pub struct Tab {
     pub grouped: groups::Grouped,
     /// Subpastas que são repositórios git (têm `.git`), verificadas depois da listagem completa.
     pub repos: HashSet<PathBuf>,
+    /// Estado git da pasta aberta, quando ela fica dentro de um repositório.
+    pub git: Option<crate::git::GitInfo>,
+    /// Itens ocultos na última listagem completa: o aviso "N ocultos" quando eles não aparecem.
+    pub hidden: usize,
     /// Aba travada: navegar a partir dela abre outra aba, e ela não fecha junto com as outras.
     pub locked: bool,
     /// Pastas desta listagem já têm o tamanho somado em `entries`; `sizes_stop` cancela a soma em andamento.
@@ -243,6 +247,8 @@ impl Tab {
             group: None,
             grouped: groups::Grouped::default(),
             repos: HashSet::new(),
+            git: None,
+            hidden: 0,
             locked: false,
             dir_sizes: false,
             branch: None,
@@ -673,6 +679,11 @@ pub enum Message {
         tab: u64,
         dir: PathBuf,
         repos: HashSet<PathBuf>,
+    },
+    Git {
+        tab: u64,
+        dir: PathBuf,
+        info: Option<crate::git::GitInfo>,
     },
     Branch {
         tab: u64,
@@ -1179,6 +1190,7 @@ impl App {
             let Some(tab) = self.find_tab(id) else { return Task::none() };
             tab.loading = false;
             tab.listed = Some((tab.entries.len(), snap.elapsed));
+            tab.hidden = tab.entries.iter().filter(|e| e.hidden).count();
             if tab.refreshing {
                 let alive: HashSet<&Path> = tab.entries.iter().map(|e| e.path.as_path()).collect();
                 tab.selected.retain(|p| alive.contains(p.as_path()));
@@ -2490,6 +2502,7 @@ impl App {
             Message::PropsLoaded { path, preview, props } => self.on_props(path, preview, props),
             Message::DetailsResizeStart => self.details_resize_start(),
             Message::Repos { tab, dir, repos } => self.on_repos(tab, dir, repos),
+            Message::Git { tab, dir, info } => self.on_git(tab, dir, info),
             Message::Branch { tab, dir, branch } => self.on_branch(tab, dir, branch),
             Message::DirSizes { tab, dir, sizes } => self.on_dir_sizes(tab, dir, sizes),
             Message::Dropped(path) => {

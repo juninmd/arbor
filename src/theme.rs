@@ -392,6 +392,21 @@ pub fn chip_soft(color: Color, strength: f32) -> impl Fn(&Theme) -> container::S
     }
 }
 
+/// Pílula de informação na barra de comandos (git, ocultos): vidro discreto tingido com `color`.
+pub fn pill(color: Color, strong: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |t, status| {
+        let k = tokens(t);
+        let hot = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let a = if strong { 0.16 } else { 0.07 } + if hot { 0.06 } else { 0.0 };
+        button::Style {
+            background: Some(alpha(color, a).into()),
+            text_color: k.ink2,
+            border: Border { color: alpha(color, if strong { 0.4 } else { 0.22 }), width: 1.0, radius: 7.0.into() },
+            ..Default::default()
+        }
+    }
+}
+
 /// Opacidade de itens ocultos: ainda legíveis, mas recuados em relação aos demais.
 pub const HIDDEN_ALPHA: f32 = 0.5;
 
@@ -516,6 +531,7 @@ pub enum Icon {
     Lock,
     Palette,
     FolderGit,
+    Branch,
     WinMin,
     WinMax,
     WinClose,
@@ -578,6 +594,9 @@ impl Icon {
             }
             Icon::FolderGit => {
                 r#"<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" fill="currentColor" fill-opacity=".2"/><path d="m14.5 10 3.5 3.5-3.5 3.5-3.5-3.5z" fill="currentColor" stroke="none"/>"#
+            }
+            Icon::Branch => {
+                r#"<circle cx="6" cy="5.5" r="2.3"/><circle cx="6" cy="18.5" r="2.3"/><circle cx="18" cy="8" r="2.3"/><path d="M6 7.8v8.4M18 10.3c0 4.2-6.5 3.2-11 6.4"/>"#
             }
             Icon::WinMin => r#"<path d="M4 12h16"/>"#,
             Icon::WinMax => r#"<rect x="4" y="4" width="16" height="16" rx="2"/>"#,

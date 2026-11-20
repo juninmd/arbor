@@ -17,6 +17,10 @@ const EDGE: f32 = 5.0;
 
 fn tab_icon<'a>(p: &Pane, i: usize) -> Element<'a, Message> {
     let path = &p.tabs[i].path;
+    // travada mostra o cadeado; dentro de um repositório git, o ramo em coral como a pílula da barra
+    if !p.tabs[i].locked && p.tabs[i].git.is_some() {
+        return icon(Icon::Branch, 15.0, theme::CORAL);
+    }
     let ic = if p.tabs[i].locked {
         Icon::Lock
     } else if crate::computer::is(path) {

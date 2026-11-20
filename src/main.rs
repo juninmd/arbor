@@ -14,6 +14,7 @@ mod computer;
 mod diff;
 mod discovery;
 mod folder_views;
+mod git;
 mod git_branch;
 mod glass;
 mod global_search;

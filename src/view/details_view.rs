@@ -47,12 +47,20 @@ pub fn panel(app: &App) -> Element<'_, Message> {
             if let Some(Preview::Folder { dirs, files, bytes, more }) = &d.preview {
                 let plus = if *more { "+" } else { "" };
                 col = col.push(
-                    text(format!("{dirs}{plus} pastas · {files}{plus} arquivos · {}{plus}", human_size(*bytes)))
-                        .size(12)
-                        .style(theme::ink2),
+                    text(format!(
+                        "{} · {} · {}{plus}",
+                        super::props_view::count(*dirs, plus, "pasta", "pastas"),
+                        super::props_view::count(*files, plus, "arquivo", "arquivos"),
+                        human_size(*bytes)
+                    ))
+                    .size(12)
+                    .style(theme::ink2),
                 );
             }
             let mut table = Column::new().spacing(10);
+            if let Some(c) = tab.git.as_ref().and_then(|g| g.children.get(&e.path)) {
+                table = table.push(column![text("Git").size(11).style(theme::ink3), text(c.label()).size(12.5)].spacing(2));
+            }
             for (k, v) in &d.props {
                 table = table.push(column![text(k.as_str()).size(11).style(theme::ink3), text(v.as_str()).size(12.5)].spacing(2));
             }
