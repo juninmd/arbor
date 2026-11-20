@@ -83,6 +83,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Comparar e sincronizar pastas** no painel duplo, como no Total Commander: `Shift+F2` seleciona em cada lado o
   que só existe nele ou é mais novo (`F5` copia); "Sincronizar com o outro painel" copia tudo isso de uma vez,
   depois de confirmar, substituindo as versões antigas e sem apagar nada.
+* **Layouts** (paleta: "Salvar layout" / "Abrir layout salvo"): o conjunto de abas e painéis guardado com um
+  nome em `~/.config/arbor/layouts/`, para alternar entre "Trabalho", "Fotos"… como no Directory Opus.
 * **Navegação sincronizada** no painel duplo (paleta: "Navegação sincronizada"): entrar numa subpasta de um
   lado entra na de mesmo nome do outro, e subir sobe os dois, como no Directory Opus.
 * **Menu da aba** (botão direito): duplicar (`Ctrl+Shift+D`), **travar** (a aba fica na pasta dela; navegar a

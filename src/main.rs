@@ -19,6 +19,7 @@ mod home;
 mod instance;
 mod keymap;
 mod launch;
+mod layouts;
 mod listing;
 mod media;
 mod network;

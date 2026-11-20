@@ -104,6 +104,8 @@ pub enum Cmd {
     SetDefault,
     UnsetDefault,
     ToggleRestore,
+    SaveLayout,
+    OpenLayout,
     Palette,
 }
 
@@ -210,6 +212,8 @@ pub const ALL: &[Cmd] = &[
     Cmd::SetDefault,
     Cmd::UnsetDefault,
     Cmd::ToggleRestore,
+    Cmd::SaveLayout,
+    Cmd::OpenLayout,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -319,6 +323,8 @@ impl Cmd {
             Cmd::SetDefault => "Usar o arbor para abrir pastas (explorer padrão)",
             Cmd::UnsetDefault => "Voltar a abrir pastas no gerenciador do sistema",
             Cmd::ToggleRestore => "Ligar/desligar restaurar abas ao abrir",
+            Cmd::SaveLayout => "Salvar layout (abas e painéis com um nome)",
+            Cmd::OpenLayout => "Abrir layout salvo",
             Cmd::Palette => "Paleta de comandos",
         }
     }
@@ -421,6 +427,8 @@ impl Cmd {
             | Cmd::SetDefault
             | Cmd::UnsetDefault
             | Cmd::ToggleRestore
+            | Cmd::SaveLayout
+            | Cmd::OpenLayout
             | Cmd::EditKeys
             | Cmd::ReloadKeys => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),

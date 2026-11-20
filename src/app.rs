@@ -449,6 +449,8 @@ pub enum PromptKind {
     OpenWith,
     SelectMask,
     DeselectMask,
+    SaveLayout,
+    OpenLayout,
 }
 
 impl PromptKind {
@@ -463,6 +465,8 @@ impl PromptKind {
             PromptKind::OpenWith => "Abrir com (programa)",
             PromptKind::SelectMask => "Selecionar (ex.: *.jpg;*.png)",
             PromptKind::DeselectMask => "Tirar da seleção (ex.: *.tmp)",
+            PromptKind::SaveLayout => "Salvar abas e painéis como layout (nome)",
+            PromptKind::OpenLayout => "Abrir layout (nome)",
         }
     }
 }
@@ -1546,6 +1550,14 @@ impl App {
             }
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::SaveLayout => {
+                let last = crate::layouts::names().into_iter().next().unwrap_or_else(|| "Trabalho".into());
+                self.open_prompt(PromptKind::SaveLayout, last)
+            }
+            Cmd::OpenLayout => match crate::layouts::names().into_iter().next() {
+                Some(last) => self.open_prompt(PromptKind::OpenLayout, last),
+                None => self.notify("Nenhum layout salvo ainda: use \"Salvar layout\"", false),
+            },
             Cmd::CopyListing => self.copy_listing(),
             Cmd::CompareFiles => self.compare_files(),
             Cmd::CreateChecksums => self.create_checksums(),
@@ -2077,6 +2089,17 @@ impl App {
         match kind {
             PromptKind::Search => self.start_search(value),
             PromptKind::SelectMask | PromptKind::DeselectMask => self.submit_mask(kind, &value),
+            PromptKind::SaveLayout => match crate::layouts::save(&value, &self.session()) {
+                Ok(()) => self.notify(format!("Layout \"{}\" salvo", value.trim()), false),
+                Err(e) => self.notify(e, true),
+            },
+            PromptKind::OpenLayout => match crate::layouts::load(&value) {
+                Ok(session) => {
+                    let task = self.restore(session);
+                    Task::batch([task, self.notify(format!("Layout \"{}\" aberto", value.trim()), false)])
+                }
+                Err(e) => self.notify(e, true),
+            },
             PromptKind::BatchRename => match rename::plan(&value, &self.batch_items()) {
                 Ok(pairs) if pairs.is_empty() => self.notify("Nenhum nome muda com esse modelo", false),
                 Ok(pairs) => self.start(Op::RenameMany { pairs }),
