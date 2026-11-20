@@ -6,6 +6,9 @@
 //! Ctrl+Alt+C = CopyPath
 //! ```
 //!
+//! `preset = vim` numa linha liga um conjunto pronto: Alt+H/J/K/L para subir, descer, subir de pasta e abrir
+//! (letras puras continuam filtrando a pasta). Mac e Windows não precisam de preset: `Ctrl` vira ⌘ no macOS.
+//!
 //! O que está no arquivo vale antes dos atalhos de fábrica; os de fábrica que não foram trocados continuam
 //! valendo. "Editar atalhos" na paleta cria o arquivo com a lista de todos os comandos e abre no editor;
 //! "Recarregar atalhos" aplica sem reiniciar. A paleta e a doca mostram o atalho novo.
@@ -143,6 +146,17 @@ pub fn chord_of(key: &Key, mods: Modifiers) -> Option<String> {
     Some(out)
 }
 
+/// Conjuntos prontos de atalhos, escolhidos com `preset = nome` no arquivo `keys`.
+fn preset(name: &str) -> Option<Vec<(String, Cmd)>> {
+    let pairs: &[(&str, Cmd)] = match name.trim().to_lowercase().as_str() {
+        "vim" => &[("Alt+H", Cmd::Up), ("Alt+J", Cmd::CursorDown), ("Alt+K", Cmd::CursorUp), ("Alt+L", Cmd::Open)],
+        // O padrão já é o de Windows/macOS: o preset existe só para o arquivo dizer isso por escrito.
+        "windows" | "mac" | "default" => &[],
+        _ => return None,
+    };
+    Some(pairs.iter().map(|(k, c)| (k.to_string(), *c)).collect())
+}
+
 /// Lê o arquivo de texto. Devolve os atalhos e as linhas com problema (para avisar o usuário).
 pub fn parse(text: &str) -> (Vec<(String, Cmd)>, Vec<String>) {
     let mut ok = Vec::new();
@@ -150,6 +164,13 @@ pub fn parse(text: &str) -> (Vec<(String, Cmd)>, Vec<String>) {
     for line in text.lines() {
         let line = line.split('#').next().unwrap_or("").trim();
         if line.is_empty() {
+            continue;
+        }
+        if let Some(p) = line.strip_prefix("preset").and_then(|r| r.trim_start().strip_prefix('=')) {
+            match preset(p) {
+                Some(pairs) => ok.extend(pairs),
+                None => bad.push(line.to_string()),
+            }
             continue;
         }
         match line.split_once('=').and_then(|(k, c)| Some((normalize(k)?, parse_cmd(c)?))) {
@@ -208,6 +229,7 @@ pub fn ensure_file() -> Result<PathBuf, String> {
         "# Atalhos do arbor: uma linha por atalho, no formato  Tecla = Comando\n\
          # Modificadores: Ctrl (⌘ no macOS), Alt, Shift. Teclas: letras, números, F1–F24, Enter, Space, Tab,\n\
          # Backspace, Delete, Insert, Home, End, PageUp, PageDown, Up, Down, Left, Right, Escape.\n\
+         # preset = vim liga Alt+H/J/K/L (cursor e pastas). Aperte ? na lista para ver todos os atalhos.\n\
          # O que estiver aqui vale antes dos atalhos de fábrica. Salve e use \"Recarregar atalhos\" na paleta.\n\
          #\n# Exemplo:\n# Ctrl+Shift+N = NewFolder\n#\n# Comandos (atalho de fábrica entre parênteses):\n",
     );
@@ -233,6 +255,16 @@ mod tests {
         let (ok, bad) = parse("# comentário\nCtrl+Shift+N = NewFolder\nF4 = terminal # abre o terminal\nCtrl+Q = NaoExiste\n");
         assert_eq!(ok, vec![("Ctrl+Shift+N".to_string(), Cmd::NewFolder), ("F4".to_string(), Cmd::Terminal)]);
         assert_eq!(bad, ["Ctrl+Q = NaoExiste"]);
+    }
+
+    #[test]
+    fn preset_vim_vale_antes_das_linhas_do_usuario() {
+        let (ok, bad) = parse("preset = vim\nAlt+J = Terminal\npreset = emacs\npreset = mac\n");
+        assert_eq!(ok.first(), Some(&("Alt+H".to_string(), Cmd::Up)));
+        assert_eq!(ok.len(), 5);
+        // O último a ser lido vence ao montar o mapa.
+        assert_eq!(ok.last(), Some(&("Alt+J".to_string(), Cmd::Terminal)));
+        assert_eq!(bad, ["preset = emacs"]);
     }
 
     #[test]

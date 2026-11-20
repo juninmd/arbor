@@ -20,6 +20,7 @@ pub fn enabled() -> bool {
 pub fn cancel(tab: &mut Tab) {
     tab.sizes_stop.store(true, Ordering::Relaxed);
     tab.dir_sizes = false;
+    tab.unknown_sizes.clear();
 }
 
 impl App {
@@ -52,11 +53,12 @@ impl App {
         )
     }
 
-    pub(super) fn on_dir_sizes(&mut self, id: u64, dir: PathBuf, sizes: Option<Vec<(PathBuf, u64)>>) -> Task<Message> {
+    pub(super) fn on_dir_sizes(&mut self, id: u64, dir: PathBuf, sizes: Option<Vec<(PathBuf, arbor_core::du::Size)>>) -> Task<Message> {
         let show = self.show_hidden;
         let Some(sizes) = sizes else { return Task::none() };
         let Some(tab) = self.find_tab(id).filter(|t| t.path == dir) else { return Task::none() };
-        let sizes: std::collections::HashMap<PathBuf, u64> = sizes.into_iter().collect();
+        tab.unknown_sizes = sizes.iter().filter(|(_, s)| !s.complete).map(|(p, _)| p.clone()).collect();
+        let sizes: std::collections::HashMap<PathBuf, u64> = sizes.into_iter().map(|(p, s)| (p, s.bytes)).collect();
         let sort = tab.sort;
         tab.edit_entries(show, |entries| {
             let list = Arc::<Vec<Entry>>::make_mut(entries);
