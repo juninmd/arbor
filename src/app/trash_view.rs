@@ -14,6 +14,21 @@ pub enum Irreversible {
     Purge(Vec<PathBuf>),
     Empty,
     DeleteNow(Vec<PathBuf>),
+    /// "Sincronizar com o outro painel": copiar substituindo as versões antigas do destino.
+    Sync {
+        sources: Vec<PathBuf>,
+        dest: PathBuf,
+    },
+}
+
+impl Irreversible {
+    /// Texto do botão de confirmar.
+    pub fn verb(&self) -> &'static str {
+        match self {
+            Irreversible::Sync { .. } => "Sincronizar",
+            _ => "Excluir",
+        }
+    }
 }
 
 fn blocking(f: impl FnOnce() -> Result<String, String> + Send + 'static) -> Task<Message> {
@@ -74,6 +89,7 @@ impl App {
             Irreversible::DeleteNow(paths) => {
                 blocking(move || trashbin::delete_now(&paths).map(|n| format!("{} excluído(s) permanentemente", count(n))))
             }
+            Irreversible::Sync { sources, dest } => self.start_sync(sources, dest),
         }
     }
 

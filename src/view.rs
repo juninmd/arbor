@@ -870,14 +870,14 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         Overlay::Conflict { clashes, .. } => conflict_sheet(clashes),
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
         Overlay::Jump(j) => return Some(commands_view::jump(app, j)),
-        Overlay::Confirm { text: question, .. } => sheet(
+        Overlay::Confirm { text: question, action } => sheet(
             column![
                 text("Confirmar").font(theme::DISPLAY).size(16),
                 text(question.as_str()).size(13.5),
                 row![
                     space().width(Fill),
                     button(text("Cancelar").size(13)).padding([7, 14]).on_press(Message::CloseOverlay).style(theme::ghost),
-                    button(text("Excluir").size(13)).padding([7, 14]).on_press(Message::Confirmed).style(theme::primary),
+                    button(text(action.verb()).size(13)).padding([7, 14]).on_press(Message::Confirmed).style(theme::primary),
                 ]
                 .spacing(8)
             ]

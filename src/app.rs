@@ -2,6 +2,7 @@
 
 use crate::commands::{self, Cmd};
 mod address;
+mod compare_dirs;
 mod details;
 mod drag;
 mod flat;
@@ -1512,6 +1513,8 @@ impl App {
             }
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::CompareDirs => self.compare_dirs(),
+            Cmd::SyncDirs => self.sync_dirs(),
             Cmd::DuplicateTab => self.duplicate_tab(),
             Cmd::CloseOtherTabs => self.close_many(tabs::Close::Others),
             Cmd::CloseTabsLeft => self.close_many(tabs::Close::Left),
@@ -2183,7 +2186,8 @@ impl App {
             Overlay::Jump(_) => return self.jump_key(named),
             Overlay::Confirm { .. } => {
                 return match named {
-                    Some(Named::Enter) => self.confirmed(),
+                    // Enter capturado é o mesmo Enter que rodou o comando na paleta: não confirma sozinho.
+                    Some(Named::Enter) if !captured => self.confirmed(),
                     Some(Named::Escape) => {
                         self.overlay = Overlay::None;
                         Task::none()
@@ -2221,6 +2225,7 @@ impl App {
             Some(Named::Tab) if mods.control() => return self.run(if mods.shift() { Cmd::PrevTab } else { Cmd::NextTab }),
             Some(Named::ContextMenu) => return self.keyboard_menu(),
             Some(Named::F10) if mods.shift() => return self.keyboard_menu(),
+            Some(Named::F2) if mods.shift() => return self.run(Cmd::CompareDirs),
             Some(Named::F2) => return self.run(Cmd::Rename),
             Some(Named::F3) => return self.run(Cmd::ToggleDual),
             Some(Named::F5) => return self.run(Cmd::CopyToOther),

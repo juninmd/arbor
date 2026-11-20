@@ -77,6 +77,9 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
+* **Comparar e sincronizar pastas** no painel duplo, como no Total Commander: `Shift+F2` seleciona em cada lado o
+  que só existe nele ou é mais novo (`F5` copia); "Sincronizar com o outro painel" copia tudo isso de uma vez,
+  depois de confirmar, substituindo as versões antigas e sem apagar nada.
 * **Navegação sincronizada** no painel duplo (paleta: "Navegação sincronizada"): entrar numa subpasta de um
   lado entra na de mesmo nome do outro, e subir sobe os dois, como no Directory Opus.
 * **Menu da aba** (botão direito): duplicar (`Ctrl+Shift+D`), **travar** (a aba fica na pasta dela; navegar a
@@ -219,6 +222,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+N` | Nova janela |
 | botões laterais do mouse | Voltar / avançar |
 | `F5` / `F6` | Copiar / mover para o outro painel |
+| `Shift+F2` | Comparar as pastas dos dois painéis (seleciona o que difere) |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
 | `Shift+Delete` | Excluir permanentemente (pede confirmação) |
 | `Ctrl+Z` | Desfazer |
