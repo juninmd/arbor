@@ -140,19 +140,19 @@ fn tabs_bar(p: &Pane, pane: usize, pane_active: bool) -> Element<'_, Message> {
     for (i, tab) in p.tabs.iter().enumerate() {
         let selected = i == p.active;
         let color = if selected { theme::ICE } else { theme::now().ink3 };
-        let mut label = row![icon(Icon::Folder, 14.0, color), text(shorten(&tab.title(), 24)).size(12).wrapping(Wrapping::None)]
+        let ic = if tab.locked { Icon::Lock } else { Icon::Folder };
+        let mut label = row![icon(ic, 14.0, color), text(shorten(&tab.title(), 24)).size(12).wrapping(Wrapping::None)]
             .spacing(7)
             .align_y(Alignment::Center);
         if p.tabs.len() > 1 {
             label =
                 label.push(button(text("×").size(13)).padding([0, 5]).on_press(Message::CloseTabAt { pane, index: i }).style(theme::ghost));
         }
-        r = r.push(
-            button(label)
-                .padding([6, 11])
-                .on_press(Message::SelectTab { pane, index: i })
-                .style(move |t: &Theme, s| theme::tab(t, s, selected, pane_active)),
-        );
+        let b = button(label)
+            .padding([6, 11])
+            .on_press(Message::SelectTab { pane, index: i })
+            .style(move |t: &Theme, s| theme::tab(t, s, selected, pane_active));
+        r = r.push(mouse_area(b).on_right_press(Message::TabMenu { pane, index: i }));
     }
     r = r.push(icon_button(Icon::Plus, Cmd::NewTab, Message::NewTabIn(pane)));
     container(scrollable(r).direction(thin_horizontal()).style(theme::scrollbar)).padding(Padding::new(8.0).bottom(0.0)).into()

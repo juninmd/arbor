@@ -17,7 +17,9 @@ const EDGE: f32 = 5.0;
 
 fn tab_icon<'a>(p: &Pane, i: usize) -> Element<'a, Message> {
     let path = &p.tabs[i].path;
-    let ic = if crate::computer::is(path) {
+    let ic = if p.tabs[i].locked {
+        Icon::Lock
+    } else if crate::computer::is(path) {
         Icon::DriveSystem
     } else if crate::home::is(path) {
         Icon::Home
@@ -49,7 +51,9 @@ fn title_tabs(app: &App) -> Element<'_, Message> {
             .padding(Padding::from([0, 4]).left(12.0))
             .on_press(Message::SelectTab { pane, index: i })
             .style(move |t: &Theme, s| theme::win_tab(t, s, selected));
-        r = r.push(mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }));
+        r = r.push(
+            mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }).on_right_press(Message::TabMenu { pane, index: i }),
+        );
         // filete entre abas inativas, como no Explorer
         let next_selected = i + 1 == p.active;
         if !selected && !next_selected {
@@ -128,7 +132,9 @@ pub fn vertical_tabs(app: &App) -> Element<'_, Message> {
             .padding(Padding::from([4, 4]).left(10.0))
             .on_press(Message::SelectTab { pane, index: i })
             .style(move |t: &Theme, s| theme::side_tab(t, s, selected));
-        col = col.push(mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }));
+        col = col.push(
+            mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }).on_right_press(Message::TabMenu { pane, index: i }),
+        );
     }
     let add = button(
         row![icon(Icon::Plus, 14.0, theme::now().ink2), text("Nova aba").size(12.5), space().width(Fill), kbd(Cmd::NewTab.shortcut())]

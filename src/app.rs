@@ -13,6 +13,7 @@ mod properties;
 pub mod rate;
 mod repos;
 mod select;
+mod tabs;
 mod trash_view;
 mod tree;
 
@@ -196,6 +197,8 @@ pub struct Tab {
     pub grouped: groups::Grouped,
     /// Subpastas que são repositórios git (têm `.git`), verificadas depois da listagem completa.
     pub repos: HashSet<PathBuf>,
+    /// Aba travada: navegar a partir dela abre outra aba, e ela não fecha junto com as outras.
+    pub locked: bool,
 }
 
 impl Tab {
@@ -226,6 +229,7 @@ impl Tab {
             group: None,
             grouped: groups::Grouped::default(),
             repos: HashSet::new(),
+            locked: false,
         }
     }
 
@@ -561,6 +565,11 @@ pub enum Message {
         index: usize,
     },
     CloseTabAt {
+        pane: usize,
+        index: usize,
+    },
+    /// Botão direito numa aba.
+    TabMenu {
         pane: usize,
         index: usize,
     },
@@ -994,6 +1003,10 @@ impl App {
         if tab.path == path {
             return Task::none();
         }
+        if tab.locked {
+            return self.new_tab_at(pane, path);
+        }
+        let tab = self.panes[pane].tab_mut();
         let old = std::mem::replace(&mut tab.path, path.clone());
         tab.back.push(old);
         tab.forward.clear();
@@ -1021,6 +1034,9 @@ impl App {
     }
 
     fn history(&mut self, back: bool) -> Task<Message> {
+        if self.tab().locked {
+            return self.notify("Aba travada: destrave para voltar ou avançar", false);
+        }
         let tab = self.tab_mut();
         let target = if back { tab.back.pop() } else { tab.forward.pop() };
         let Some(target) = target else { return Task::none() };
@@ -1483,6 +1499,11 @@ impl App {
                 let i = self.panes[pane].active;
                 self.close_tab(pane, i)
             }
+            Cmd::LockTab => self.toggle_lock(),
+            Cmd::DuplicateTab => self.duplicate_tab(),
+            Cmd::CloseOtherTabs => self.close_many(tabs::Close::Others),
+            Cmd::CloseTabsLeft => self.close_many(tabs::Close::Left),
+            Cmd::CloseTabsRight => self.close_many(tabs::Close::Right),
             Cmd::ReopenTab => {
                 let Some((pane, path, grid)) = self.closed.pop() else { return self.notify("Nenhuma aba fechada", false) };
                 let task = self.new_tab(pane);
@@ -1926,6 +1947,10 @@ impl App {
         if p.tabs.len() == 1 {
             return Task::none();
         }
+        if p.tabs.get(index).is_some_and(|t| t.locked) {
+            return self.notify("Aba travada: destrave antes de fechar", false);
+        }
+        let p = &mut self.panes[pane];
         let tab = p.tabs.remove(index);
         self.closed.push((pane, tab.path, tab.grid));
         if self.closed.len() > 30 {
@@ -2209,6 +2234,7 @@ impl App {
                     ("e", false) => Some(Cmd::Extract),
                     ("e", true) => Some(Cmd::Compress),
                     ("t", true) => Some(Cmd::ReopenTab),
+                    ("d", true) => Some(Cmd::DuplicateTab),
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
@@ -2422,6 +2448,7 @@ impl App {
                 Task::none()
             }
             Message::CloseTabAt { pane, index } => self.close_tab(pane, index),
+            Message::TabMenu { pane, index } => self.tab_menu(pane, index),
             Message::NewTabIn(pane) => self.new_tab(pane),
             Message::FocusPane(pane) => {
                 self.active = pane;
