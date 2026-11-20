@@ -48,6 +48,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+/// Miniaturas na memória antes de podar o que está fora da janela.
+const THUMBS_KEPT: usize = 5000;
 pub const ROW_H: f32 = 34.0;
 pub const SIDEBAR_W: f32 = 236.0;
 /// Coluna das abas verticais.
@@ -189,6 +191,10 @@ pub struct Tab {
     pub filter: String,
     pub sort: Sort,
     pub loading: bool,
+    /// O disco mudou desde a última leitura e a atualização ainda não aconteceu.
+    dirty: bool,
+    retry_pending: bool,
+    settled_at: Instant,
     refreshing: bool,
     generation: u64,
     pub error: Option<String>,
@@ -234,6 +240,9 @@ impl Tab {
             filter: String::new(),
             sort: Sort::default(),
             loading: false,
+            dirty: false,
+            retry_pending: false,
+            settled_at: Instant::now(),
             refreshing: false,
             generation: 0,
             error: None,
@@ -638,7 +647,7 @@ pub enum Message {
     },
     Thumb {
         path: PathBuf,
-        handle: Option<Handle>,
+        thumb: media::Thumb,
     },
     Job {
         id: u64,
@@ -659,6 +668,8 @@ pub enum Message {
     KeepNewer,
     ToastExpired(u64),
     DirChanged(PathBuf),
+    /// Fim da espera entre duas atualizações da mesma pasta.
+    DirDirty(u64),
     Places(Vec<Drive>),
     Glass(bool),
     /// Janela sem moldura do sistema: arrastar, redimensionar e os três botões vêm da barra de título.
@@ -992,6 +1003,7 @@ impl App {
         tab.generation += 1;
         folder_sizes::cancel(tab);
         tab.loading = true;
+        tab.dirty = false; // esta leitura já enxerga o que mudou até agora
         tab.refreshing = refresh;
         if !refresh {
             tab.focus_on_load.retain(|p| p.parent() == Some(path.as_path()));
@@ -1189,6 +1201,7 @@ impl App {
             }
             let Some(tab) = self.find_tab(id) else { return Task::none() };
             tab.loading = false;
+            tab.settled_at = Instant::now();
             tab.listed = Some((tab.entries.len(), snap.elapsed));
             tab.hidden = tab.entries.iter().filter(|e| e.hidden).count();
             if tab.refreshing {
@@ -1212,7 +1225,12 @@ impl App {
                 task = self.reveal_cursor(id);
             }
         }
-        let extras = if complete { Task::batch([self.scan_repos(id), self.measure_dirs(id), self.read_branch(id)]) } else { Task::none() };
+        let extras = if complete {
+            let again = self.pane_of(id).map_or_else(Task::none, |p| self.refresh_dirty(p));
+            Task::batch([self.scan_repos(id), self.measure_dirs(id), self.read_branch(id), again])
+        } else {
+            Task::none()
+        };
         Task::batch([task, self.request_thumbs(id), extras])
     }
 
@@ -1300,17 +1318,22 @@ impl App {
         let rows = (tab.viewport_h / cell_h).ceil() as usize + 2;
         let start = first_row.saturating_sub(1) * cols;
         let end = ((first_row + rows) * cols).min(tab.view.len());
-        let wanted: Vec<PathBuf> = (start..end)
+        let window: Vec<PathBuf> = (start..end)
             .filter_map(|i| tab.entry_at(i))
-            .filter(|e| !e.is_dir && crate::thumbs::supported(&e.path) && !self.thumbs.contains_key(&e.path))
+            .filter(|e| !e.is_dir && crate::thumbs::supported(&e.path))
             .map(|e| e.path.clone())
             .collect();
-        if self.thumbs.len() + wanted.len() > 5000 {
-            self.thumbs.clear(); // voltam do cache em disco, que é rápido
+        // Quem saiu da tela não precisa mais de miniatura: tarefas ainda na fila desistem sozinhas.
+        media::want(id, &window);
+        let wanted: Vec<PathBuf> = window.iter().filter(|p| !self.thumbs.contains_key(*p)).cloned().collect();
+        if self.thumbs.len() + wanted.len() > THUMBS_KEPT {
+            // Só o que está na janela fica: esvaziar tudo faria a grade piscar e pedir tudo de novo.
+            let keep: HashSet<&PathBuf> = window.iter().collect();
+            self.thumbs.retain(|p, _| keep.contains(p));
         }
         Task::batch(wanted.into_iter().map(|path| {
             self.thumbs.insert(path.clone(), None);
-            Task::perform(media::thumbnail(path.clone()), move |handle| Message::Thumb { path: path.clone(), handle })
+            Task::perform(media::thumbnail(path.clone()), move |thumb| Message::Thumb { path: path.clone(), thumb })
         }))
     }
 
@@ -1398,6 +1421,28 @@ impl App {
         let id = self.next_toast;
         self.toast = Some(Toast { id, text: text.into(), error });
         Task::perform(tokio::time::sleep(Duration::from_secs(if error { 7 } else { 4 })), move |_| Message::ToastExpired(id))
+    }
+
+    /// Relê a pasta se algo mudou nela, sem passar de uma leitura a cada 4× o tempo que a anterior levou.
+    /// Enquanto uma cópia grande escreve numa pasta de 100 mil itens, reler a cada 250 ms gastaria os núcleos todos;
+    /// mudanças que chegam durante a leitura não se perdem: a marca fica e a pasta é relida logo depois.
+    fn refresh_dirty(&mut self, pane: usize) -> Task<Message> {
+        let t = self.panes[pane].tab_mut();
+        if !t.dirty || t.loading || t.search.is_some() {
+            return Task::none();
+        }
+        let gap = t.listed.map_or(Duration::ZERO, |(_, took)| arbor_core::scan::refresh_gap(took));
+        let wait = gap.saturating_sub(t.settled_at.elapsed());
+        if wait.is_zero() {
+            t.dirty = false;
+            let path = t.path.clone();
+            return self.load(pane, path, true);
+        }
+        if std::mem::replace(&mut t.retry_pending, true) {
+            return Task::none();
+        }
+        let id = t.id;
+        Task::perform(tokio::time::sleep(wait), move |()| Message::DirDirty(id))
     }
 
     fn refresh_all(&mut self) -> Task<Message> {
@@ -2740,9 +2785,18 @@ impl App {
                 }
                 Task::none()
             }
-            Message::Thumb { path, handle } => {
-                if handle.is_some() {
-                    self.thumbs.insert(path, handle);
+            Message::Thumb { path, thumb } => {
+                match thumb {
+                    media::Thumb::Ready(handle) => {
+                        self.thumbs.insert(path, Some(handle));
+                    }
+                    // Saiu da tela antes de começar: esquece e confere se já voltou, para não ficar sem miniatura.
+                    media::Thumb::Skipped => {
+                        self.thumbs.remove(&path);
+                        let ids: Vec<u64> = self.panes.iter().map(|p| p.tab().id).collect();
+                        return Task::batch(ids.into_iter().map(|id| self.request_thumbs(id)).collect::<Vec<_>>());
+                    }
+                    media::Thumb::Failed => {}
                 }
                 Task::none()
             }
@@ -2831,17 +2885,22 @@ impl App {
                 Task::none()
             }
             Message::DirChanged(path) => {
-                let tasks: Vec<_> = (0..2)
-                    .filter(|&p| {
-                        let t = self.panes[p].tab();
-                        t.path == path && !t.loading && t.search.is_none()
-                    })
-                    .collect::<Vec<_>>()
-                    .into_iter()
-                    .map(|p| self.load(p, path.clone(), true))
-                    .collect();
-                Task::batch(tasks)
+                let panes: Vec<usize> =
+                    (0..2).filter(|&p| self.panes[p].tab().path == path && self.panes[p].tab().search.is_none()).collect();
+                for &p in &panes {
+                    self.panes[p].tab_mut().dirty = true;
+                }
+                Task::batch(panes.into_iter().map(|p| self.refresh_dirty(p)).collect::<Vec<_>>())
             }
+            Message::DirDirty(id) => match self.pane_of(id) {
+                Some(p) => {
+                    if let Some(t) = self.find_tab(id) {
+                        t.retry_pending = false;
+                    }
+                    self.refresh_dirty(p)
+                }
+                None => Task::none(),
+            },
             Message::Remote(target) => {
                 let pane = self.active;
                 let tab = self.new_tab(pane);

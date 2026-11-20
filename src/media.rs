@@ -1,9 +1,10 @@
 //! Preview (Espaço) e miniaturas, gerados pelo vislo-core fora da thread da interface.
 
 use iced::widget::image::Handle;
+use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
+use std::sync::{LazyLock, Mutex};
 use tokio::sync::Semaphore;
 use vislo_core::{decode, exif_info, formats, resize};
 
@@ -49,14 +50,44 @@ pub async fn preview(path: PathBuf) -> Preview {
     blocking(move || load_preview(&path)).await.unwrap_or_else(|| Preview::Error("falhou".into()))
 }
 
-pub async fn thumbnail(path: PathBuf) -> Option<Handle> {
-    blocking(move || {
-        let cache = crate::thumbs::cache_dir();
+/// Resultado de um pedido de miniatura.
+#[derive(Debug, Clone)]
+pub enum Thumb {
+    Ready(Handle),
+    /// Sem miniatura para este arquivo; não adianta pedir de novo.
+    Failed,
+    /// O arquivo saiu da janela visível antes de começar: nada foi gerado.
+    Skipped,
+}
+
+/// Janela visível de cada aba. Com a roda rápida a fila enche de pedidos de linhas que já passaram; sem isto
+/// a miniatura da linha onde o usuário parou esperaria atrás de todas elas.
+static WINDOWS: LazyLock<Mutex<HashMap<u64, HashSet<PathBuf>>>> = LazyLock::new(Mutex::default);
+
+/// Declara o que a aba `tab` mostra agora (substitui a janela anterior).
+pub fn want(tab: u64, paths: &[PathBuf]) {
+    if let Ok(mut w) = WINDOWS.lock() {
+        w.insert(tab, paths.iter().cloned().collect());
+    }
+}
+
+fn is_wanted(path: &Path) -> bool {
+    WINDOWS.lock().map_or(true, |w| w.values().any(|set| set.contains(path)))
+}
+
+pub async fn thumbnail(path: PathBuf) -> Thumb {
+    let cache = crate::thumbs::cache_dir();
+    let task = blocking(move || {
+        if !is_wanted(&path) {
+            return Thumb::Skipped;
+        }
         let _ = std::fs::create_dir_all(&cache);
-        crate::thumbs::generate(&cache, &path, THUMB_SIZE).ok().map(Handle::from_bytes)
-    })
-    .await
-    .flatten()
+        match crate::thumbs::generate(&cache, &path, THUMB_SIZE) {
+            Ok(bytes) => Thumb::Ready(Handle::from_bytes(bytes)),
+            Err(_) => Thumb::Failed,
+        }
+    });
+    task.await.unwrap_or(Thumb::Failed)
 }
 
 pub fn is_image(path: &Path) -> bool {
@@ -164,6 +195,22 @@ mod tests {
         std::fs::write(&b, [0u8, 1, 2, 3]).unwrap();
         assert!(matches!(load_preview(&b), Preview::Other { .. }));
         assert!(matches!(load_preview(d.path()), Preview::Folder { files: 2, .. }));
+    }
+
+    #[test]
+    fn miniatura_de_quem_saiu_da_tela_nao_e_gerada() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("x.png");
+        image::RgbaImage::from_pixel(8, 8, image::Rgba([0, 255, 0, 255])).save(&p).unwrap();
+        let tab = 9_001;
+        want(tab, std::slice::from_ref(&p));
+        assert!(matches!(pollster_block(thumbnail(p.clone())), Thumb::Ready(_)), "na janela: gera");
+        want(tab, &[]);
+        assert!(matches!(pollster_block(thumbnail(p)), Thumb::Skipped), "fora da janela: desiste sem gerar");
+    }
+
+    fn pollster_block<T>(f: impl std::future::Future<Output = T>) -> T {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(f)
     }
 
     #[test]
