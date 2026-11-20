@@ -106,6 +106,32 @@ pub(super) const VIDRO: Tokens = Tokens {
         cat: [0xff375f, 0x64d2ff, 0xffd60a, 0xbf5af2, 0x30d158],
     })
 };
+pub(super) const AURORA_CANTO: Tokens = canto(Skin {
+    ink: 0x0c0a1e,
+    panel: 0x120f2a,
+    edge: 0x2f2866,
+    accent: 0xff7ad9,
+    accent_text: 0xff9be4,
+    fg: 0xf1eefc,
+    muted: 0xb0a9d6,
+    faint: 0x9b94c4,
+    line: 0x6b62a8,
+    state: [0xfb7185, 0x5eead4, 0xfcd34d],
+    cat: [0xfb7185, 0x5eead4, 0xfcd34d, 0xff7ad9, 0x8b7bff],
+});
+pub(super) const CLARO_CANTO: Tokens = canto(Skin {
+    ink: 0xf1f5f9,
+    panel: 0xffffff,
+    edge: 0xe2e8f0,
+    accent: 0x15803d,
+    accent_text: 0x15803d,
+    fg: 0x0f172a,
+    muted: 0x475569,
+    faint: 0x556173,
+    line: 0x7b8595,
+    state: [0xbe123c, 0x15803d, 0xb45309],
+    cat: [0xe11d48, 0x0369a1, 0xb45309, 0x6d28d9, 0x0f766e],
+});
 
 /// Skins opacas do canto: sem aurora, só o fundo.
 pub(super) const NO_BLOBS: [Blob; 4] = [(0, 0.0, 0.0, 0.1, 0.0); 4];

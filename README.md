@@ -51,7 +51,7 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   que 50.
 * **Bonito em movimento.** Tema *Glass* com fontes Sora, Manrope e JetBrains Mono embutidas, ícones por tipo
   (pasta, imagem, código, documento, áudio, vídeo, compactado).
-* **Temas:** Aurora, Claro, Meia-noite, Grafite, Oceano, Pôr do sol e, vindos do canto-widget, Canto, Hueco Mundo, Drácula e Vidro, cada um com a própria aurora atrás do vidro.
+* **Temas:** Aurora, Claro, Meia-noite, Grafite, Oceano, Pôr do sol e, vindos do canto-widget, Canto, Hueco Mundo, Drácula, Vidro, Aurora Canto e Claro Canto, cada um com a própria aurora atrás do vidro.
   Escolha pelo botão de paleta na barra de título ou pela paleta de comandos ("Tema: …", "Próximo tema"); fica
   salvo em `~/.config/arbor/settings`.
 * **Janela própria**, no jeito do Explorer do Windows 11: abas na barra de título, faixa com endereço e barra de
@@ -108,6 +108,7 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 | ![Tema Oceano com abas verticais](docs/temas/oceano-abas-verticais.png) | ![Tema Grafite em painel duplo](docs/temas/grafite-painel-duplo.png) |
 | ![Tema Canto, verde do canto-widget](docs/temas/canto.png) | ![Tema Hueco Mundo, preto e vermelho](docs/temas/hueco-mundo.png) |
 | ![Tema Drácula com abas verticais](docs/temas/dracula-abas-verticais.png) | ![Tema Vidro, azul no estilo Apple](docs/temas/vidro.png) |
+| ![Tema Aurora Canto, violeta com brilhos rosa e verde-água](docs/temas/aurora-canto.png) | ![Tema Claro Canto, claro com verde](docs/temas/claro-canto.png) |
 
 | Paleta de comandos | Preview com Espaço |
 |---|---|

@@ -1752,7 +1752,9 @@ impl App {
             | Cmd::ThemeCanto
             | Cmd::ThemeHuecoMundo
             | Cmd::ThemeDracula
-            | Cmd::ThemeVidro => self.set_palette(crate::palettes::Palette::of_cmd(cmd).expect("comando de tema")),
+            | Cmd::ThemeVidro
+            | Cmd::ThemeAuroraCanto
+            | Cmd::ThemeClaroCanto => self.set_palette(crate::palettes::Palette::of_cmd(cmd).expect("comando de tema")),
             Cmd::VerticalTabs => {
                 self.vertical_tabs = !self.vertical_tabs;
                 match crate::session::set_setting("vertical_tabs", if self.vertical_tabs { "true" } else { "false" }) {
