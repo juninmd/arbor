@@ -4,6 +4,7 @@ use crate::commands::{self, Cmd};
 mod address;
 mod details;
 mod drag;
+mod flat;
 pub mod groups;
 mod jump;
 mod menu;
@@ -12,6 +13,8 @@ mod properties;
 pub mod rate;
 mod repos;
 mod select;
+mod sync_nav;
+mod tabs;
 mod trash_view;
 mod tree;
 
@@ -51,6 +54,8 @@ pub struct App {
     pub panes: [Pane; 2],
     pub active: usize,
     pub dual: bool,
+    /// Painel duplo com navegação sincronizada (ver `sync_nav`).
+    pub sync_nav: bool,
     pub overlay: Overlay,
     pub jobs: Vec<Job>,
     next_job: u64,
@@ -195,6 +200,8 @@ pub struct Tab {
     pub grouped: groups::Grouped,
     /// Subpastas que são repositórios git (têm `.git`), verificadas depois da listagem completa.
     pub repos: HashSet<PathBuf>,
+    /// Aba travada: navegar a partir dela abre outra aba, e ela não fecha junto com as outras.
+    pub locked: bool,
 }
 
 impl Tab {
@@ -225,10 +232,14 @@ impl Tab {
             group: None,
             grouped: groups::Grouped::default(),
             repos: HashSet::new(),
+            locked: false,
         }
     }
 
     pub fn title(&self) -> String {
+        if flat::is_flat(&self.search) {
+            return format!("Plana: {}", ops::name(&self.path));
+        }
         if let Some((q, _)) = &self.search {
             return format!("Busca: {q}");
         }
@@ -560,6 +571,11 @@ pub enum Message {
         pane: usize,
         index: usize,
     },
+    /// Botão direito numa aba.
+    TabMenu {
+        pane: usize,
+        index: usize,
+    },
     NewTabIn(usize),
     FocusPane(usize),
     SortBy {
@@ -658,6 +674,7 @@ impl App {
             ],
             active: 0,
             dual: false,
+            sync_nav: false,
             closed: vec![],
             saved: None,
             restore,
@@ -986,10 +1003,21 @@ impl App {
     }
 
     fn navigate(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
+        let old = self.panes[pane].tab().path.clone();
+        let task = self.navigate_one(pane, path.clone());
+        let follow = self.follow(pane, &old, &path);
+        Task::batch([task, follow])
+    }
+
+    fn navigate_one(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
         let tab = self.panes[pane].tab_mut();
         if tab.path == path {
             return Task::none();
         }
+        if tab.locked {
+            return self.new_tab_at(pane, path);
+        }
+        let tab = self.panes[pane].tab_mut();
         let old = std::mem::replace(&mut tab.path, path.clone());
         tab.back.push(old);
         tab.forward.clear();
@@ -1017,6 +1045,9 @@ impl App {
     }
 
     fn history(&mut self, back: bool) -> Task<Message> {
+        if self.tab().locked {
+            return self.notify("Aba travada: destrave para voltar ou avançar", false);
+        }
         let tab = self.tab_mut();
         let target = if back { tab.back.pop() } else { tab.forward.pop() };
         let Some(target) = target else { return Task::none() };
@@ -1479,6 +1510,12 @@ impl App {
                 let i = self.panes[pane].active;
                 self.close_tab(pane, i)
             }
+            Cmd::LockTab => self.toggle_lock(),
+            Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::DuplicateTab => self.duplicate_tab(),
+            Cmd::CloseOtherTabs => self.close_many(tabs::Close::Others),
+            Cmd::CloseTabsLeft => self.close_many(tabs::Close::Left),
+            Cmd::CloseTabsRight => self.close_many(tabs::Close::Right),
             Cmd::ReopenTab => {
                 let Some((pane, path, grid)) = self.closed.pop() else { return self.notify("Nenhuma aba fechada", false) };
                 let task = self.new_tab(pane);
@@ -1609,6 +1646,7 @@ impl App {
                     Err(e) => self.notify(format!("Nova janela: {e}"), true),
                 }
             }
+            Cmd::FlatView => self.toggle_flat(),
             Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
             Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
             Cmd::SelectSameKind => self.select_same_kind(),
@@ -1921,6 +1959,10 @@ impl App {
         if p.tabs.len() == 1 {
             return Task::none();
         }
+        if p.tabs.get(index).is_some_and(|t| t.locked) {
+            return self.notify("Aba travada: destrave antes de fechar", false);
+        }
+        let p = &mut self.panes[pane];
         let tab = p.tabs.remove(index);
         self.closed.push((pane, tab.path, tab.grid));
         if self.closed.len() > 30 {
@@ -2204,6 +2246,7 @@ impl App {
                     ("e", false) => Some(Cmd::Extract),
                     ("e", true) => Some(Cmd::Compress),
                     ("t", true) => Some(Cmd::ReopenTab),
+                    ("d", true) => Some(Cmd::DuplicateTab),
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
@@ -2211,6 +2254,7 @@ impl App {
                     ("f", true) => Some(Cmd::Search),
                     ("h", false) => Some(Cmd::ToggleHidden),
                     ("g", false) => Some(Cmd::ToggleGrid),
+                    ("b", false) => Some(Cmd::FlatView),
                     ("1", _) => Some(Cmd::SortName),
                     ("2", _) => Some(Cmd::SortSize),
                     ("3", _) => Some(Cmd::SortModified),
@@ -2416,6 +2460,7 @@ impl App {
                 Task::none()
             }
             Message::CloseTabAt { pane, index } => self.close_tab(pane, index),
+            Message::TabMenu { pane, index } => self.tab_menu(pane, index),
             Message::NewTabIn(pane) => self.new_tab(pane),
             Message::FocusPane(pane) => {
                 self.active = pane;

@@ -23,6 +23,8 @@ pub enum MenuKind {
     Columns,
     /// Botão de tema na barra de título.
     Themes,
+    /// Botão direito numa aba.
+    Tab,
 }
 
 pub struct Menu {
@@ -93,6 +95,17 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Details),
         ],
         MenuKind::Sidebar => vec![Some(OpenInNewTab), Some(Pin)],
+        MenuKind::Tab => vec![
+            Some(DuplicateTab),
+            Some(LockTab),
+            None,
+            Some(CloseTab),
+            Some(CloseOtherTabs),
+            Some(CloseTabsLeft),
+            Some(CloseTabsRight),
+            None,
+            Some(ReopenTab),
+        ],
         MenuKind::New => vec![Some(NewFolder), Some(NewTextFile), Some(NewZip)],
         MenuKind::Sort => vec![
             Some(SortName),
