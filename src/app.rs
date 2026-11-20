@@ -2,8 +2,8 @@
 
 use crate::commands::{self, Cmd};
 mod address;
-mod checksum_cmds;
 mod compare_dirs;
+mod content;
 mod details;
 mod drag;
 mod export;
@@ -1533,6 +1533,7 @@ impl App {
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
             Cmd::CopyListing => self.copy_listing(),
+            Cmd::CompareFiles => self.compare_files(),
             Cmd::CreateChecksums => self.create_checksums(),
             Cmd::VerifyChecksums => self.verify_checksums(),
             Cmd::FolderSizes => self.toggle_folder_sizes(),

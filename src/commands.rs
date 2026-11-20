@@ -88,6 +88,7 @@ pub enum Cmd {
     Reveal,
     WhoUses,
     CreateChecksums,
+    CompareFiles,
     VerifyChecksums,
     Pin,
     Eject,
@@ -192,6 +193,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::Reveal,
     Cmd::WhoUses,
     Cmd::CreateChecksums,
+    Cmd::CompareFiles,
     Cmd::VerifyChecksums,
     Cmd::Pin,
     Cmd::Eject,
@@ -299,6 +301,7 @@ impl Cmd {
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
             Cmd::WhoUses => "Quem está usando este arquivo?",
             Cmd::CreateChecksums => "Criar soma SHA-256 dos arquivos",
+            Cmd::CompareFiles => "Comparar dois arquivos (conteúdo)",
             Cmd::VerifyChecksums => "Conferir somas SHA-256 (arquivo .sha256)",
             Cmd::Pin => "Fixar/desafixar na barra lateral",
             Cmd::Details => "Painel de detalhes",
@@ -404,6 +407,7 @@ impl Cmd {
             | Cmd::GroupSize
             | Cmd::WhoUses
             | Cmd::CreateChecksums
+            | Cmd::CompareFiles
             | Cmd::VerifyChecksums => String::new(),
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
