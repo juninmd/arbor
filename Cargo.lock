@@ -155,7 +155,7 @@ dependencies = [
 
 [[package]]
 name = "arbor"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "arboard",
  "arbor-core",
@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "arbor-bench"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "arbor-core",
  "mimalloc",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "arbor-core"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "chrono",
  "flate2",
