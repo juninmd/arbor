@@ -4,6 +4,7 @@
 //! arbor-bench gen    <pasta> [n]         cria n arquivos (padrão 100 mil) com nomes realistas
 //! arbor-bench suite  <pasta> [--check]   mede primeiro quadro, listagem, ordenação e filtro; --check falha se passar das metas
 //! arbor-bench list   <pasta>             lista + metadados + ordem natural (para comparar com ls, eza, find no hyperfine)
+//! arbor-bench churn  <pasta> [segundos]  pasta que muda sem parar: leituras e CPU gastos pela política antiga (250 ms) e pela atual
 //! arbor-bench filter <consulta>          filtro fuzzy nos nomes lidos da entrada padrão (para comparar com fzf --filter)
 //! ```
 
@@ -49,6 +50,11 @@ fn main() -> ExitCode {
                 let _ = writeln!(out, "{}", names[i]);
             }
             ExitCode::SUCCESS
+        }
+        Some("churn") => {
+            let dir = PathBuf::from(arg(1).unwrap_or("bench-100k"));
+            let secs = arg(2).and_then(|s| s.parse().ok()).unwrap_or(6);
+            churn(&dir, secs)
         }
         Some("suite") => {
             let dir = PathBuf::from(arg(1).unwrap_or("bench-100k"));
@@ -240,4 +246,67 @@ fn fmt(d: Duration) -> String {
     } else {
         format!("{ms:.0} ms")
     }
+}
+
+/// CPU (usuário + sistema) do processo, em segundos; só no Linux, onde o benchmark de CI roda.
+fn cpu_seconds() -> f64 {
+    let stat = std::fs::read_to_string("/proc/self/stat").unwrap_or_default();
+    let f: Vec<&str> = stat.rsplit_once(')').map_or("", |(_, r)| r).split_whitespace().collect();
+    let ticks = |i: usize| f.get(i).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
+    (ticks(11) + ticks(12)) / 100.0
+}
+
+/// Alguém escreve na pasta o tempo todo (cópia grande, build, download); a interface relê a pasta a cada
+/// aviso do disco. Compara reler 250 ms depois do aviso (antes) com esperar também 4× o custo da leitura (agora).
+fn churn(dir: &Path, secs: u64) -> ExitCode {
+    if !dir.is_dir() {
+        generate(dir, DEFAULT_N);
+    }
+    let mut rows = Vec::new();
+    for (name, throttled) in [("250 ms fixos (antes)", false), ("espera 4× a leitura (agora)", true)] {
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let writer = {
+            let (stop, dir) = (stop.clone(), dir.to_path_buf());
+            std::thread::spawn(move || {
+                let mut i = 0u64;
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = std::fs::write(dir.join(format!("churn-{i}.tmp")), b"x");
+                    i += 1;
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                for j in 0..i {
+                    let _ = std::fs::remove_file(dir.join(format!("churn-{j}.tmp")));
+                }
+            })
+        };
+        let (cpu0, start) = (cpu_seconds(), Instant::now());
+        let (mut scans, mut took_total, mut settled) = (0u32, Duration::ZERO, Instant::now());
+        let mut gap = Duration::ZERO;
+        while start.elapsed() < Duration::from_secs(secs) {
+            std::thread::sleep(Duration::from_millis(250)); // o debounce do watcher
+            if throttled {
+                std::thread::sleep(gap.saturating_sub(settled.elapsed()));
+            }
+            let t = Instant::now();
+            let snap = scan_all(dir, Sort::default());
+            gap = arbor_core::scan::refresh_gap(snap.elapsed);
+            took_total += t.elapsed();
+            settled = Instant::now();
+            scans += 1;
+        }
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = writer.join();
+        let wall = start.elapsed().as_secs_f64();
+        rows.push(format!(
+            "| {name} | {scans} | {:.1} s | {:.0} % de 1 núcleo |",
+            took_total.as_secs_f64(),
+            (cpu_seconds() - cpu0) / wall * 100.0
+        ));
+    }
+    println!(
+        "### churn · {} · {secs} s de escrita contínua\n\n| política | leituras | tempo lendo | CPU |\n|---|---:|---:|---:|",
+        dir.display()
+    );
+    rows.iter().for_each(|r| println!("{r}"));
+    ExitCode::SUCCESS
 }

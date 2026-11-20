@@ -21,6 +21,15 @@ const CHUNK: usize = 8_192;
 /// Abaixo disso a leitura é sequencial: distribuir entre threads custaria mais que o `stat`.
 const PARALLEL_FROM: usize = 512;
 
+/// Teto da espera entre duas leituras da mesma pasta que não para de mudar.
+pub const REFRESH_MAX_GAP: Duration = Duration::from_secs(3);
+
+/// Espera mínima entre o fim de uma leitura e o começo da próxima: 4× o tempo que ela levou, até
+/// [`REFRESH_MAX_GAP`]. Quem copia arquivos para uma pasta enorme não faz a interface ler a pasta sem parar.
+pub fn refresh_gap(took: Duration) -> Duration {
+    (took * 4).min(REFRESH_MAX_GAP)
+}
+
 #[derive(Debug, Clone)]
 pub struct Snapshot {
     pub entries: Arc<Vec<Entry>>,
@@ -131,6 +140,13 @@ mod tests {
         assert_eq!(last.entries[0].name, "sub", "pastas primeiro");
         assert_eq!(last.entries[1].name, "f0");
         assert_eq!(last.entries[3].name, "f2", "ordem natural");
+    }
+
+    #[test]
+    fn espera_entre_leituras_cresce_com_o_custo_e_tem_teto() {
+        assert_eq!(refresh_gap(Duration::ZERO), Duration::ZERO, "pasta pequena atualiza na hora");
+        assert_eq!(refresh_gap(Duration::from_millis(100)), Duration::from_millis(400));
+        assert_eq!(refresh_gap(Duration::from_secs(60)), REFRESH_MAX_GAP, "disco lento não congela a lista");
     }
 
     #[test]
