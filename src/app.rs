@@ -6,6 +6,7 @@ mod checksum_cmds;
 mod compare_dirs;
 mod details;
 mod drag;
+mod export;
 mod flat;
 mod folder_sizes;
 pub mod groups;
@@ -1531,6 +1532,7 @@ impl App {
             }
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::CopyListing => self.copy_listing(),
             Cmd::CreateChecksums => self.create_checksums(),
             Cmd::VerifyChecksums => self.verify_checksums(),
             Cmd::FolderSizes => self.toggle_folder_sizes(),

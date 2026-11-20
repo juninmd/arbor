@@ -1254,7 +1254,7 @@ pub(crate) fn drive_look(m: Media) -> (Icon, Color) {
     }
 }
 
-fn kind_label(e: &Entry) -> String {
+pub fn kind_label(e: &Entry) -> String {
     if e.is_dir {
         "Pasta".into()
     } else if e.ext.is_empty() {

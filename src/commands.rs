@@ -83,6 +83,7 @@ pub enum Cmd {
     ThemeSunset,
     VerticalTabs,
     CopyPath,
+    CopyListing,
     Terminal,
     Reveal,
     WhoUses,
@@ -186,6 +187,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::ThemeSunset,
     Cmd::VerticalTabs,
     Cmd::CopyPath,
+    Cmd::CopyListing,
     Cmd::Terminal,
     Cmd::Reveal,
     Cmd::WhoUses,
@@ -292,6 +294,7 @@ impl Cmd {
             Cmd::ThemeSunset => "Tema: Pôr do sol",
             Cmd::VerticalTabs => "Abas verticais",
             Cmd::CopyPath => "Copiar caminho",
+            Cmd::CopyListing => "Copiar listagem (tabela para planilha)",
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
             Cmd::WhoUses => "Quem está usando este arquivo?",
@@ -384,6 +387,7 @@ impl Cmd {
             | Cmd::ThemeSunset
             | Cmd::VerticalTabs => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
+            Cmd::CopyListing => String::new(),
             Cmd::Terminal => format!("{m}+'"),
             Cmd::Reveal
             | Cmd::OpenInNewTab
