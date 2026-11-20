@@ -38,14 +38,17 @@ impl App {
             Ok(d) => d,
             Err(task) => return task,
         };
-        let (nl, nr, same) = (diff.left.len(), diff.right.len(), diff.same);
+        let (nl, nr, same, clash) = (diff.left.len(), diff.right.len(), diff.same, diff.kind_clash.len());
         self.panes[0].tab_mut().selected = diff.left.into_iter().collect();
         self.panes[1].tab_mut().selected = diff.right.into_iter().collect();
-        let text = if nl + nr == 0 {
+        let mut text = if nl + nr + clash == 0 {
             format!("Pastas iguais ({same} itens)")
         } else {
             format!("Esquerda: {nl} diferente(s) · Direita: {nr} diferente(s) · {same} igual(is). F5 copia a seleção")
         };
+        if clash > 0 {
+            text.push_str(&format!(" · {clash} nome(s) são pasta de um lado e arquivo do outro: resolva à mão"));
+        }
         self.notify(text, false)
     }
 
