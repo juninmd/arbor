@@ -425,7 +425,7 @@ impl Cmd {
             | Cmd::CreateChecksums
             | Cmd::CompareFiles
             | Cmd::VerifyChecksums => String::new(),
-            Cmd::Details => "Alt+Shift+P".into(),
+            Cmd::Details => "Alt+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
             Cmd::CheckUpdates

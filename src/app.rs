@@ -2348,7 +2348,8 @@ impl App {
                 return cmd.map_or_else(Task::none, |c| self.run(c));
             }
         }
-        if mods.alt() && mods.shift() && matches!(&key, Key::Character(c) if c.eq_ignore_ascii_case("p")) {
+        // Alt+P (painel de visualização do Explorer) e Alt+Shift+P abrem o mesmo painel, que já traz o preview.
+        if mods.alt() && matches!(&key, Key::Character(c) if c.eq_ignore_ascii_case("p")) {
             return self.run(Cmd::Details);
         }
         // Alt+D: barra de endereço, como no Explorer.
