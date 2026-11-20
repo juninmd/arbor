@@ -4,6 +4,11 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call: # o release roda as mesmas verificações em main antes de publicar
+    inputs:
+      skip-release-build:
+        description: o release já compila o perfil release nas cinco plataformas; não repetir aqui
+        type: boolean
+        default: false
 
 # Um push novo no mesmo PR cancela a run anterior, para a fila não acumular. Em main (e quando o
 # release chama o ci) nada é cancelado: o evento entra no grupo para não colidir com o do release.
@@ -75,6 +80,30 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg poppler-utils
       - run: cargo test --workspace --locked
+
+  # Separado do test: o build release (LTO fat, 1 codegen unit) roda em paralelo em vez de somar ao tempo dos testes.
+  build:
+    name: build release (${{ matrix.name }})
+    if: ${{ !inputs.skip-release-build }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux, os: ubuntu-latest }
+          - { name: macOS, os: macos-latest }
+          - { name: Windows, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Toolchain fixada em rust-toolchain.toml
+        run: rustup toolchain install
+      # mesma chave do build do release.yml: o PR aproveita as dependências release já compiladas em main
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
       - run: cargo build --release --locked
       - name: Tamanho do binário
         shell: bash

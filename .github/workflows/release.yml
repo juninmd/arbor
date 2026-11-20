@@ -20,15 +20,20 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0 # igual ao ci.yml: o hash de ambiente do rust-cache bate e o cache release é compartilhado
 
 jobs:
   ci:
     if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
     uses: ./.github/workflows/ci.yml
+    with:
+      skip-release-build: true # o job build abaixo já compila o release em todas as plataformas
 
+  # plan e build rodam em paralelo com o ci; o publish continua exigindo o ci verde.
   plan:
-    needs: ci
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.plan.outputs.version }}
     steps:
@@ -83,7 +88,7 @@ jobs:
           if [ -n "$TARGET" ]; then rustup target add "$TARGET"; fi
       - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.target }}
+          shared-key: release${{ matrix.target && '-' || '' }}${{ matrix.target }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -100,7 +105,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [plan, build]
+    needs: [ci, plan, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
