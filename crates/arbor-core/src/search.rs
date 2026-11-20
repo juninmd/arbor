@@ -45,6 +45,27 @@ impl Query {
     }
 }
 
+/// Máscara de seleção e de filtro: um ou mais padrões separados por `;` (`*.jpg;*.png`), como no Total
+/// Commander. Casa se qualquer padrão casar; cada padrão segue as regras de [`Query`].
+#[derive(Debug, Clone)]
+pub struct Mask(Vec<Query>);
+
+impl Mask {
+    pub fn parse(mask: &str) -> Option<Mask> {
+        let parts: Vec<Query> = mask.split(';').filter_map(Query::parse).collect();
+        (!parts.is_empty()).then_some(Mask(parts))
+    }
+
+    /// Um texto de filtro vira máscara quando tem curinga; sem curinga o filtro continua fuzzy.
+    pub fn is_wildcard(text: &str) -> bool {
+        text.contains(['*', '?'])
+    }
+
+    pub fn matches(&self, name: &str) -> bool {
+        self.0.iter().any(|q| q.matches(name))
+    }
+}
+
 /// Curinga clássico (`*` qualquer sequência, `?` um caractere), sem recursão exponencial.
 fn glob(p: &[char], s: &[char]) -> bool {
     let (mut pi, mut si) = (0, 0);
@@ -173,6 +194,14 @@ mod tests {
         let w = Query::parse("relat 2025").unwrap();
         assert!(w.matches("Relatorio-2025.xlsx") && !w.matches("relatorio-2024"));
         assert!(Query::parse("   ").is_none());
+    }
+
+    #[test]
+    fn mascara_com_varios_padroes() {
+        let m = Mask::parse("*.JPG; *.png ;").unwrap();
+        assert!(m.matches("foto.jpg") && m.matches("Tela.PNG") && !m.matches("nota.txt"));
+        assert!(Mask::parse(" ; ").is_none());
+        assert!(Mask::is_wildcard("*.rs") && Mask::is_wildcard("a?c") && !Mask::is_wildcard("relat"));
     }
 
     #[test]
