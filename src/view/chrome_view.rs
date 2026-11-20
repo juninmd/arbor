@@ -144,6 +144,14 @@ pub fn vertical_tabs(app: &App) -> Element<'_, Message> {
     container(content).padding([10, 8]).width(VTABS_W).height(Fill).style(|t| theme::glass(t, false)).into()
 }
 
+/// Contorno de 1 px da janela sem moldura: separa o arbor do que está atrás (outra janela escura,
+/// o papel de parede). Fica por cima de tudo e não recebe cliques; maximizada, some.
+pub fn window_outline<'a>() -> Element<'a, Message> {
+    container(space().width(Fill).height(Fill))
+        .style(|t: &Theme| container::Style { border: theme::window_border(t), ..Default::default() })
+        .into()
+}
+
 /// Bordas finas por cima de tudo: puxar redimensiona a janela (sem moldura do sistema não há outra borda).
 pub fn resize_edges<'a>() -> Element<'a, Message> {
     let edge = |dir: Direction, w: Length, h: Length, cursor: Interaction| -> Element<'a, Message> {

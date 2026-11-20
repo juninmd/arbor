@@ -20,6 +20,7 @@ use iced::widget::{
 };
 use iced::{Alignment, Color, ContentFit, Element, Fill, Length, Padding, Theme};
 use std::path::{Component, Path, PathBuf};
+use std::time::Instant;
 
 mod chrome_view;
 mod commands_view;
@@ -29,8 +30,11 @@ mod details_view;
 mod home_view;
 mod sidebar_view;
 
+mod props_view;
+
 const OVERSCAN: usize = 8;
-pub const DETAILS_W: f32 = details_view::WIDTH;
+/// Alça entre a área de arquivos e o painel de detalhes: 1 px visível, 7 px para pegar com o mouse.
+pub const SPLIT_W: f32 = 7.0;
 
 pub fn view(app: &App) -> Element<'_, Message> {
     let panes: Element<_> = if app.dual { row![pane(app, 0), separator_v(), pane(app, 1)].into() } else { pane(app, app.active) };
@@ -39,8 +43,11 @@ pub fn view(app: &App) -> Element<'_, Message> {
         body = body.push(chrome_view::vertical_tabs(app)).push(separator_v());
     }
     body = body.push(sidebar_view::sidebar(app)).push(separator_v()).push(container(panes).width(Fill).height(Fill));
-    if app.details_on {
-        body = body.push(separator_v()).push(details_view::panel(app));
+    // o painel desliza: largura cresce de 0 até a escolhida, com o conteúdo já na largura final (sem refluxo)
+    let open = app.motion.details(Instant::now());
+    if app.details_on || open > 0.0 {
+        let w = (app.details_w * open).round();
+        body = body.push(details_split()).push(container(details_view::panel(app)).width(w).height(Fill).clip(true));
     }
     // faixa da cor da aba ativa: endereço (quando há um painel só) e a barra de comandos
     let mut band = Column::new();
@@ -50,13 +57,21 @@ pub fn view(app: &App) -> Element<'_, Message> {
     let band = container(band.push(commands_view::bar(app))).width(Fill).style(theme::surface);
     let main: Element<_> = column![chrome_view::titlebar(app), band, separator(), body].width(Fill).height(Fill).into();
     let main: Element<_> = match notices(app) {
-        Some(n) => stack![main, container(n).align_right(Fill).align_bottom(Fill).padding(14)].into(),
+        Some(n) => {
+            // sobe 12 px ao aparecer
+            let rise = 12.0 * (1.0 - app.motion.notices(Instant::now()));
+            stack![main, container(n).align_right(Fill).align_bottom(Fill).padding(Padding::new(14.0).bottom(14.0 - rise).top(14.0 + rise))]
+                .into()
+        }
         None => main,
     };
     // a aurora fica atrás de tudo; os cartões de vidro deixam ela (e o vidro do sistema) aparecer
     let aurora = image(app.aurora.clone()).width(Fill).height(Fill).content_fit(ContentFit::Fill);
     let mut layers = stack![aurora, main];
     if crate::window_chrome::custom() {
+        if !app.maximized {
+            layers = layers.push(chrome_view::window_outline());
+        }
         layers = layers.push(chrome_view::resize_edges());
     }
     if let Some(o) = overlay(app) {
@@ -241,7 +256,7 @@ fn breadcrumbs<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     // Um painel: a faixa ocupa a janela toda. Dois: cada painel tem a sua metade da área de arquivos.
     let width = if app.dual {
         let vtabs = if app.vertical_tabs { crate::app::VTABS_W + 1.0 } else { 0.0 };
-        let details = if app.details_on { details_view::WIDTH + 1.0 } else { 0.0 };
+        let details = if app.details_on { app.details_w + SPLIT_W } else { 0.0 };
         (app.window.width - crate::app::SIDEBAR_W - 2.0 - vtabs - details) / 2.0
     } else {
         app.window.width
@@ -400,12 +415,10 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
     let cursor = i == tab.cursor;
     let dim = e.hidden;
     let strong = selected || cursor;
-    let name = text(shown_name(app, e))
-        .size(13)
-        .wrapping(Wrapping::None)
-        .width(Fill)
-        .font(if strong { theme::UI_BOLD } else { theme::UI })
-        .style(move |t: &Theme| if dim { theme::ink3(t) } else { text::Style { color: Some(theme::tokens(t).ink) } });
+    let name =
+        text(shown_name(app, e)).size(13).wrapping(Wrapping::None).width(Fill).font(if strong { theme::UI_BOLD } else { theme::UI }).style(
+            move |t: &Theme| text::Style { color: Some(theme::alpha(theme::tokens(t).ink, if dim { theme::HIDDEN_ALPHA } else { 1.0 })) },
+        );
     // Na busca, a pasta de cada resultado (relativa à pasta buscada) vai embaixo do nome.
     let name: Element<_> = match (&tab.search, e.path.parent().and_then(|p| p.strip_prefix(&tab.path).ok())) {
         (Some(_), Some(rel)) => {
@@ -415,7 +428,8 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
         _ => name.into(),
     };
     let cols = &app.columns;
-    let mut line = row![chip(entry_kind(e, drive), 24.0), name].spacing(10).align_y(Alignment::Center);
+    let repo = e.is_dir && tab.repos.contains(&e.path);
+    let mut line = row![entry_chip(entry_kind(e, drive), 24.0, dim, repo), name].spacing(10).align_y(Alignment::Center);
     if cols.shown(Col::Kind) {
         let kind = if drive.is_some() { "Disco".into() } else { kind_label(e) };
         line = line.push(text(kind).size(11.5).width(cols.width(Col::Kind)).wrapping(Wrapping::None).style(theme::ink3));
@@ -521,6 +535,7 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
     let drive = drive_of(app, tab, e);
     let k = entry_kind(e, drive);
     let color = kind_color(k);
+    let (dim, repo) = (e.hidden, e.is_dir && tab.repos.contains(&e.path));
     let mode = app.mode();
     let art = mode.art;
     let thumb: Element<_> = match app.thumbs.get(&e.path) {
@@ -530,23 +545,27 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
             .width(if mode.shape == Shape::Icon { Fill } else { art.into() })
             .height(art)
             .border_radius(10)
+            .opacity(if dim { theme::HIDDEN_ALPHA } else { 1.0 })
             .into(),
-        _ if mode.shape == Shape::Line => chip(k, art),
-        _ => container(chip(k, art * 0.48))
+        _ if mode.shape == Shape::Line => entry_chip(k, art, dim, repo),
+        _ => container(entry_chip(k, art * 0.48, dim, repo))
             .center_x(if mode.shape == Shape::Icon { Fill } else { art.into() })
             .center_y(art)
             .style(move |_| container::Style {
-                background: Some(theme::alpha(color, 0.08).into()),
+                background: Some(theme::alpha(color, if dim { 0.04 } else { 0.08 }).into()),
                 border: iced::border::rounded(10),
                 ..Default::default()
             })
             .into(),
     };
-    let label = text(shorten(shown_name(app, e), 30)).size(12).width(Fill).wrapping(Wrapping::None).font(if selected {
-        theme::UI_BOLD
-    } else {
-        theme::UI
-    });
+    let label = text(shorten(shown_name(app, e), 30))
+        .size(12)
+        .width(Fill)
+        .wrapping(Wrapping::None)
+        .font(if selected { theme::UI_BOLD } else { theme::UI })
+        .style(move |t: &Theme| text::Style {
+            color: Some(theme::alpha(theme::tokens(t).ink, if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
+        });
     let meta = match drive.and_then(|d| d.space) {
         Some((free, total)) => format!("{} livres de {}", human_size(free), human_size(total)),
         None if e.is_dir => "Pasta".to_string(),
@@ -728,7 +747,9 @@ fn notices(app: &App) -> Option<Element<'_, Message>> {
     Some(opaque(container(col).padding([10, 12]).width(380).style(|t: &Theme| {
         let mut s = theme::glass(t, false);
         s.background = Some(theme::tokens(t).surface.into());
-        s.border.radius = 12.0.into();
+        s.border = iced::Border { color: theme::tokens(t).stroke_hi, width: 1.0, radius: 12.0.into() };
+        // cartão flutuante: sombra curta e difusa para destacar do conteúdo por trás
+        s.shadow = iced::Shadow { color: Color::from_rgba(0.0, 0.0, 0.0, 0.35), offset: iced::Vector::new(0.0, 10.0), blur_radius: 30.0 };
         s
     })))
 }
@@ -797,16 +818,20 @@ fn update_banner(app: &App) -> Option<Element<'_, Message>> {
 // ---------- sobreposições ----------
 
 fn overlay(app: &App) -> Option<Element<'_, Message>> {
+    // entrada: o véu escurece e o cartão sobe alguns pixels até o lugar
+    let t = app.motion.overlay(Instant::now());
+    let lift = 14.0 * (1.0 - t);
     let card: Element<_> = match &app.overlay {
         Overlay::None => return None,
         Overlay::Palette { query, selected } => {
             let card = palette(app, query, *selected);
-            return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
+            return Some(stack![scrim(t), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0 + lift))].into());
         }
         Overlay::Frecent { query, selected } => {
             let card = jump(app, query, *selected);
-            return Some(stack![scrim(), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0))].into());
+            return Some(stack![scrim(t), container(opaque(card)).center_x(Fill).padding(Padding::new(0.0).top(90.0 + lift))].into());
         }
+        Overlay::Properties { path, props, preview } => props_view::sheet(path, props.as_deref(), preview.as_ref()),
         Overlay::Prompt { kind, value } => {
             let input = text_input("", value)
                 .id(PROMPT_INPUT)
@@ -857,7 +882,7 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
             420.0,
         ),
     };
-    Some(stack![scrim(), center(opaque(card)).padding(40)].into())
+    Some(stack![scrim(t), center(opaque(card)).padding(Padding::new(40.0).top(40.0 + 2.0 * lift))].into())
 }
 
 /// Já existe item com o mesmo nome no destino: compara os dois lados e o usuário escolhe uma regra para todos.
@@ -983,8 +1008,20 @@ fn batch_hint<'a>(app: &'a App, value: &str) -> Element<'a, Message> {
     column![help, preview].spacing(8).into()
 }
 
-fn scrim<'a>() -> Element<'a, Message> {
-    mouse_area(container(space()).width(Fill).height(Fill).style(theme::scrim)).on_press(Message::CloseOverlay).into()
+fn scrim<'a>(t: f32) -> Element<'a, Message> {
+    mouse_area(container(space()).width(Fill).height(Fill).style(move |th: &Theme| theme::scrim(th, t)))
+        .on_press(Message::CloseOverlay)
+        .into()
+}
+
+/// Filete entre os arquivos e o painel de detalhes; puxar redimensiona o painel.
+fn details_split<'a>() -> Element<'a, Message> {
+    let line = container(space().width(1).height(Fill))
+        .style(|t: &Theme| iced::widget::container::Style { background: Some(theme::tokens(t).stroke.into()), ..Default::default() });
+    mouse_area(container(line).center_x(SPLIT_W).height(Fill))
+        .on_press(Message::DetailsResizeStart)
+        .interaction(iced::mouse::Interaction::ResizingHorizontally)
+        .into()
 }
 
 /// Ctrl+K: pastas frequentes, filtradas pelo que se digita.
@@ -1238,17 +1275,21 @@ enum Kind {
 }
 
 fn kind(e: &Entry) -> Kind {
-    if e.is_dir {
+    kind_for(e.is_dir, e.ext.as_str(), &e.path)
+}
+
+fn kind_for(is_dir: bool, ext: &str, path: &Path) -> Kind {
+    if is_dir {
         return Kind::Folder;
     }
-    match e.ext.as_str() {
+    match ext {
         "rs" | "py" | "js" | "ts" | "tsx" | "jsx" | "go" | "c" | "h" | "cpp" | "hpp" | "cs" | "java" | "kt" | "swift" | "rb" | "php"
         | "sh" | "ps1" | "toml" | "json" | "yaml" | "yml" | "xml" | "html" | "css" | "lua" | "sql" | "lock" => Kind::Code,
         "zip" | "7z" | "rar" | "tar" | "gz" | "xz" | "bz2" | "zst" | "iso" | "dmg" => Kind::Archive,
         "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "odt" | "txt" | "rtf" | "epub" | "md" => Kind::Doc,
         "mp3" | "flac" | "wav" | "ogg" | "m4a" | "opus" | "aac" => Kind::Audio,
         "mp4" | "mkv" | "mov" | "avi" | "webm" => Kind::Video,
-        _ if crate::media::is_image(&e.path) => Kind::Image,
+        _ if crate::media::is_image(path) => Kind::Image,
         _ => Kind::Other,
     }
 }
@@ -1283,8 +1324,19 @@ fn kind_icon(k: Kind) -> Icon {
 
 /// Ficha de ícone: quadrado arredondado tingido com a cor do tipo.
 fn chip<'a>(k: Kind, size: f32) -> Element<'a, Message> {
-    let color = kind_color(k);
-    container(icon(kind_icon(k), size * 0.58, color)).center_x(size).center_y(size).style(theme::chip(color)).into()
+    entry_chip(k, size, false, false)
+}
+
+/// Ficha de um item: oculto sai translúcido; pasta que é repositório git troca para a pasta com o
+/// losango do git, em coral (legível até no tamanho da lista, onde um selo sumiria).
+fn entry_chip<'a>(k: Kind, size: f32, hidden: bool, repo: bool) -> Element<'a, Message> {
+    let strength = if hidden { theme::HIDDEN_ALPHA } else { 1.0 };
+    let (ic, color) = if repo { (Icon::FolderGit, theme::CORAL) } else { (kind_icon(k), kind_color(k)) };
+    container(icon(ic, size * 0.58, theme::alpha(color, strength)))
+        .center_x(size)
+        .center_y(size)
+        .style(theme::chip_soft(color, strength))
+        .into()
 }
 
 fn shorten(s: &str, max: usize) -> String {
