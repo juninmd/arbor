@@ -42,9 +42,10 @@ mod tests {
     #[test]
     fn tabela_com_cabecalho_e_sem_tabulacao_nos_nomes() {
         let d = tempfile::tempdir().unwrap();
-        let p = d.path().join("a\tb.txt");
-        std::fs::write(&p, "12345").unwrap();
-        let e = Entry::new("a\tb.txt".into(), p.clone(), &std::fs::metadata(&p).unwrap(), false);
+        // Tab is invalid in Windows file names: read metadata from a real file, name the entry with a tab.
+        let real = d.path().join("ab.txt");
+        std::fs::write(&real, "12345").unwrap();
+        let e = Entry::new("a\tb.txt".into(), d.path().join("a\tb.txt"), &std::fs::metadata(&real).unwrap(), false);
         let t = table(std::iter::once(&e));
         let line = t.lines().nth(1).unwrap();
         let cols: Vec<&str> = line.split('\t').collect();
