@@ -89,6 +89,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             None,
             Some(Terminal),
             Some(CopyPath),
+            Some(CopyListing),
             Some(Pin),
             Some(MapDrive),
             None,

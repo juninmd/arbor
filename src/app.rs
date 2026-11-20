@@ -3,8 +3,10 @@
 use crate::commands::{self, Cmd};
 mod address;
 mod compare_dirs;
+mod content;
 mod details;
 mod drag;
+mod export;
 mod flat;
 mod folder_sizes;
 pub mod groups;
@@ -246,6 +248,9 @@ impl Tab {
     }
 
     pub fn title(&self) -> String {
+        if flat::is_dupes(&self.search) {
+            return format!("Duplicados: {}", ops::name(&self.path));
+        }
         if flat::is_flat(&self.search) {
             return format!("Plana: {}", ops::name(&self.path));
         }
@@ -505,6 +510,8 @@ pub enum Message {
     SuggestPick(usize),
     Zoom(bool),
     Created(Result<PathBuf, String>),
+    /// Resultado de uma tarefa em segundo plano para virar aviso (verde) ou erro.
+    Notice(Result<String, String>),
     TreeToggle(PathBuf),
     TrashListed(Result<Vec<Entry>, String>),
     TrashDone(Result<String, String>),
@@ -1003,6 +1010,9 @@ impl App {
             ]);
         }
         let stream = match (tab.search.clone(), archive::split(&path)) {
+            (Some((query, hidden)), _) if refresh && query == arbor_core::dupes::QUERY => {
+                Task::run(listing::dupes(path, hidden), move |snap| Message::Listed { tab: id, generation, snap })
+            }
             (Some((query, hidden)), _) if refresh => {
                 Task::run(listing::search(path, query, sort, hidden), move |snap| Message::Listed { tab: id, generation, snap })
             }
@@ -1528,6 +1538,10 @@ impl App {
             }
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::CopyListing => self.copy_listing(),
+            Cmd::CompareFiles => self.compare_files(),
+            Cmd::CreateChecksums => self.create_checksums(),
+            Cmd::VerifyChecksums => self.verify_checksums(),
             Cmd::FolderSizes => self.toggle_folder_sizes(),
             Cmd::CompareDirs => self.compare_dirs(),
             Cmd::SyncDirs => self.sync_dirs(),
@@ -1666,6 +1680,7 @@ impl App {
                 }
             }
             Cmd::FlatView => self.toggle_flat(),
+            Cmd::FindDuplicates => self.find_duplicates(),
             Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
             Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
             Cmd::SelectSameKind => self.select_same_kind(),
@@ -2590,6 +2605,10 @@ impl App {
                 self.tree.children.insert(path, dirs);
                 Task::none()
             }
+            Message::Notice(result) => match result {
+                Ok(text) => self.notify(text, false),
+                Err(e) => self.notify(e, true),
+            },
             Message::Created(result) => match result {
                 Ok(_) => Task::none(),
                 Err(e) => self.notify(format!("Não criou o arquivo: {e}"), true),

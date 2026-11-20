@@ -4,11 +4,13 @@
 
 mod app;
 mod aurora;
+mod checksums;
 mod clash;
 mod columns;
 mod commands;
 mod complete;
 mod computer;
+mod diff;
 mod discovery;
 mod folder_views;
 mod glass;

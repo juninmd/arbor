@@ -55,6 +55,7 @@ pub enum Cmd {
     Filter,
     Search,
     FlatView,
+    FindDuplicates,
     GoTo,
     Jump,
     ToggleHidden,
@@ -83,9 +84,13 @@ pub enum Cmd {
     ThemeSunset,
     VerticalTabs,
     CopyPath,
+    CopyListing,
     Terminal,
     Reveal,
     WhoUses,
+    CreateChecksums,
+    CompareFiles,
+    VerifyChecksums,
     Pin,
     Eject,
     MapDrive,
@@ -156,6 +161,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::Filter,
     Cmd::Search,
     Cmd::FlatView,
+    Cmd::FindDuplicates,
     Cmd::GoTo,
     Cmd::Jump,
     Cmd::ToggleHidden,
@@ -184,9 +190,13 @@ pub const ALL: &[Cmd] = &[
     Cmd::ThemeSunset,
     Cmd::VerticalTabs,
     Cmd::CopyPath,
+    Cmd::CopyListing,
     Cmd::Terminal,
     Cmd::Reveal,
     Cmd::WhoUses,
+    Cmd::CreateChecksums,
+    Cmd::CompareFiles,
+    Cmd::VerifyChecksums,
     Cmd::Pin,
     Cmd::Eject,
     Cmd::MapDrive,
@@ -260,6 +270,7 @@ impl Cmd {
             Cmd::Filter => "Filtrar pasta (fuzzy)",
             Cmd::Search => "Buscar nesta pasta e subpastas",
             Cmd::FlatView => "Visão plana (todos os arquivos das subpastas)",
+            Cmd::FindDuplicates => "Procurar arquivos duplicados nesta pasta e subpastas",
             Cmd::GoTo => "Ir para caminho",
             Cmd::Jump => "Pular para pasta frequente",
             Cmd::ToggleHidden => "Mostrar/ocultar arquivos ocultos",
@@ -288,9 +299,13 @@ impl Cmd {
             Cmd::ThemeSunset => "Tema: Pôr do sol",
             Cmd::VerticalTabs => "Abas verticais",
             Cmd::CopyPath => "Copiar caminho",
+            Cmd::CopyListing => "Copiar listagem (tabela para planilha)",
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
             Cmd::WhoUses => "Quem está usando este arquivo?",
+            Cmd::CreateChecksums => "Criar soma SHA-256 dos arquivos",
+            Cmd::CompareFiles => "Comparar dois arquivos (conteúdo)",
+            Cmd::VerifyChecksums => "Conferir somas SHA-256 (arquivo .sha256)",
             Cmd::Pin => "Fixar/desafixar na barra lateral",
             Cmd::Details => "Painel de detalhes",
             Cmd::Eject => "Ejetar",
@@ -358,6 +373,7 @@ impl Cmd {
             Cmd::Filter => format!("{m}+F"),
             Cmd::Search => format!("{m}+Shift+F"),
             Cmd::FlatView => format!("{m}+B"),
+            Cmd::FindDuplicates => String::new(),
             Cmd::GoTo => format!("{m}+L"),
             Cmd::Jump => format!("{m}+K"),
             Cmd::ToggleHidden => format!("{m}+H"),
@@ -378,6 +394,7 @@ impl Cmd {
             | Cmd::ThemeSunset
             | Cmd::VerticalTabs => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
+            Cmd::CopyListing => String::new(),
             Cmd::Terminal => format!("{m}+'"),
             Cmd::Reveal
             | Cmd::OpenInNewTab
@@ -392,7 +409,10 @@ impl Cmd {
             | Cmd::GroupKind
             | Cmd::GroupModified
             | Cmd::GroupSize
-            | Cmd::WhoUses => String::new(),
+            | Cmd::WhoUses
+            | Cmd::CreateChecksums
+            | Cmd::CompareFiles
+            | Cmd::VerifyChecksums => String::new(),
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
