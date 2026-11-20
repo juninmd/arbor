@@ -680,7 +680,7 @@ pub enum Message {
         dir: PathBuf,
         repos: HashSet<PathBuf>,
     },
-Git {
+    Git {
         tab: u64,
         dir: PathBuf,
         info: Option<crate::git::GitInfo>,
@@ -694,7 +694,6 @@ Git {
         tab: u64,
         dir: PathBuf,
         sizes: Option<Vec<(PathBuf, u64)>>,
-    },
     },
     UpdateCheck {
         manual: bool,
@@ -2503,7 +2502,7 @@ impl App {
             Message::PropsLoaded { path, preview, props } => self.on_props(path, preview, props),
             Message::DetailsResizeStart => self.details_resize_start(),
             Message::Repos { tab, dir, repos } => self.on_repos(tab, dir, repos),
-Message::Git { tab, dir, info } => self.on_git(tab, dir, info),
+            Message::Git { tab, dir, info } => self.on_git(tab, dir, info),
             Message::Branch { tab, dir, branch } => self.on_branch(tab, dir, branch),
             Message::DirSizes { tab, dir, sizes } => self.on_dir_sizes(tab, dir, sizes),
             Message::Dropped(path) => {
