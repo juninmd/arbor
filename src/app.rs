@@ -248,6 +248,9 @@ impl Tab {
     }
 
     pub fn title(&self) -> String {
+        if flat::is_dupes(&self.search) {
+            return format!("Duplicados: {}", ops::name(&self.path));
+        }
         if flat::is_flat(&self.search) {
             return format!("Plana: {}", ops::name(&self.path));
         }
@@ -1007,6 +1010,9 @@ impl App {
             ]);
         }
         let stream = match (tab.search.clone(), archive::split(&path)) {
+            (Some((query, hidden)), _) if refresh && query == arbor_core::dupes::QUERY => {
+                Task::run(listing::dupes(path, hidden), move |snap| Message::Listed { tab: id, generation, snap })
+            }
             (Some((query, hidden)), _) if refresh => {
                 Task::run(listing::search(path, query, sort, hidden), move |snap| Message::Listed { tab: id, generation, snap })
             }
@@ -1674,6 +1680,7 @@ impl App {
                 }
             }
             Cmd::FlatView => self.toggle_flat(),
+            Cmd::FindDuplicates => self.find_duplicates(),
             Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
             Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
             Cmd::SelectSameKind => self.select_same_kind(),

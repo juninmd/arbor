@@ -98,6 +98,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   Windows, o `ffmpeg` e o `pdftoppm` (Poppler) se estiverem no PATH; sem eles, fica o ícone do tipo.
 * **Copiar listagem** (menu da área vazia ou paleta): os itens visíveis, ou só os selecionados, como tabela
   (nome, tipo, tamanho em bytes, data, caminho) que cola direto numa planilha.
+* **Procurar duplicados** (paleta): abre uma aba com os arquivos repetidos da pasta e das subpastas, do que mais
+  desperdiça espaço para o que menos. Compara tamanho, depois hash e por fim byte a byte: nunca acusa falso positivo.
 * **Comparar dois arquivos** (paleta, com dois selecionados ou um em cada painel): diz na hora se são idênticos;
   se não, abre o Meld, WinMerge, KDiff3, VS Code… (ou o programa de `diff =` em `settings`).
 * **Somas SHA-256** (paleta): "Criar soma SHA-256" grava `nome.sha256` (ou `checksums.sha256` para vários) no
