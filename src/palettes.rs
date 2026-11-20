@@ -5,8 +5,11 @@
 
 use crate::commands::Cmd;
 use crate::theme::{Tokens, DARK, LIGHT};
+use canto::{CANTO, DRACULA, HUECO_MUNDO, NO_BLOBS, VIDRO};
 use iced::Color;
 use std::sync::atomic::{AtomicU8, Ordering};
+
+mod canto;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Palette {
@@ -58,29 +61,6 @@ const MIDNIGHT: Tokens =
 const GRAPHITE: Tokens = dark_with(0x15171c, 0x262a33, 0x9ad1ff, 0xc9b8ff);
 const OCEAN: Tokens = dark_with(0x021318, 0x0f2e38, 0x6ff0e0, 0x7fb2ff);
 const SUNSET: Tokens = dark_with(0x140a10, 0x34202c, 0xffb38a, 0xff8fc8);
-
-/// Skins do canto-widget (src/styles.css de juninmd/canto-widget): fundo, painel, texto, texto fraco e as cores de
-/// destaque e de estado de cada uma, levadas para os tokens do arbor.
-const fn canto(void: u32, panel: u32, fg: u32, muted: u32, accent: u32, accent2: u32, state: [u32; 3]) -> Tokens {
-    Tokens {
-        void: rgb(void),
-        surface: rgba(panel, 0.88),
-        ink: rgb(fg),
-        ink2: rgba(muted, 0.92),
-        ink3: rgba(muted, 0.62),
-        accent: rgb(accent),
-        accent2: rgb(accent2),
-        danger: rgb(state[0]),
-        good: rgb(state[1]),
-        warn: rgb(state[2]),
-        ..DARK
-    }
-}
-
-const CANTO: Tokens = canto(0x0b0f16, 0x111826, 0xe2e8f0, 0x94a3b8, 0x4ade80, 0x38bdf8, [0xfb7185, 0x4ade80, 0xfbbf24]);
-const HUECO_MUNDO: Tokens = canto(0x050506, 0x0e0e11, 0xede9e0, 0xa8a29e, 0xf6506d, 0xede9e0, [0xf87171, 0x86efac, 0xfbbf24]);
-const DRACULA: Tokens = canto(0x21222c, 0x282a36, 0xf8f8f2, 0xb6b8c8, 0xbd93f9, 0xff79c6, [0xff5555, 0x50fa7b, 0xf1fa8c]);
-const VIDRO: Tokens = canto(0x0c1017, 0x161b26, 0xf5f5f7, 0xa1abbc, 0x409cff, 0xbf5af2, [0xff453a, 0x32d74b, 0xffd60a]);
 
 const AURORA_BLOBS: [Blob; 4] = [
     (0x1fc8ff, 0.17, 0.41, 0.30, 0.75),
@@ -166,30 +146,12 @@ impl Palette {
                 (0xff3f7f, 0.52, 0.93, 0.26, 0.55),
                 (0xffc145, -0.10, 0.89, 0.20, 0.45),
             ],
-            Palette::Canto => [
-                (0x4ade80, 0.17, 0.41, 0.30, 0.45),
-                (0x38bdf8, 0.92, 0.19, 0.28, 0.45),
-                (0xa78bfa, 0.52, 0.93, 0.26, 0.35),
-                (0x2dd4bf, -0.10, 0.89, 0.20, 0.35),
-            ],
-            // Hueco Mundo: lua pálida e um brilho vermelho, quase sem cor.
-            Palette::HuecoMundo => [
-                (0xede9e0, 0.92, 0.19, 0.28, 0.18),
-                (0xe11d48, 0.17, 0.41, 0.30, 0.35),
-                (0x7f1d1d, 0.52, 0.93, 0.26, 0.40),
-                (0x44403c, -0.10, 0.89, 0.20, 0.35),
-            ],
-            Palette::Dracula => [
-                (0xbd93f9, 0.17, 0.41, 0.30, 0.50),
-                (0xff79c6, 0.92, 0.19, 0.28, 0.45),
-                (0x8be9fd, 0.52, 0.93, 0.26, 0.30),
-                (0x50fa7b, -0.10, 0.89, 0.20, 0.25),
-            ],
+            Palette::Canto | Palette::HuecoMundo | Palette::Dracula => NO_BLOBS,
             Palette::Vidro => [
-                (0x0a84ff, 0.17, 0.41, 0.30, 0.55),
-                (0xbf5af2, 0.92, 0.19, 0.28, 0.45),
-                (0x64d2ff, 0.52, 0.93, 0.26, 0.35),
-                (0xff375f, -0.10, 0.89, 0.20, 0.30),
+                (0x0a84ff, 0.17, 0.41, 0.30, 0.35),
+                (0xbf5af2, 0.92, 0.19, 0.28, 0.22),
+                (0x64d2ff, 0.52, 0.93, 0.26, 0.18),
+                (0x0a84ff, -0.10, 0.89, 0.20, 0.15),
             ],
         }
     }
