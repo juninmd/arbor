@@ -2,6 +2,7 @@
 
 use crate::commands::{self, Cmd};
 mod address;
+mod checksum_cmds;
 mod compare_dirs;
 mod details;
 mod drag;
@@ -505,6 +506,8 @@ pub enum Message {
     SuggestPick(usize),
     Zoom(bool),
     Created(Result<PathBuf, String>),
+    /// Resultado de uma tarefa em segundo plano para virar aviso (verde) ou erro.
+    Notice(Result<String, String>),
     TreeToggle(PathBuf),
     TrashListed(Result<Vec<Entry>, String>),
     TrashDone(Result<String, String>),
@@ -1528,6 +1531,8 @@ impl App {
             }
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::CreateChecksums => self.create_checksums(),
+            Cmd::VerifyChecksums => self.verify_checksums(),
             Cmd::FolderSizes => self.toggle_folder_sizes(),
             Cmd::CompareDirs => self.compare_dirs(),
             Cmd::SyncDirs => self.sync_dirs(),
@@ -2590,6 +2595,10 @@ impl App {
                 self.tree.children.insert(path, dirs);
                 Task::none()
             }
+            Message::Notice(result) => match result {
+                Ok(text) => self.notify(text, false),
+                Err(e) => self.notify(e, true),
+            },
             Message::Created(result) => match result {
                 Ok(_) => Task::none(),
                 Err(e) => self.notify(format!("Não criou o arquivo: {e}"), true),

@@ -86,6 +86,8 @@ pub enum Cmd {
     Terminal,
     Reveal,
     WhoUses,
+    CreateChecksums,
+    VerifyChecksums,
     Pin,
     Eject,
     MapDrive,
@@ -187,6 +189,8 @@ pub const ALL: &[Cmd] = &[
     Cmd::Terminal,
     Cmd::Reveal,
     Cmd::WhoUses,
+    Cmd::CreateChecksums,
+    Cmd::VerifyChecksums,
     Cmd::Pin,
     Cmd::Eject,
     Cmd::MapDrive,
@@ -291,6 +295,8 @@ impl Cmd {
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
             Cmd::WhoUses => "Quem está usando este arquivo?",
+            Cmd::CreateChecksums => "Criar soma SHA-256 dos arquivos",
+            Cmd::VerifyChecksums => "Conferir somas SHA-256 (arquivo .sha256)",
             Cmd::Pin => "Fixar/desafixar na barra lateral",
             Cmd::Details => "Painel de detalhes",
             Cmd::Eject => "Ejetar",
@@ -392,7 +398,9 @@ impl Cmd {
             | Cmd::GroupKind
             | Cmd::GroupModified
             | Cmd::GroupSize
-            | Cmd::WhoUses => String::new(),
+            | Cmd::WhoUses
+            | Cmd::CreateChecksums
+            | Cmd::VerifyChecksums => String::new(),
             Cmd::Details => "Alt+Shift+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
