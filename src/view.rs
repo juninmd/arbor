@@ -649,6 +649,23 @@ fn crumb<'a>(tab: u64, label: String, path: PathBuf, last: bool) -> Element<'a, 
         .into()
 }
 
+/// Gráfico de velocidade da cópia: uma barra por meio segundo, escala pelo pico.
+fn speed_graph(history: &std::collections::VecDeque<f64>) -> Option<Element<'_, Message>> {
+    let peak = history.iter().copied().fold(0.0, f64::max);
+    if history.len() < 2 || peak <= 0.0 {
+        return None;
+    }
+    const H: f32 = 16.0;
+    let bars = history.iter().map(|&v| {
+        let h = (v / peak) as f32 * H;
+        container(space()).width(2).height(h.max(1.0)).style(|t: &Theme| container::Style {
+            background: Some(theme::alpha(theme::tokens(t).accent, 0.7).into()),
+            ..Default::default()
+        })
+    });
+    Some(Row::with_children(bars.map(Element::from)).spacing(1).height(H).align_y(Alignment::End).into())
+}
+
 // ---------- avisos: operações, atualização, mensagens e fps, num cartão flutuante só quando há algo ----------
 
 fn notices(app: &App) -> Option<Element<'_, Message>> {
@@ -663,11 +680,15 @@ fn notices(app: &App) -> Option<Element<'_, Message>> {
         } else if job.paused {
             format!("pausado  {}", job.current)
         } else if job.total > 1000 {
-            format!("{} de {}  {}", human_size(job.done), human_size(job.total), job.current)
+            // Como o Explorer: velocidade e tempo restante junto do total.
+            let speed = job.rate.per_sec().map(|v| format!("  {}/s", human_size(v as u64))).unwrap_or_default();
+            let eta = job.rate.eta(job.done, job.total).map(|d| format!(" · {}", crate::app::rate::human_eta(d))).unwrap_or_default();
+            format!("{} de {}{speed}{eta}  {}", human_size(job.done), human_size(job.total), job.current)
         } else {
             job.current.clone()
         };
         let actions = row![
+            speed_graph(&job.rate.history),
             text(detail).font(theme::MONO).size(10.5).style(theme::ink3).width(Fill).wrapping(Wrapping::None),
             (!job.queued).then(|| {
                 button(text(if job.paused { "Continuar" } else { "Pausar" }).size(11))

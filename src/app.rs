@@ -7,6 +7,7 @@ mod drag;
 pub mod groups;
 mod jump;
 mod menu;
+pub mod rate;
 mod trash_view;
 mod tree;
 
@@ -331,6 +332,7 @@ pub struct Job {
     /// Esperando outra cópia/movimentação terminar (a fila roda uma transferência por vez).
     pub queued: bool,
     pub paused: bool,
+    pub rate: rate::Rate,
     cancel: Arc<AtomicBool>,
     pause: Arc<AtomicBool>,
     op: Op,
@@ -1190,7 +1192,20 @@ impl App {
         let queued = op.is_transfer() && self.jobs.iter().any(|j| j.op.is_transfer() && !j.queued);
         let (cancel, pause) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
         let label = op.label();
-        self.jobs.push(Job { id, label, done: 0, total: 0, current: String::new(), queued, paused: false, cancel, pause, op, kind });
+        self.jobs.push(Job {
+            id,
+            label,
+            done: 0,
+            total: 0,
+            current: String::new(),
+            queued,
+            paused: false,
+            rate: Default::default(),
+            cancel,
+            pause,
+            op,
+            kind,
+        });
         if queued {
             return Task::none();
         }
@@ -2476,6 +2491,7 @@ impl App {
                 JobEvent::Progress { done, total, current } => {
                     if let Some(j) = self.jobs.iter_mut().find(|j| j.id == id) {
                         (j.done, j.total, j.current) = (done, total, current);
+                        j.rate.push(std::time::Instant::now(), done);
                     }
                     Task::none()
                 }

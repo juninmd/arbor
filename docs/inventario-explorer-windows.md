@@ -70,7 +70,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Arrastar e soltar dentro do app e para outros apps | 🟡 (dentro do app: pastas, barra lateral, outro painel; arrastar para outros apps não) | P0 |
 | Arrastar com botão direito (copiar/mover/criar atalho aqui) | ❌ | P2 |
 | Diálogo de conflito: substituir, pular, comparar, manter os dois | ✅ (compara tamanho e data de origem e destino e marca o mais novo; Substituir, Pular, Manter os dois ou "Só os mais novos"; sem escolher arquivo a arquivo) | P0 |
-| Janela de progresso com gráfico de velocidade, pausa | 🟡 (barra + cancelar) | P1 |
+| Janela de progresso com gráfico de velocidade, pausa | ✅ (barra, velocidade, tempo restante e gráfico de velocidade dos últimos 20 s; pausar, continuar e cancelar) | P1 |
 | Refazer (Ctrl+Y) | ✅ | P1 |
 | Excluir permanentemente (Shift+Del) com confirmação | ✅ | P1 |
 | Renomear com F2 selecionando só o nome sem extensão; Tab vai ao próximo | 🟡 (prompt, não inline) | P1 |
