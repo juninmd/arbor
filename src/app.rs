@@ -13,6 +13,7 @@ mod properties;
 pub mod rate;
 mod repos;
 mod select;
+mod sync_nav;
 mod tabs;
 mod trash_view;
 mod tree;
@@ -53,6 +54,8 @@ pub struct App {
     pub panes: [Pane; 2],
     pub active: usize,
     pub dual: bool,
+    /// Painel duplo com navegação sincronizada (ver `sync_nav`).
+    pub sync_nav: bool,
     pub overlay: Overlay,
     pub jobs: Vec<Job>,
     next_job: u64,
@@ -671,6 +674,7 @@ impl App {
             ],
             active: 0,
             dual: false,
+            sync_nav: false,
             closed: vec![],
             saved: None,
             restore,
@@ -999,6 +1003,13 @@ impl App {
     }
 
     fn navigate(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
+        let old = self.panes[pane].tab().path.clone();
+        let task = self.navigate_one(pane, path.clone());
+        let follow = self.follow(pane, &old, &path);
+        Task::batch([task, follow])
+    }
+
+    fn navigate_one(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
         let tab = self.panes[pane].tab_mut();
         if tab.path == path {
             return Task::none();
@@ -1500,6 +1511,7 @@ impl App {
                 self.close_tab(pane, i)
             }
             Cmd::LockTab => self.toggle_lock(),
+            Cmd::SyncNav => self.toggle_sync_nav(),
             Cmd::DuplicateTab => self.duplicate_tab(),
             Cmd::CloseOtherTabs => self.close_many(tabs::Close::Others),
             Cmd::CloseTabsLeft => self.close_many(tabs::Close::Left),

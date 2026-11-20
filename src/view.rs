@@ -630,6 +630,9 @@ fn status<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     if tab.loading {
         parts.push(format!("lendo… {}", human_count(tab.entries.len())));
     }
+    if app.sync_nav && app.dual {
+        parts.push("⇄ sincronizado".into());
+    }
     // O modo aparece ao trocar com Ctrl+roda, como o Explorer mostra o botão de visualização ativo.
     if tab.grid {
         parts.push(app.mode().name.to_string());
