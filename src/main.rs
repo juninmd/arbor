@@ -16,6 +16,7 @@ mod discovery;
 mod folder_views;
 mod git_branch;
 mod glass;
+mod global_search;
 mod home;
 mod instance;
 mod keymap;

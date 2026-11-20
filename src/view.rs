@@ -423,7 +423,10 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
             },
         );
     // Na busca, a pasta de cada resultado (relativa à pasta buscada) vai embaixo do nome.
-    let name: Element<_> = match (&tab.search, e.path.parent().and_then(|p| p.strip_prefix(&tab.path).ok())) {
+    // Na busca no computador o resultado pode estar em qualquer lugar: vai a pasta inteira.
+    let global = tab.search.as_ref().is_some_and(|(q, _)| crate::global_search::query_of(q).is_some());
+    let place = e.path.parent().and_then(|p| if global { Some(p) } else { p.strip_prefix(&tab.path).ok() });
+    let name: Element<_> = match (&tab.search, place) {
         (Some(_), Some(rel)) => {
             let rel = if rel.as_os_str().is_empty() { ".".to_string() } else { rel.to_string_lossy().into_owned() };
             column![name, text(rel).size(10.5).font(theme::MONO).wrapping(Wrapping::None).style(theme::ink3)].width(Fill).into()

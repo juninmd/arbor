@@ -89,6 +89,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   lado entra na de mesmo nome do outro, e subir sobe os dois, como no Directory Opus.
 * **Menu da aba** (botão direito): duplicar (`Ctrl+Shift+D`), **travar** (a aba fica na pasta dela; navegar a
   partir dela abre outra aba, e ela não fecha junto), fechar as outras, à esquerda ou à direita.
+* **Busca no computador** (`Ctrl+Alt+F`): usa o índice que o sistema já tem, sem criar outro: Everything (`es.exe`)
+  no Windows, Spotlight no macOS, `plocate`/`locate` no Linux. Os resultados abrem numa aba, com a pasta de cada um.
 * **Visão plana** (`Ctrl+B`, como no Total Commander): a aba lista todos os arquivos da pasta e das subpastas,
   com a pasta de cada um embaixo do nome; dá para ordenar, filtrar e copiar como numa pasta comum.
 * **Filtros de cor** (paleta: "Editar filtros de cor"): `*.log;*.tmp = cinza`, `*.pdf = #ff6b6b`… no arquivo
@@ -227,6 +229,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | digitar | Filtrar a pasta (`Esc` limpa); com `*` ou `?` vira curinga (`*.jpg;*.png`) |
 | `Num +` / `Num −` / `Num *` | Selecionar / tirar da seleção por máscara / inverter seleção |
 | `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
+| `Ctrl+Alt+F` | Buscar no computador inteiro (Everything no Windows, Spotlight no macOS, plocate no Linux) |
 | `Ctrl+B` | Visão plana: todos os arquivos das subpastas numa lista só (de novo volta) |
 | `Ctrl+Shift+P` | Paleta de comandos |
 | `Ctrl+K` | Pular para pasta frequente |
@@ -312,7 +315,7 @@ Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.githu
 | 1. Velocidade | listagem paralela, ordem natural por bytes, filtro paralelo e incremental, mimalloc | ✅ |
 | 2. Beleza | tema Glass, fontes, ícones por tipo, selo de ms e medidor de fps; vidro nativo no macOS e Linux; Mica no Windows e animações com mola | 🟡 |
 | 3. Poder | fila de operações com pausa, desfazer persistente, navegar em .zip/.7z/.tar, instância única | ⬜ |
-| 4. Busca global | índice opcional (MFT/USN no Windows, varredura + observador nos outros) | ⬜ |
+| 4. Busca global | índice do sistema (Everything, Spotlight, locate) ✅; índice próprio (MFT/USN) | 🟡 |
 
 ## Licença
 

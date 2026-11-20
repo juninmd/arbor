@@ -251,6 +251,9 @@ impl Tab {
     }
 
     pub fn title(&self) -> String {
+        if let Some(q) = self.search.as_ref().and_then(|(q, _)| crate::global_search::query_of(q)) {
+            return format!("Computador: {q}");
+        }
         if flat::is_dupes(&self.search) {
             return format!("Duplicados: {}", ops::name(&self.path));
         }
@@ -451,6 +454,7 @@ pub enum PromptKind {
     DeselectMask,
     SaveLayout,
     OpenLayout,
+    GlobalSearch,
 }
 
 impl PromptKind {
@@ -467,6 +471,7 @@ impl PromptKind {
             PromptKind::DeselectMask => "Tirar da seleção (ex.: *.tmp)",
             PromptKind::SaveLayout => "Salvar abas e painéis como layout (nome)",
             PromptKind::OpenLayout => "Abrir layout (nome)",
+            PromptKind::GlobalSearch => "Buscar no computador inteiro (índice do sistema)",
         }
     }
 }
@@ -1022,6 +1027,10 @@ impl App {
             ]);
         }
         let stream = match (tab.search.clone(), archive::split(&path)) {
+            (Some((query, _)), _) if refresh && crate::global_search::query_of(&query).is_some() => {
+                let q = crate::global_search::query_of(&query).unwrap_or_default().to_string();
+                Task::run(listing::global(q, sort), move |snap| Message::Listed { tab: id, generation, snap })
+            }
             (Some((query, hidden)), _) if refresh && query == arbor_core::dupes::QUERY => {
                 Task::run(listing::dupes(path, hidden), move |snap| Message::Listed { tab: id, generation, snap })
             }
@@ -1700,6 +1709,10 @@ impl App {
                 }
             }
             Cmd::FlatView => self.toggle_flat(),
+            Cmd::GlobalSearch => {
+                let filter = self.tab().filter.trim().to_string();
+                self.open_prompt(PromptKind::GlobalSearch, filter)
+            }
             Cmd::FindDuplicates => self.find_duplicates(),
             Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
             Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
@@ -2096,6 +2109,7 @@ impl App {
         let dir = self.tab().path.clone();
         match kind {
             PromptKind::Search => self.start_search(value),
+            PromptKind::GlobalSearch => self.start_search(format!("{}{value}", crate::global_search::PREFIX)),
             PromptKind::SelectMask | PromptKind::DeselectMask => self.submit_mask(kind, &value),
             PromptKind::SaveLayout => match crate::layouts::save(&value, &self.session()) {
                 Ok(()) => self.notify(format!("Layout \"{}\" salvo", value.trim()), false),
@@ -2325,6 +2339,7 @@ impl App {
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
+                    ("f", false) if mods.alt() => Some(Cmd::GlobalSearch),
                     ("f", false) => Some(Cmd::Filter),
                     ("f", true) => Some(Cmd::Search),
                     ("h", false) => Some(Cmd::ToggleHidden),
