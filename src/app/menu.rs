@@ -79,6 +79,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Undo),
             Some(SelectAll),
             Some(InvertSelection),
+            Some(SelectMask),
             None,
             Some(NewFolder),
             Some(NewTextFile),

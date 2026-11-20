@@ -11,6 +11,7 @@ mod motion;
 mod properties;
 pub mod rate;
 mod repos;
+mod select;
 mod trash_view;
 mod tree;
 
@@ -26,6 +27,7 @@ use crate::{discovery, home, instance, keymap, launch, listing, network, pins, p
 use arbor_core::frecency::Frecency;
 use arbor_core::group::GroupBy;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
+use arbor_core::search::Mask;
 use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
 use iced::keyboard::{key::Named, Key, Modifiers};
@@ -276,7 +278,9 @@ impl Tab {
     fn rebuild(&mut self, show_hidden: bool) {
         let keep = self.current().map(|e| e.path.clone());
         // Digitar mais uma letra só pode reduzir o resultado: filtra o que já passou em vez da pasta toda.
-        let narrowing = !self.view_filter.is_empty() && self.filter.starts_with(&self.view_filter) && !self.view.is_empty();
+        // Com curinga a regra não vale: "a" acha só "a", "a*" acha mais.
+        let wildcard = Mask::is_wildcard(&self.filter);
+        let narrowing = !wildcard && !self.view_filter.is_empty() && self.filter.starts_with(&self.view_filter) && !self.view.is_empty();
         let candidates: Vec<usize> = if narrowing {
             std::mem::take(&mut self.view)
         } else {
@@ -284,6 +288,9 @@ impl Tab {
         };
         self.view = if self.filter.is_empty() {
             candidates
+        } else if let Some(mask) = Mask::parse(&self.filter).filter(|_| wildcard) {
+            let entries = &self.entries;
+            candidates.into_iter().filter(|&i| mask.matches(&entries[i].name)).collect()
         } else {
             let entries = &self.entries;
             fuzzy::rank_slice(&self.filter, &candidates, |&i| entries[i].name.as_str()).into_iter().map(|k| candidates[k]).collect()
@@ -412,6 +419,8 @@ pub enum PromptKind {
     NewFile,
     GoTo,
     OpenWith,
+    SelectMask,
+    DeselectMask,
 }
 
 impl PromptKind {
@@ -424,6 +433,8 @@ impl PromptKind {
             PromptKind::NewFile => "Novo documento de texto",
             PromptKind::GoTo => "Ir para",
             PromptKind::OpenWith => "Abrir com (programa)",
+            PromptKind::SelectMask => "Selecionar (ex.: *.jpg;*.png)",
+            PromptKind::DeselectMask => "Tirar da seleção (ex.: *.tmp)",
         }
     }
 }
@@ -848,6 +859,19 @@ impl App {
             // Botões laterais do mouse voltam e avançam.
             Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Back)) => Some(Message::Run(Cmd::Back)),
             Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Forward)) => Some(Message::Run(Cmd::Forward)),
+            // Num+ / Num− / Num* selecionam por máscara e invertem, como no Total Commander.
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Character(c),
+                location: keyboard::Location::Numpad,
+                modifiers,
+                ..
+            }) if status == event::Status::Ignored && !modifiers.command() && !modifiers.alt() && matches!(c.as_str(), "+" | "-" | "*") => {
+                Some(Message::Run(match c.as_str() {
+                    "+" => Cmd::SelectMask,
+                    "-" => Cmd::DeselectMask,
+                    _ => Cmd::InvertSelection,
+                }))
+            }
             Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, text, .. }) => {
                 Some(Message::Key { key, modifiers, text: text.map(|t| t.to_string()), captured: status == event::Status::Captured })
             }
@@ -1585,6 +1609,9 @@ impl App {
                     Err(e) => self.notify(format!("Nova janela: {e}"), true),
                 }
             }
+            Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
+            Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
+            Cmd::SelectSameKind => self.select_same_kind(),
             Cmd::InvertSelection => {
                 let tab = self.tab_mut();
                 let all: HashSet<PathBuf> = tab.view.iter().map(|&i| tab.entries[i].path.clone()).collect();
@@ -1965,6 +1992,7 @@ impl App {
         let dir = self.tab().path.clone();
         match kind {
             PromptKind::Search => self.start_search(value),
+            PromptKind::SelectMask | PromptKind::DeselectMask => self.submit_mask(kind, &value),
             PromptKind::BatchRename => match rename::plan(&value, &self.batch_items()) {
                 Ok(pairs) if pairs.is_empty() => self.notify("Nenhum nome muda com esse modelo", false),
                 Ok(pairs) => self.start(Op::RenameMany { pairs }),
@@ -2812,5 +2840,18 @@ mod tests {
         tab.rebuild(false);
         assert_eq!(tab.view.len(), 1);
         assert_eq!(tab.current().unwrap().name, "README.md");
+    }
+
+    #[test]
+    fn filtro_com_curinga_nao_reaproveita_resultado_anterior() {
+        let mut tab = Tab::new(0, PathBuf::from("/"));
+        tab.edit_entries(false, |e| *e = ["a", "ab.rs", "b.rs", "c.txt"].map(entry).to_vec().into());
+        tab.filter = "a".into();
+        tab.rebuild(false);
+        tab.filter = "*.rs;c*".into();
+        tab.rebuild(false);
+        let mut names: Vec<_> = tab.view.iter().map(|&i| tab.entries[i].name.clone()).collect();
+        names.sort();
+        assert_eq!(names, ["ab.rs", "b.rs", "c.txt"]);
     }
 }
