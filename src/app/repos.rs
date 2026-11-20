@@ -1,5 +1,5 @@
-//! Pastas que são repositórios git ganham um selo no ícone. A checagem (um `stat` de `.git` por
-//! subpasta) roda fora da interface depois da listagem completa, com teto para pastas enormes.
+//! Git na pasta aberta: subpastas que são repositórios (um `stat` de `.git` cada, com teto) e o estado
+//! do repositório onde a pasta fica (branch, worktree, diff). Tudo fora da interface, após a listagem.
 
 use super::{App, Message};
 use crate::{discovery, network};
@@ -19,17 +19,34 @@ impl App {
         let Some(tab) = self.find_tab(id) else { return Task::none() };
         // Compartilhamentos e compactados: lento ou inexistente no disco.
         if discovery::is(&tab.path) || network::server_root(&tab.path).is_some() || arbor_core::archive::split(&tab.path).is_some() {
+            tab.git = None;
             return Task::none();
         }
         let dirs: Vec<PathBuf> = tab.entries.iter().filter(|e| e.is_dir).map(|e| e.path.clone()).collect();
+        let dir = tab.path.clone();
         if dirs.is_empty() || dirs.len() > MAX_DIRS {
             tab.repos.clear();
-            return Task::none();
+            return self.scan_git(id, dir);
         }
-        let dir = tab.path.clone();
-        Task::perform(async move { tokio::task::spawn_blocking(move || scan(dirs)).await.unwrap_or_default() }, move |repos| {
+        let git = self.scan_git(id, dir.clone());
+        let repos = Task::perform(async move { tokio::task::spawn_blocking(move || scan(dirs)).await.unwrap_or_default() }, move |repos| {
             Message::Repos { tab: id, dir: dir.clone(), repos }
+        });
+        Task::batch([git, repos])
+    }
+
+    fn scan_git(&self, id: u64, dir: PathBuf) -> Task<Message> {
+        let d = dir.clone();
+        Task::perform(async move { tokio::task::spawn_blocking(move || crate::git::read(&d)).await.ok().flatten() }, move |info| {
+            Message::Git { tab: id, dir: dir.clone(), info }
         })
+    }
+
+    pub(super) fn on_git(&mut self, id: u64, dir: PathBuf, info: Option<crate::git::GitInfo>) -> Task<Message> {
+        if let Some(tab) = self.find_tab(id).filter(|t| t.path == dir) {
+            tab.git = info;
+        }
+        Task::none()
     }
 
     pub(super) fn on_repos(&mut self, id: u64, dir: PathBuf, repos: HashSet<PathBuf>) -> Task<Message> {

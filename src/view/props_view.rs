@@ -18,7 +18,7 @@ fn line<'a>(k: String, v: String) -> Element<'a, Message> {
         .into()
 }
 
-fn count(n: usize, plus: &str, one: &str, many: &str) -> String {
+pub(super) fn count(n: usize, plus: &str, one: &str, many: &str) -> String {
     format!("{n}{plus} {}", if n == 1 && plus.is_empty() { one } else { many })
 }
 

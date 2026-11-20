@@ -27,6 +27,7 @@ mod commands_view;
 mod computer_view;
 mod crumbs;
 mod details_view;
+mod git_view;
 mod home_view;
 mod sidebar_view;
 
@@ -299,6 +300,8 @@ fn body<'a>(app: &'a App, tab: &'a Tab, pane_active: bool) -> Element<'a, Messag
             ("Nada corresponde ao filtro", "Esc limpa o filtro")
         } else if crate::discovery::is(&tab.path) {
             ("Nenhum computador encontrado", "Digite \\\\nome na barra de endereço (Ctrl+L) para abrir um servidor")
+        } else if tab.hidden > 0 && !app.show_hidden {
+            ("Só há itens ocultos aqui", "Ctrl+H ou o botão \"ocultos\" na barra mostra")
         } else {
             ("Pasta vazia", "F7 cria uma nova pasta aqui")
         };
@@ -429,7 +432,9 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
     };
     let cols = &app.columns;
     let repo = e.is_dir && tab.repos.contains(&e.path);
-    let mut line = row![entry_chip(entry_kind(e, drive), 24.0, dim, repo), name].spacing(10).align_y(Alignment::Center);
+    let mut line = row![entry_chip(entry_kind(e, drive), 24.0, dim, repo), name, git_view::marker(tab, &e.path, e.is_dir)]
+        .spacing(10)
+        .align_y(Alignment::Center);
     if cols.shown(Col::Kind) {
         let kind = if drive.is_some() { "Disco".into() } else { kind_label(e) };
         line = line.push(text(kind).size(11.5).width(cols.width(Col::Kind)).wrapping(Wrapping::None).style(theme::ink3));
@@ -566,6 +571,7 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
         .style(move |t: &Theme| text::Style {
             color: Some(theme::alpha(theme::tokens(t).ink, if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
         });
+    let label = row![label, git_view::marker(tab, &e.path, e.is_dir)].spacing(6).align_y(Alignment::Center);
     let meta = match drive.and_then(|d| d.space) {
         Some((free, total)) => format!("{} livres de {}", human_size(free), human_size(total)),
         None if e.is_dir => "Pasta".to_string(),
@@ -634,8 +640,9 @@ fn status<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     if tab.grid {
         parts.push(app.mode().name.to_string());
     }
-    let mut r =
-        row![text(parts.join("  ·  ")).size(11.5).style(theme::ink3).wrapping(Wrapping::None)].spacing(8).align_y(Alignment::Center);
+    let mut r = Row::new().spacing(8).align_y(Alignment::Center);
+    r = r.push(git_view::pill(tab)).push(git_view::hidden(tab, show_hidden));
+    r = r.push(text(parts.join("  ·  ")).size(11.5).style(theme::ink3).wrapping(Wrapping::None));
     if let Some(badge) = latency_badge(tab) {
         r = r.push(badge);
     }

@@ -17,6 +17,10 @@ const EDGE: f32 = 5.0;
 
 fn tab_icon<'a>(p: &Pane, i: usize) -> Element<'a, Message> {
     let path = &p.tabs[i].path;
+    // dentro de um repositório git a aba mostra o ramo, em coral, como a pílula da barra
+    if p.tabs[i].git.is_some() {
+        return icon(Icon::Branch, 15.0, theme::CORAL);
+    }
     let ic = if crate::computer::is(path) {
         Icon::DriveSystem
     } else if crate::home::is(path) {

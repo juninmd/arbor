@@ -193,6 +193,10 @@ pub struct Tab {
     pub grouped: groups::Grouped,
     /// Subpastas que são repositórios git (têm `.git`), verificadas depois da listagem completa.
     pub repos: HashSet<PathBuf>,
+    /// Estado git da pasta aberta, quando ela fica dentro de um repositório.
+    pub git: Option<crate::git::GitInfo>,
+    /// Itens ocultos na última listagem completa: o aviso "N ocultos" quando eles não aparecem.
+    pub hidden: usize,
 }
 
 impl Tab {
@@ -223,6 +227,8 @@ impl Tab {
             group: None,
             grouped: groups::Grouped::default(),
             repos: HashSet::new(),
+            git: None,
+            hidden: 0,
         }
     }
 
@@ -615,6 +621,11 @@ pub enum Message {
         tab: u64,
         dir: PathBuf,
         repos: HashSet<PathBuf>,
+    },
+    Git {
+        tab: u64,
+        dir: PathBuf,
+        info: Option<crate::git::GitInfo>,
     },
     UpdateCheck {
         manual: bool,
@@ -1071,6 +1082,7 @@ impl App {
             let Some(tab) = self.find_tab(id) else { return Task::none() };
             tab.loading = false;
             tab.listed = Some((tab.entries.len(), snap.elapsed));
+            tab.hidden = tab.entries.iter().filter(|e| e.hidden).count();
             if tab.refreshing {
                 let alive: HashSet<&Path> = tab.entries.iter().map(|e| e.path.as_path()).collect();
                 tab.selected.retain(|p| alive.contains(p.as_path()));
@@ -2309,6 +2321,7 @@ impl App {
             Message::PropsLoaded { path, preview, props } => self.on_props(path, preview, props),
             Message::DetailsResizeStart => self.details_resize_start(),
             Message::Repos { tab, dir, repos } => self.on_repos(tab, dir, repos),
+            Message::Git { tab, dir, info } => self.on_git(tab, dir, info),
             Message::Dropped(path) => {
                 let dest = self.tab().path.clone();
                 if computer::is_virtual(&dest) || path.parent() == Some(dest.as_path()) {

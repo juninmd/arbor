@@ -11,6 +11,7 @@ mod complete;
 mod computer;
 mod discovery;
 mod folder_views;
+mod git;
 mod glass;
 mod home;
 mod instance;
