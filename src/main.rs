@@ -6,6 +6,7 @@ mod app;
 mod aurora;
 mod checksums;
 mod clash;
+mod colors;
 mod columns;
 mod commands;
 mod complete;
@@ -61,6 +62,7 @@ fn main() -> iced::Result {
     glass::log_to_stderr();
     glass::prepare();
     keymap::reload();
+    colors::reload();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)

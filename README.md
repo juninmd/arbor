@@ -91,6 +91,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   partir dela abre outra aba, e ela não fecha junto), fechar as outras, à esquerda ou à direita.
 * **Visão plana** (`Ctrl+B`, como no Total Commander): a aba lista todos os arquivos da pasta e das subpastas,
   com a pasta de cada um embaixo do nome; dá para ordenar, filtrar e copiar como numa pasta comum.
+* **Filtros de cor** (paleta: "Editar filtros de cor"): `*.log;*.tmp = cinza`, `*.pdf = #ff6b6b`… no arquivo
+  `colors` pintam o nome de quem casa, como no XYplorer. É regra visual, não tag: nada é gravado nos arquivos.
 * **Curinga e seleção por máscara**, como no Total Commander: `*.jpg;*.png` no filtro mostra só o que casa;
   `Num +` / `Num −` somam ou tiram da seleção por máscara, `Num *` inverte, e "Selecionar todos do mesmo tipo"
   está na paleta.

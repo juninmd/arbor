@@ -415,9 +415,12 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
     let cursor = i == tab.cursor;
     let dim = e.hidden;
     let strong = selected || cursor;
+    let tint = crate::colors::of(&e.name);
     let name =
         text(shown_name(app, e)).size(13).wrapping(Wrapping::None).width(Fill).font(if strong { theme::UI_BOLD } else { theme::UI }).style(
-            move |t: &Theme| text::Style { color: Some(theme::alpha(theme::tokens(t).ink, if dim { theme::HIDDEN_ALPHA } else { 1.0 })) },
+            move |t: &Theme| text::Style {
+                color: Some(theme::alpha(tint.unwrap_or(theme::tokens(t).ink), if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
+            },
         );
     // Na busca, a pasta de cada resultado (relativa à pasta buscada) vai embaixo do nome.
     let name: Element<_> = match (&tab.search, e.path.parent().and_then(|p| p.strip_prefix(&tab.path).ok())) {
@@ -558,13 +561,14 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
             })
             .into(),
     };
+    let tint = crate::colors::of(&e.name);
     let label = text(shorten(shown_name(app, e), 30))
         .size(12)
         .width(Fill)
         .wrapping(Wrapping::None)
         .font(if selected { theme::UI_BOLD } else { theme::UI })
         .style(move |t: &Theme| text::Style {
-            color: Some(theme::alpha(theme::tokens(t).ink, if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
+            color: Some(theme::alpha(tint.unwrap_or(theme::tokens(t).ink), if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
         });
     let meta = match drive.and_then(|d| d.space) {
         Some((free, total)) => format!("{} livres de {}", human_size(free), human_size(total)),

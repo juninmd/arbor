@@ -101,6 +101,8 @@ pub enum Cmd {
     ToggleAutoUpdate,
     EditKeys,
     ReloadKeys,
+    EditColors,
+    ReloadColors,
     SetDefault,
     UnsetDefault,
     ToggleRestore,
@@ -209,6 +211,8 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleAutoUpdate,
     Cmd::EditKeys,
     Cmd::ReloadKeys,
+    Cmd::EditColors,
+    Cmd::ReloadColors,
     Cmd::SetDefault,
     Cmd::UnsetDefault,
     Cmd::ToggleRestore,
@@ -320,6 +324,8 @@ impl Cmd {
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
             Cmd::EditKeys => "Editar atalhos",
             Cmd::ReloadKeys => "Recarregar atalhos",
+            Cmd::EditColors => "Editar filtros de cor (pintar nomes por máscara)",
+            Cmd::ReloadColors => "Recarregar filtros de cor",
             Cmd::SetDefault => "Usar o arbor para abrir pastas (explorer padrão)",
             Cmd::UnsetDefault => "Voltar a abrir pastas no gerenciador do sistema",
             Cmd::ToggleRestore => "Ligar/desligar restaurar abas ao abrir",
@@ -430,7 +436,9 @@ impl Cmd {
             | Cmd::SaveLayout
             | Cmd::OpenLayout
             | Cmd::EditKeys
-            | Cmd::ReloadKeys => String::new(),
+            | Cmd::ReloadKeys
+            | Cmd::EditColors
+            | Cmd::ReloadColors => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

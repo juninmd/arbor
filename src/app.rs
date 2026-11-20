@@ -1849,6 +1849,14 @@ impl App {
                 Ok(f) => self.notify(format!("Editando {}. Salve e use \"Recarregar atalhos\".", f.display()), false),
                 Err(e) => self.notify(format!("Atalhos: {e}"), true),
             },
+            Cmd::EditColors => match crate::colors::ensure_file().and_then(|f| launch::open_default(&f).map(|_| f)) {
+                Ok(f) => self.notify(format!("Editando {}. Salve e use \"Recarregar filtros de cor\".", f.display()), false),
+                Err(e) => self.notify(format!("Filtros de cor: {e}"), true),
+            },
+            Cmd::ReloadColors => match crate::colors::reload() {
+                (n, bad) if bad.is_empty() => self.notify(format!("{n} filtro(s) de cor ativo(s)"), false),
+                (n, bad) => self.notify(format!("{n} filtro(s) de cor; linhas ignoradas: {}", bad.join(" | ")), true),
+            },
             Cmd::ReloadKeys => {
                 let (n, bad) = keymap::reload();
                 if bad.is_empty() {
