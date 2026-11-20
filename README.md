@@ -77,6 +77,15 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
+* **Navegação sincronizada** no painel duplo (paleta: "Navegação sincronizada"): entrar numa subpasta de um
+  lado entra na de mesmo nome do outro, e subir sobe os dois, como no Directory Opus.
+* **Menu da aba** (botão direito): duplicar (`Ctrl+Shift+D`), **travar** (a aba fica na pasta dela; navegar a
+  partir dela abre outra aba, e ela não fecha junto), fechar as outras, à esquerda ou à direita.
+* **Visão plana** (`Ctrl+B`, como no Total Commander): a aba lista todos os arquivos da pasta e das subpastas,
+  com a pasta de cada um embaixo do nome; dá para ordenar, filtrar e copiar como numa pasta comum.
+* **Curinga e seleção por máscara**, como no Total Commander: `*.jpg;*.png` no filtro mostra só o que casa;
+  `Num +` / `Num −` somam ou tiram da seleção por máscara, `Num *` inverte, e "Selecionar todos do mesmo tipo"
+  está na paleta.
 * **Paleta de comandos** (`Ctrl+Shift+P`) com todos os comandos e atalhos, e **pastas frequentes** (`Ctrl+K`): digite parte do nome de uma pasta já visitada e pule para ela.
 * **Preview com Espaço** de imagens (todos os formatos do [Vislo](https://github.com/juninmd/vislo), com EXIF),
   texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) de imagens (inclusive PSD e RAW), capa de MP3 e
@@ -197,11 +206,14 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Shift+Enter` | Abrir com o app do sistema |
 | `Espaço` | Preview (as setas trocam o arquivo) |
 | `Backspace` | Pasta acima |
-| digitar | Filtrar a pasta (`Esc` limpa) |
+| digitar | Filtrar a pasta (`Esc` limpa); com `*` ou `?` vira curinga (`*.jpg;*.png`) |
+| `Num +` / `Num −` / `Num *` | Selecionar / tirar da seleção por máscara / inverter seleção |
 | `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
+| `Ctrl+B` | Visão plana: todos os arquivos das subpastas numa lista só (de novo volta) |
 | `Ctrl+Shift+P` | Paleta de comandos |
 | `Ctrl+K` | Pular para pasta frequente |
 | `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |
+| `Ctrl+Shift+D` | Duplicar aba (botão direito na aba: travar, fechar as outras / à esquerda / à direita) |
 | `Ctrl+Shift+T` | Reabrir aba fechada (a paleta tem *Restaurar abas ao abrir*) |
 | `F3` / `Tab` | Painel duplo / trocar de painel |
 | `Ctrl+N` | Nova janela |

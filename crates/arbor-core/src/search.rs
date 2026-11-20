@@ -16,15 +16,24 @@ use std::time::Instant;
 /// Mais que isso não ajuda ninguém a achar um arquivo e só pesa na interface.
 pub const MAX_RESULTS: usize = 20_000;
 
+/// Consulta da visão plana (Ctrl+B do Total Commander): todos os arquivos das subpastas, sem as pastas.
+/// Começa com um caractere de controle para ninguém digitar sem querer.
+pub const FLAT: &str = "\u{1}plana";
+
 /// Como a consulta casa com um nome.
 #[derive(Debug, Clone)]
 pub enum Query {
     Words(Vec<String>),
     Glob(Vec<char>),
+    /// Visão plana: todo arquivo casa, nenhuma pasta entra.
+    Files,
 }
 
 impl Query {
     pub fn parse(q: &str) -> Option<Query> {
+        if q == FLAT {
+            return Some(Query::Files);
+        }
         let q = q.trim().to_lowercase();
         if q.is_empty() {
             return None;
@@ -41,7 +50,29 @@ impl Query {
         match self {
             Query::Words(words) => words.iter().all(|w| name.contains(w.as_str())),
             Query::Glob(pattern) => glob(pattern, &name.chars().collect::<Vec<_>>()),
+            Query::Files => true,
         }
+    }
+}
+
+/// Máscara de seleção e de filtro: um ou mais padrões separados por `;` (`*.jpg;*.png`), como no Total
+/// Commander. Casa se qualquer padrão casar; cada padrão segue as regras de [`Query`].
+#[derive(Debug, Clone)]
+pub struct Mask(Vec<Query>);
+
+impl Mask {
+    pub fn parse(mask: &str) -> Option<Mask> {
+        let parts: Vec<Query> = mask.split(';').filter_map(Query::parse).collect();
+        (!parts.is_empty()).then_some(Mask(parts))
+    }
+
+    /// Um texto de filtro vira máscara quando tem curinga; sem curinga o filtro continua fuzzy.
+    pub fn is_wildcard(text: &str) -> bool {
+        text.contains(['*', '?'])
+    }
+
+    pub fn matches(&self, name: &str) -> bool {
+        self.0.iter().any(|q| q.matches(name))
     }
 }
 
@@ -149,7 +180,7 @@ fn walk_dir<'s>(scope: &rayon::Scope<'s>, ctx: &'s Walk<'s>, dir: &Path) {
             let path = item.path();
             scope.spawn(move |s| walk_dir(s, ctx, &path));
         }
-        if ctx.query.matches(&name) {
+        if ctx.query.matches(&name) && !(ft.is_dir() && matches!(ctx.query, Query::Files)) {
             let Ok(meta) = item.metadata() else { continue };
             if ctx.found.fetch_add(1, Ordering::Relaxed) >= MAX_RESULTS {
                 ctx.stop.store(true, Ordering::Relaxed);
@@ -173,6 +204,31 @@ mod tests {
         let w = Query::parse("relat 2025").unwrap();
         assert!(w.matches("Relatorio-2025.xlsx") && !w.matches("relatorio-2024"));
         assert!(Query::parse("   ").is_none());
+    }
+
+    #[test]
+    fn visao_plana_traz_so_arquivos_de_todas_as_subpastas() {
+        let d = tempfile::tempdir().unwrap();
+        fs::create_dir_all(d.path().join("a/b")).unwrap();
+        fs::write(d.path().join("a/b/fundo.txt"), "").unwrap();
+        fs::write(d.path().join("raiz.md"), "").unwrap();
+        let mut names = vec![];
+        search(d.path(), FLAT, Sort::default(), false, |s| {
+            if s.complete {
+                names = s.entries.iter().map(|e| e.name.clone()).collect();
+            }
+            true
+        });
+        names.sort();
+        assert_eq!(names, ["fundo.txt", "raiz.md"]);
+    }
+
+    #[test]
+    fn mascara_com_varios_padroes() {
+        let m = Mask::parse("*.JPG; *.png ;").unwrap();
+        assert!(m.matches("foto.jpg") && m.matches("Tela.PNG") && !m.matches("nota.txt"));
+        assert!(Mask::parse(" ; ").is_none());
+        assert!(Mask::is_wildcard("*.rs") && Mask::is_wildcard("a?c") && !Mask::is_wildcard("relat"));
     }
 
     #[test]

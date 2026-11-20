@@ -4,6 +4,7 @@ use crate::commands::{self, Cmd};
 mod address;
 mod details;
 mod drag;
+mod flat;
 pub mod groups;
 mod jump;
 mod menu;
@@ -11,6 +12,9 @@ mod motion;
 mod properties;
 pub mod rate;
 mod repos;
+mod select;
+mod sync_nav;
+mod tabs;
 mod trash_view;
 mod tree;
 
@@ -26,6 +30,7 @@ use crate::{discovery, home, instance, keymap, launch, listing, network, pins, p
 use arbor_core::frecency::Frecency;
 use arbor_core::group::GroupBy;
 use arbor_core::ops::{self, Conflict, JobEvent, Op, Undo};
+use arbor_core::search::Mask;
 use arbor_core::{archive, fuzzy, rename, sort_entries, Entry, Snapshot, Sort, SortKey};
 use iced::advanced::widget::operation::focusable;
 use iced::keyboard::{key::Named, Key, Modifiers};
@@ -49,6 +54,8 @@ pub struct App {
     pub panes: [Pane; 2],
     pub active: usize,
     pub dual: bool,
+    /// Painel duplo com navegação sincronizada (ver `sync_nav`).
+    pub sync_nav: bool,
     pub overlay: Overlay,
     pub jobs: Vec<Job>,
     next_job: u64,
@@ -197,6 +204,8 @@ pub struct Tab {
     pub git: Option<crate::git::GitInfo>,
     /// Itens ocultos na última listagem completa: o aviso "N ocultos" quando eles não aparecem.
     pub hidden: usize,
+    /// Aba travada: navegar a partir dela abre outra aba, e ela não fecha junto com as outras.
+    pub locked: bool,
 }
 
 impl Tab {
@@ -229,10 +238,14 @@ impl Tab {
             repos: HashSet::new(),
             git: None,
             hidden: 0,
+            locked: false,
         }
     }
 
     pub fn title(&self) -> String {
+        if flat::is_flat(&self.search) {
+            return format!("Plana: {}", ops::name(&self.path));
+        }
         if let Some((q, _)) = &self.search {
             return format!("Busca: {q}");
         }
@@ -282,7 +295,9 @@ impl Tab {
     fn rebuild(&mut self, show_hidden: bool) {
         let keep = self.current().map(|e| e.path.clone());
         // Digitar mais uma letra só pode reduzir o resultado: filtra o que já passou em vez da pasta toda.
-        let narrowing = !self.view_filter.is_empty() && self.filter.starts_with(&self.view_filter) && !self.view.is_empty();
+        // Com curinga a regra não vale: "a" acha só "a", "a*" acha mais.
+        let wildcard = Mask::is_wildcard(&self.filter);
+        let narrowing = !wildcard && !self.view_filter.is_empty() && self.filter.starts_with(&self.view_filter) && !self.view.is_empty();
         let candidates: Vec<usize> = if narrowing {
             std::mem::take(&mut self.view)
         } else {
@@ -290,6 +305,9 @@ impl Tab {
         };
         self.view = if self.filter.is_empty() {
             candidates
+        } else if let Some(mask) = Mask::parse(&self.filter).filter(|_| wildcard) {
+            let entries = &self.entries;
+            candidates.into_iter().filter(|&i| mask.matches(&entries[i].name)).collect()
         } else {
             let entries = &self.entries;
             fuzzy::rank_slice(&self.filter, &candidates, |&i| entries[i].name.as_str()).into_iter().map(|k| candidates[k]).collect()
@@ -418,6 +436,8 @@ pub enum PromptKind {
     NewFile,
     GoTo,
     OpenWith,
+    SelectMask,
+    DeselectMask,
 }
 
 impl PromptKind {
@@ -430,6 +450,8 @@ impl PromptKind {
             PromptKind::NewFile => "Novo documento de texto",
             PromptKind::GoTo => "Ir para",
             PromptKind::OpenWith => "Abrir com (programa)",
+            PromptKind::SelectMask => "Selecionar (ex.: *.jpg;*.png)",
+            PromptKind::DeselectMask => "Tirar da seleção (ex.: *.tmp)",
         }
     }
 }
@@ -555,6 +577,11 @@ pub enum Message {
         pane: usize,
         index: usize,
     },
+    /// Botão direito numa aba.
+    TabMenu {
+        pane: usize,
+        index: usize,
+    },
     NewTabIn(usize),
     FocusPane(usize),
     SortBy {
@@ -658,6 +685,7 @@ impl App {
             ],
             active: 0,
             dual: false,
+            sync_nav: false,
             closed: vec![],
             saved: None,
             restore,
@@ -859,6 +887,19 @@ impl App {
             // Botões laterais do mouse voltam e avançam.
             Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Back)) => Some(Message::Run(Cmd::Back)),
             Event::Mouse(iced::mouse::Event::ButtonPressed(iced::mouse::Button::Forward)) => Some(Message::Run(Cmd::Forward)),
+            // Num+ / Num− / Num* selecionam por máscara e invertem, como no Total Commander.
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                key: Key::Character(c),
+                location: keyboard::Location::Numpad,
+                modifiers,
+                ..
+            }) if status == event::Status::Ignored && !modifiers.command() && !modifiers.alt() && matches!(c.as_str(), "+" | "-" | "*") => {
+                Some(Message::Run(match c.as_str() {
+                    "+" => Cmd::SelectMask,
+                    "-" => Cmd::DeselectMask,
+                    _ => Cmd::InvertSelection,
+                }))
+            }
             Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, text, .. }) => {
                 Some(Message::Key { key, modifiers, text: text.map(|t| t.to_string()), captured: status == event::Status::Captured })
             }
@@ -973,10 +1014,21 @@ impl App {
     }
 
     fn navigate(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
+        let old = self.panes[pane].tab().path.clone();
+        let task = self.navigate_one(pane, path.clone());
+        let follow = self.follow(pane, &old, &path);
+        Task::batch([task, follow])
+    }
+
+    fn navigate_one(&mut self, pane: usize, path: PathBuf) -> Task<Message> {
         let tab = self.panes[pane].tab_mut();
         if tab.path == path {
             return Task::none();
         }
+        if tab.locked {
+            return self.new_tab_at(pane, path);
+        }
+        let tab = self.panes[pane].tab_mut();
         let old = std::mem::replace(&mut tab.path, path.clone());
         tab.back.push(old);
         tab.forward.clear();
@@ -1004,6 +1056,9 @@ impl App {
     }
 
     fn history(&mut self, back: bool) -> Task<Message> {
+        if self.tab().locked {
+            return self.notify("Aba travada: destrave para voltar ou avançar", false);
+        }
         let tab = self.tab_mut();
         let target = if back { tab.back.pop() } else { tab.forward.pop() };
         let Some(target) = target else { return Task::none() };
@@ -1467,6 +1522,12 @@ impl App {
                 let i = self.panes[pane].active;
                 self.close_tab(pane, i)
             }
+            Cmd::LockTab => self.toggle_lock(),
+            Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::DuplicateTab => self.duplicate_tab(),
+            Cmd::CloseOtherTabs => self.close_many(tabs::Close::Others),
+            Cmd::CloseTabsLeft => self.close_many(tabs::Close::Left),
+            Cmd::CloseTabsRight => self.close_many(tabs::Close::Right),
             Cmd::ReopenTab => {
                 let Some((pane, path, grid)) = self.closed.pop() else { return self.notify("Nenhuma aba fechada", false) };
                 let task = self.new_tab(pane);
@@ -1597,6 +1658,10 @@ impl App {
                     Err(e) => self.notify(format!("Nova janela: {e}"), true),
                 }
             }
+            Cmd::FlatView => self.toggle_flat(),
+            Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
+            Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
+            Cmd::SelectSameKind => self.select_same_kind(),
             Cmd::InvertSelection => {
                 let tab = self.tab_mut();
                 let all: HashSet<PathBuf> = tab.view.iter().map(|&i| tab.entries[i].path.clone()).collect();
@@ -1906,6 +1971,10 @@ impl App {
         if p.tabs.len() == 1 {
             return Task::none();
         }
+        if p.tabs.get(index).is_some_and(|t| t.locked) {
+            return self.notify("Aba travada: destrave antes de fechar", false);
+        }
+        let p = &mut self.panes[pane];
         let tab = p.tabs.remove(index);
         self.closed.push((pane, tab.path, tab.grid));
         if self.closed.len() > 30 {
@@ -1977,6 +2046,7 @@ impl App {
         let dir = self.tab().path.clone();
         match kind {
             PromptKind::Search => self.start_search(value),
+            PromptKind::SelectMask | PromptKind::DeselectMask => self.submit_mask(kind, &value),
             PromptKind::BatchRename => match rename::plan(&value, &self.batch_items()) {
                 Ok(pairs) if pairs.is_empty() => self.notify("Nenhum nome muda com esse modelo", false),
                 Ok(pairs) => self.start(Op::RenameMany { pairs }),
@@ -2188,6 +2258,7 @@ impl App {
                     ("e", false) => Some(Cmd::Extract),
                     ("e", true) => Some(Cmd::Compress),
                     ("t", true) => Some(Cmd::ReopenTab),
+                    ("d", true) => Some(Cmd::DuplicateTab),
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
@@ -2195,6 +2266,7 @@ impl App {
                     ("f", true) => Some(Cmd::Search),
                     ("h", false) => Some(Cmd::ToggleHidden),
                     ("g", false) => Some(Cmd::ToggleGrid),
+                    ("b", false) => Some(Cmd::FlatView),
                     ("1", _) => Some(Cmd::SortName),
                     ("2", _) => Some(Cmd::SortSize),
                     ("3", _) => Some(Cmd::SortModified),
@@ -2401,6 +2473,7 @@ impl App {
                 Task::none()
             }
             Message::CloseTabAt { pane, index } => self.close_tab(pane, index),
+            Message::TabMenu { pane, index } => self.tab_menu(pane, index),
             Message::NewTabIn(pane) => self.new_tab(pane),
             Message::FocusPane(pane) => {
                 self.active = pane;
@@ -2825,5 +2898,18 @@ mod tests {
         tab.rebuild(false);
         assert_eq!(tab.view.len(), 1);
         assert_eq!(tab.current().unwrap().name, "README.md");
+    }
+
+    #[test]
+    fn filtro_com_curinga_nao_reaproveita_resultado_anterior() {
+        let mut tab = Tab::new(0, PathBuf::from("/"));
+        tab.edit_entries(false, |e| *e = ["a", "ab.rs", "b.rs", "c.txt"].map(entry).to_vec().into());
+        tab.filter = "a".into();
+        tab.rebuild(false);
+        tab.filter = "*.rs;c*".into();
+        tab.rebuild(false);
+        let mut names: Vec<_> = tab.view.iter().map(|&i| tab.entries[i].name.clone()).collect();
+        names.sort();
+        assert_eq!(names, ["ab.rs", "b.rs", "c.txt"]);
     }
 }
