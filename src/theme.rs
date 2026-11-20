@@ -39,6 +39,20 @@ pub const MINT: Color = rgb(0x8ff0c0);
 pub const CORAL: Color = rgb(0xffa184);
 pub const STEEL: Color = rgb(0xc8d0e6);
 
+/// Cores dos chips de ícone (pastas, tipos de arquivo, unidades). Os temas do canto-widget trocam por as suas.
+#[derive(Debug, Clone, Copy)]
+pub struct Hues {
+    pub ice: Color,
+    pub iris: Color,
+    pub rose: Color,
+    pub amber: Color,
+    pub mint: Color,
+    pub coral: Color,
+    pub steel: Color,
+}
+
+pub const HUES: Hues = Hues { ice: ICE, iris: IRIS, rose: ROSE, amber: AMBER, mint: MINT, coral: CORAL, steel: STEEL };
+
 /// Paleta de um tema (escuro é o padrão; o claro usa os mesmos papéis).
 #[derive(Debug, Clone, Copy)]
 pub struct Tokens {
@@ -57,6 +71,7 @@ pub struct Tokens {
     pub danger: Color,
     pub good: Color,
     pub warn: Color,
+    pub hues: Hues,
 }
 
 pub const DARK: Tokens = Tokens {
@@ -74,6 +89,7 @@ pub const DARK: Tokens = Tokens {
     danger: rgb(0xff8a8a),
     good: MINT,
     warn: AMBER,
+    hues: HUES,
 };
 
 pub const LIGHT: Tokens = Tokens {
@@ -91,6 +107,7 @@ pub const LIGHT: Tokens = Tokens {
     danger: rgb(0xc43d3d),
     good: rgb(0x1f9d63),
     warn: rgb(0xb7790e),
+    hues: HUES,
 };
 
 /// Tokens do tema ativo (`palettes::current`); o `Theme` do iced só carrega a paleta básica.

@@ -82,6 +82,12 @@ pub enum Cmd {
     ThemeGraphite,
     ThemeOcean,
     ThemeSunset,
+    ThemeCanto,
+    ThemeHuecoMundo,
+    ThemeDracula,
+    ThemeVidro,
+    ThemeAuroraCanto,
+    ThemeClaroCanto,
     VerticalTabs,
     CopyPath,
     CopyListing,
@@ -188,6 +194,12 @@ pub const ALL: &[Cmd] = &[
     Cmd::ThemeGraphite,
     Cmd::ThemeOcean,
     Cmd::ThemeSunset,
+    Cmd::ThemeCanto,
+    Cmd::ThemeHuecoMundo,
+    Cmd::ThemeDracula,
+    Cmd::ThemeVidro,
+    Cmd::ThemeAuroraCanto,
+    Cmd::ThemeClaroCanto,
     Cmd::VerticalTabs,
     Cmd::CopyPath,
     Cmd::CopyListing,
@@ -297,6 +309,12 @@ impl Cmd {
             Cmd::ThemeGraphite => "Tema: Grafite",
             Cmd::ThemeOcean => "Tema: Oceano",
             Cmd::ThemeSunset => "Tema: Pôr do sol",
+            Cmd::ThemeCanto => "Tema: Canto",
+            Cmd::ThemeHuecoMundo => "Tema: Hueco Mundo",
+            Cmd::ThemeDracula => "Tema: Drácula",
+            Cmd::ThemeVidro => "Tema: Vidro",
+            Cmd::ThemeAuroraCanto => "Tema: Aurora Canto",
+            Cmd::ThemeClaroCanto => "Tema: Claro Canto",
             Cmd::VerticalTabs => "Abas verticais",
             Cmd::CopyPath => "Copiar caminho",
             Cmd::CopyListing => "Copiar listagem (tabela para planilha)",
@@ -392,6 +410,12 @@ impl Cmd {
             | Cmd::ThemeGraphite
             | Cmd::ThemeOcean
             | Cmd::ThemeSunset
+            | Cmd::ThemeCanto
+            | Cmd::ThemeHuecoMundo
+            | Cmd::ThemeDracula
+            | Cmd::ThemeVidro
+            | Cmd::ThemeAuroraCanto
+            | Cmd::ThemeClaroCanto
             | Cmd::VerticalTabs => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::CopyListing => String::new(),

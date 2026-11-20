@@ -5,8 +5,11 @@
 
 use crate::commands::Cmd;
 use crate::theme::{Tokens, DARK, LIGHT};
+use canto::{AURORA_CANTO, CANTO, CLARO_CANTO, DRACULA, HUECO_MUNDO, NO_BLOBS, VIDRO};
 use iced::Color;
 use std::sync::atomic::{AtomicU8, Ordering};
+
+mod canto;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Palette {
@@ -17,9 +20,28 @@ pub enum Palette {
     Graphite,
     Ocean,
     Sunset,
+    Canto,
+    HuecoMundo,
+    Dracula,
+    Vidro,
+    AuroraCanto,
+    ClaroCanto,
 }
 
-pub const ALL: [Palette; 6] = [Palette::Aurora, Palette::Light, Palette::Midnight, Palette::Graphite, Palette::Ocean, Palette::Sunset];
+pub const ALL: [Palette; 12] = [
+    Palette::Aurora,
+    Palette::Light,
+    Palette::Midnight,
+    Palette::Graphite,
+    Palette::Ocean,
+    Palette::Sunset,
+    Palette::Canto,
+    Palette::HuecoMundo,
+    Palette::Dracula,
+    Palette::Vidro,
+    Palette::AuroraCanto,
+    Palette::ClaroCanto,
+];
 
 /// Mancha da aurora: (cor, centro x, centro y, raio, opacidade), em frações da janela.
 pub type Blob = (u32, f32, f32, f32, f32);
@@ -60,6 +82,12 @@ impl Palette {
             Palette::Graphite => "grafite",
             Palette::Ocean => "oceano",
             Palette::Sunset => "por-do-sol",
+            Palette::Canto => "canto",
+            Palette::HuecoMundo => "hueco-mundo",
+            Palette::Dracula => "dracula",
+            Palette::Vidro => "vidro",
+            Palette::AuroraCanto => "aurora-canto",
+            Palette::ClaroCanto => "claro-canto",
         }
     }
 
@@ -71,6 +99,12 @@ impl Palette {
             Palette::Graphite => "Grafite",
             Palette::Ocean => "Oceano",
             Palette::Sunset => "Pôr do sol",
+            Palette::Canto => "Canto",
+            Palette::HuecoMundo => "Hueco Mundo",
+            Palette::Dracula => "Drácula",
+            Palette::Vidro => "Vidro",
+            Palette::AuroraCanto => "Aurora Canto",
+            Palette::ClaroCanto => "Claro Canto",
         }
     }
 
@@ -79,7 +113,7 @@ impl Palette {
     }
 
     pub fn is_dark(self) -> bool {
-        self != Palette::Light
+        !matches!(self, Palette::Light | Palette::ClaroCanto)
     }
 
     pub fn tokens(self) -> Tokens {
@@ -90,6 +124,12 @@ impl Palette {
             Palette::Graphite => GRAPHITE,
             Palette::Ocean => OCEAN,
             Palette::Sunset => SUNSET,
+            Palette::Canto => CANTO,
+            Palette::HuecoMundo => HUECO_MUNDO,
+            Palette::Dracula => DRACULA,
+            Palette::Vidro => VIDRO,
+            Palette::AuroraCanto => AURORA_CANTO,
+            Palette::ClaroCanto => CLARO_CANTO,
         }
     }
 
@@ -116,6 +156,20 @@ impl Palette {
                 (0xff3f7f, 0.52, 0.93, 0.26, 0.55),
                 (0xffc145, -0.10, 0.89, 0.20, 0.45),
             ],
+            Palette::Canto | Palette::HuecoMundo | Palette::Dracula | Palette::ClaroCanto => NO_BLOBS,
+            // Os três radial-gradient da skin aurora do canto, nas mesmas posições.
+            Palette::AuroraCanto => [
+                (0xff7ad9, 0.08, 0.0, 0.55, 0.30),
+                (0x8b7bff, 1.0, 0.40, 0.50, 0.30),
+                (0x5eead4, 0.30, 1.0, 0.50, 0.22),
+                (0, 0.0, 0.0, 0.1, 0.0),
+            ],
+            Palette::Vidro => [
+                (0x0a84ff, 0.17, 0.41, 0.30, 0.35),
+                (0xbf5af2, 0.92, 0.19, 0.28, 0.22),
+                (0x64d2ff, 0.52, 0.93, 0.26, 0.18),
+                (0x0a84ff, -0.10, 0.89, 0.20, 0.15),
+            ],
         }
     }
 
@@ -128,6 +182,12 @@ impl Palette {
             Palette::Graphite => Cmd::ThemeGraphite,
             Palette::Ocean => Cmd::ThemeOcean,
             Palette::Sunset => Cmd::ThemeSunset,
+            Palette::Canto => Cmd::ThemeCanto,
+            Palette::HuecoMundo => Cmd::ThemeHuecoMundo,
+            Palette::Dracula => Cmd::ThemeDracula,
+            Palette::Vidro => Cmd::ThemeVidro,
+            Palette::AuroraCanto => Cmd::ThemeAuroraCanto,
+            Palette::ClaroCanto => Cmd::ThemeClaroCanto,
         }
     }
 

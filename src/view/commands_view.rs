@@ -152,9 +152,10 @@ pub fn jump<'a>(app: &'a App, j: &'a Jump) -> Element<'a, Message> {
     for (i, (label, path)) in items.iter().enumerate() {
         let hot = j.selected == Some(i);
         let here = path == current;
-        let content = row![icon(Icon::Folder, 14.0, theme::ICE), text(label.as_str()).size(12.5).width(Fill).wrapping(Wrapping::None)]
-            .spacing(10)
-            .align_y(Alignment::Center);
+        let content =
+            row![icon(Icon::Folder, 14.0, theme::now().hues.ice), text(label.as_str()).size(12.5).width(Fill).wrapping(Wrapping::None)]
+                .spacing(10)
+                .align_y(Alignment::Center);
         let b = button(content)
             .height(ITEM_H)
             .width(Fill)
