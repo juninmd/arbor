@@ -2,9 +2,13 @@
 
 use crate::commands::{self, Cmd};
 mod address;
+mod compare_dirs;
+mod content;
 mod details;
 mod drag;
+mod export;
 mod flat;
+mod folder_sizes;
 pub mod groups;
 mod jump;
 mod menu;
@@ -70,6 +74,8 @@ pub struct App {
     pub palette: crate::palettes::Palette,
     /// Abas numa coluna à esquerda em vez de na barra de título.
     pub vertical_tabs: bool,
+    /// Calcular o tamanho das pastas na coluna Tamanho (ver `folder_sizes`).
+    pub folder_sizes: bool,
     pub show_hidden: bool,
     /// "Extensões de nomes de arquivos" do Explorer; desligado, a lista mostra só o nome.
     pub hide_ext: bool,
@@ -206,6 +212,11 @@ pub struct Tab {
     pub hidden: usize,
     /// Aba travada: navegar a partir dela abre outra aba, e ela não fecha junto com as outras.
     pub locked: bool,
+    /// Pastas desta listagem já têm o tamanho somado em `entries`; `sizes_stop` cancela a soma em andamento.
+    pub dir_sizes: bool,
+    /// Branch do git da pasta, mostrada na barra de status.
+    pub branch: Option<String>,
+    sizes_stop: Arc<AtomicBool>,
 }
 
 impl Tab {
@@ -239,10 +250,22 @@ impl Tab {
             git: None,
             hidden: 0,
             locked: false,
+            dir_sizes: false,
+            branch: None,
+            sizes_stop: Arc::default(),
         }
     }
 
     pub fn title(&self) -> String {
+        if let Some(q) = self.search.as_ref().and_then(|(q, _)| crate::global_search::query_of(q)) {
+            return format!("Computador: {q}");
+        }
+        if flat::is_shelf(&self.search) {
+            return "Cesta".into();
+        }
+        if flat::is_dupes(&self.search) {
+            return format!("Duplicados: {}", ops::name(&self.path));
+        }
         if flat::is_flat(&self.search) {
             return format!("Plana: {}", ops::name(&self.path));
         }
@@ -438,6 +461,9 @@ pub enum PromptKind {
     OpenWith,
     SelectMask,
     DeselectMask,
+    SaveLayout,
+    OpenLayout,
+    GlobalSearch,
 }
 
 impl PromptKind {
@@ -452,6 +478,9 @@ impl PromptKind {
             PromptKind::OpenWith => "Abrir com (programa)",
             PromptKind::SelectMask => "Selecionar (ex.: *.jpg;*.png)",
             PromptKind::DeselectMask => "Tirar da seleção (ex.: *.tmp)",
+            PromptKind::SaveLayout => "Salvar abas e painéis como layout (nome)",
+            PromptKind::OpenLayout => "Abrir layout (nome)",
+            PromptKind::GlobalSearch => "Buscar no computador inteiro (índice do sistema)",
         }
     }
 }
@@ -502,6 +531,8 @@ pub enum Message {
     SuggestPick(usize),
     Zoom(bool),
     Created(Result<PathBuf, String>),
+    /// Resultado de uma tarefa em segundo plano para virar aviso (verde) ou erro.
+    Notice(Result<String, String>),
     TreeToggle(PathBuf),
     TrashListed(Result<Vec<Entry>, String>),
     TrashDone(Result<String, String>),
@@ -649,10 +680,21 @@ pub enum Message {
         dir: PathBuf,
         repos: HashSet<PathBuf>,
     },
-    Git {
+Git {
         tab: u64,
         dir: PathBuf,
         info: Option<crate::git::GitInfo>,
+    },
+    Branch {
+        tab: u64,
+        dir: PathBuf,
+        branch: Option<String>,
+    },
+    DirSizes {
+        tab: u64,
+        dir: PathBuf,
+        sizes: Option<Vec<(PathBuf, u64)>>,
+    },
     },
     UpdateCheck {
         manual: bool,
@@ -700,6 +742,7 @@ impl App {
             next_toast: 0,
             palette,
             vertical_tabs: crate::session::setting("vertical_tabs").as_deref() == Some("true"),
+            folder_sizes: folder_sizes::enabled(),
             show_hidden: false,
             hide_ext: false,
             thumbs: HashMap::new(),
@@ -948,6 +991,7 @@ impl App {
 
     fn load_tab(tab: &mut Tab, path: PathBuf, refresh: bool) -> Task<Message> {
         tab.generation += 1;
+        folder_sizes::cancel(tab);
         tab.loading = true;
         tab.refreshing = refresh;
         if !refresh {
@@ -998,6 +1042,16 @@ impl App {
             ]);
         }
         let stream = match (tab.search.clone(), archive::split(&path)) {
+            (Some((query, _)), _) if refresh && crate::global_search::query_of(&query).is_some() => {
+                let q = crate::global_search::query_of(&query).unwrap_or_default().to_string();
+                Task::run(listing::global(q, sort), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+            (Some((query, _)), _) if refresh && query == crate::shelf::QUERY => {
+                Task::run(listing::shelf(sort), move |snap| Message::Listed { tab: id, generation, snap })
+            }
+            (Some((query, hidden)), _) if refresh && query == arbor_core::dupes::QUERY => {
+                Task::run(listing::dupes(path, hidden), move |snap| Message::Listed { tab: id, generation, snap })
+            }
             (Some((query, hidden)), _) if refresh => {
                 Task::run(listing::search(path, query, sort, hidden), move |snap| Message::Listed { tab: id, generation, snap })
             }
@@ -1159,8 +1213,8 @@ impl App {
                 task = self.reveal_cursor(id);
             }
         }
-        let repos = if complete { self.scan_repos(id) } else { Task::none() };
-        Task::batch([task, self.request_thumbs(id), repos])
+        let extras = if complete { Task::batch([self.scan_repos(id), self.measure_dirs(id), self.read_branch(id)]) } else { Task::none() };
+        Task::batch([task, self.request_thumbs(id), extras])
     }
 
     // ---------- seleção e rolagem ----------
@@ -1524,6 +1578,21 @@ impl App {
             }
             Cmd::LockTab => self.toggle_lock(),
             Cmd::SyncNav => self.toggle_sync_nav(),
+            Cmd::SaveLayout => {
+                let last = crate::layouts::names().into_iter().next().unwrap_or_else(|| "Trabalho".into());
+                self.open_prompt(PromptKind::SaveLayout, last)
+            }
+            Cmd::OpenLayout => match crate::layouts::names().into_iter().next() {
+                Some(last) => self.open_prompt(PromptKind::OpenLayout, last),
+                None => self.notify("Nenhum layout salvo ainda: use \"Salvar layout\"", false),
+            },
+            Cmd::CopyListing => self.copy_listing(),
+            Cmd::CompareFiles => self.compare_files(),
+            Cmd::CreateChecksums => self.create_checksums(),
+            Cmd::VerifyChecksums => self.verify_checksums(),
+            Cmd::FolderSizes => self.toggle_folder_sizes(),
+            Cmd::CompareDirs => self.compare_dirs(),
+            Cmd::SyncDirs => self.sync_dirs(),
             Cmd::DuplicateTab => self.duplicate_tab(),
             Cmd::CloseOtherTabs => self.close_many(tabs::Close::Others),
             Cmd::CloseTabsLeft => self.close_many(tabs::Close::Left),
@@ -1659,6 +1728,14 @@ impl App {
                 }
             }
             Cmd::FlatView => self.toggle_flat(),
+            Cmd::AddToShelf => self.add_to_shelf(),
+            Cmd::ShowShelf => self.show_shelf(),
+            Cmd::RemoveFromShelf => self.remove_from_shelf(),
+            Cmd::GlobalSearch => {
+                let filter = self.tab().filter.trim().to_string();
+                self.open_prompt(PromptKind::GlobalSearch, filter)
+            }
+            Cmd::FindDuplicates => self.find_duplicates(),
             Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
             Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
             Cmd::SelectSameKind => self.select_same_kind(),
@@ -1736,9 +1813,18 @@ impl App {
                 self.reveal_cursor(id)
             }
             Cmd::ToggleTheme => self.set_palette(self.palette.next()),
-            Cmd::ThemeAurora | Cmd::ThemeLight | Cmd::ThemeMidnight | Cmd::ThemeGraphite | Cmd::ThemeOcean | Cmd::ThemeSunset => {
-                self.set_palette(crate::palettes::Palette::of_cmd(cmd).expect("comando de tema"))
-            }
+            Cmd::ThemeAurora
+            | Cmd::ThemeLight
+            | Cmd::ThemeMidnight
+            | Cmd::ThemeGraphite
+            | Cmd::ThemeOcean
+            | Cmd::ThemeSunset
+            | Cmd::ThemeCanto
+            | Cmd::ThemeHuecoMundo
+            | Cmd::ThemeDracula
+            | Cmd::ThemeVidro
+            | Cmd::ThemeAuroraCanto
+            | Cmd::ThemeClaroCanto => self.set_palette(crate::palettes::Palette::of_cmd(cmd).expect("comando de tema")),
             Cmd::VerticalTabs => {
                 self.vertical_tabs = !self.vertical_tabs;
                 match crate::session::set_setting("vertical_tabs", if self.vertical_tabs { "true" } else { "false" }) {
@@ -1806,6 +1892,14 @@ impl App {
             Cmd::EditKeys => match keymap::ensure_file().and_then(|f| launch::open_default(&f).map(|_| f)) {
                 Ok(f) => self.notify(format!("Editando {}. Salve e use \"Recarregar atalhos\".", f.display()), false),
                 Err(e) => self.notify(format!("Atalhos: {e}"), true),
+            },
+            Cmd::EditColors => match crate::colors::ensure_file().and_then(|f| launch::open_default(&f).map(|_| f)) {
+                Ok(f) => self.notify(format!("Editando {}. Salve e use \"Recarregar filtros de cor\".", f.display()), false),
+                Err(e) => self.notify(format!("Filtros de cor: {e}"), true),
+            },
+            Cmd::ReloadColors => match crate::colors::reload() {
+                (n, bad) if bad.is_empty() => self.notify(format!("{n} filtro(s) de cor ativo(s)"), false),
+                (n, bad) => self.notify(format!("{n} filtro(s) de cor; linhas ignoradas: {}", bad.join(" | ")), true),
             },
             Cmd::ReloadKeys => {
                 let (n, bad) = keymap::reload();
@@ -2046,7 +2140,19 @@ impl App {
         let dir = self.tab().path.clone();
         match kind {
             PromptKind::Search => self.start_search(value),
+            PromptKind::GlobalSearch => self.start_search(format!("{}{value}", crate::global_search::PREFIX)),
             PromptKind::SelectMask | PromptKind::DeselectMask => self.submit_mask(kind, &value),
+            PromptKind::SaveLayout => match crate::layouts::save(&value, &self.session()) {
+                Ok(()) => self.notify(format!("Layout \"{}\" salvo", value.trim()), false),
+                Err(e) => self.notify(e, true),
+            },
+            PromptKind::OpenLayout => match crate::layouts::load(&value) {
+                Ok(session) => {
+                    let task = self.restore(session);
+                    Task::batch([task, self.notify(format!("Layout \"{}\" aberto", value.trim()), false)])
+                }
+                Err(e) => self.notify(e, true),
+            },
             PromptKind::BatchRename => match rename::plan(&value, &self.batch_items()) {
                 Ok(pairs) if pairs.is_empty() => self.notify("Nenhum nome muda com esse modelo", false),
                 Ok(pairs) => self.start(Op::RenameMany { pairs }),
@@ -2195,7 +2301,8 @@ impl App {
             Overlay::Jump(_) => return self.jump_key(named),
             Overlay::Confirm { .. } => {
                 return match named {
-                    Some(Named::Enter) => self.confirmed(),
+                    // Enter capturado é o mesmo Enter que rodou o comando na paleta: não confirma sozinho.
+                    Some(Named::Enter) if !captured => self.confirmed(),
                     Some(Named::Escape) => {
                         self.overlay = Overlay::None;
                         Task::none()
@@ -2233,6 +2340,7 @@ impl App {
             Some(Named::Tab) if mods.control() => return self.run(if mods.shift() { Cmd::PrevTab } else { Cmd::NextTab }),
             Some(Named::ContextMenu) => return self.keyboard_menu(),
             Some(Named::F10) if mods.shift() => return self.keyboard_menu(),
+            Some(Named::F2) if mods.shift() => return self.run(Cmd::CompareDirs),
             Some(Named::F2) => return self.run(Cmd::Rename),
             Some(Named::F3) => return self.run(Cmd::ToggleDual),
             Some(Named::F5) => return self.run(Cmd::CopyToOther),
@@ -2262,6 +2370,7 @@ impl App {
                     ("w", false) => Some(Cmd::CloseTab),
                     ("r", false) => Some(Cmd::Refresh),
                     ("l", false) => Some(Cmd::GoTo),
+                    ("f", false) if mods.alt() => Some(Cmd::GlobalSearch),
                     ("f", false) => Some(Cmd::Filter),
                     ("f", true) => Some(Cmd::Search),
                     ("h", false) => Some(Cmd::ToggleHidden),
@@ -2285,7 +2394,8 @@ impl App {
                 return cmd.map_or_else(Task::none, |c| self.run(c));
             }
         }
-        if mods.alt() && mods.shift() && matches!(&key, Key::Character(c) if c.eq_ignore_ascii_case("p")) {
+        // Alt+P (painel de visualização do Explorer) e Alt+Shift+P abrem o mesmo painel, que já traz o preview.
+        if mods.alt() && matches!(&key, Key::Character(c) if c.eq_ignore_ascii_case("p")) {
             return self.run(Cmd::Details);
         }
         // Alt+D: barra de endereço, como no Explorer.
@@ -2393,7 +2503,9 @@ impl App {
             Message::PropsLoaded { path, preview, props } => self.on_props(path, preview, props),
             Message::DetailsResizeStart => self.details_resize_start(),
             Message::Repos { tab, dir, repos } => self.on_repos(tab, dir, repos),
-            Message::Git { tab, dir, info } => self.on_git(tab, dir, info),
+Message::Git { tab, dir, info } => self.on_git(tab, dir, info),
+            Message::Branch { tab, dir, branch } => self.on_branch(tab, dir, branch),
+            Message::DirSizes { tab, dir, sizes } => self.on_dir_sizes(tab, dir, sizes),
             Message::Dropped(path) => {
                 let dest = self.tab().path.clone();
                 if computer::is_virtual(&dest) || path.parent() == Some(dest.as_path()) {
@@ -2581,6 +2693,10 @@ impl App {
                 self.tree.children.insert(path, dirs);
                 Task::none()
             }
+            Message::Notice(result) => match result {
+                Ok(text) => self.notify(text, false),
+                Err(e) => self.notify(e, true),
+            },
             Message::Created(result) => match result {
                 Ok(_) => Task::none(),
                 Err(e) => self.notify(format!("Não criou o arquivo: {e}"), true),

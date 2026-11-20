@@ -32,7 +32,7 @@ fn tab_icon<'a>(p: &Pane, i: usize) -> Element<'a, Message> {
     } else {
         Icon::Folder
     };
-    icon(ic, 16.0, theme::ICE)
+    icon(ic, 16.0, theme::now().hues.ice)
 }
 
 /// Abas na barra de título: a ativa tem a cor da faixa de baixo e se funde com ela.
@@ -91,7 +91,7 @@ fn window_button<'a>(ic: Icon, action: WindowAction, close: bool) -> Element<'a,
 }
 
 pub fn titlebar(app: &App) -> Element<'_, Message> {
-    let logo = mouse_area(container(icon(Icon::Logo, 20.0, theme::ICE)).center_x(46).center_y(TITLE_H))
+    let logo = mouse_area(container(icon(Icon::Logo, 20.0, theme::now().hues.ice)).center_x(46).center_y(TITLE_H))
         .on_press(Message::Window(WindowAction::Drag))
         .on_double_click(Message::Window(WindowAction::ToggleMaximize));
     let tabs: Element<_> = if app.vertical_tabs || app.dual {

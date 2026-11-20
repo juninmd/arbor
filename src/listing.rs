@@ -75,3 +75,49 @@ pub fn search(root: PathBuf, query: String, sort: Sort, show_hidden: bool) -> im
         .expect("thread de busca");
     rx
 }
+
+/// Arquivos duplicados abaixo de `root`, numa thread própria: um snapshot só, no fim, com os grupos em
+/// sequência (o que mais desperdiça espaço primeiro). Para se a aba sair da busca.
+pub fn dupes(root: PathBuf, show_hidden: bool) -> impl Stream<Item = Snapshot> {
+    let (tx, rx) = mpsc::unbounded();
+    std::thread::Builder::new()
+        .name("arbor-dupes".into())
+        .spawn(move || {
+            let start = std::time::Instant::now();
+            let stop = || tx.is_closed();
+            let Some(found) = arbor_core::dupes::find(&root, show_hidden, &stop) else { return };
+            let error = if found.groups.is_empty() {
+                Some("Nenhum arquivo duplicado".to_string())
+            } else if found.truncated {
+                Some(format!(
+                    "Pasta grande demais: olhei só os primeiros {} arquivos",
+                    arbor_core::human_count(arbor_core::dupes::MAX_FILES)
+                ))
+            } else {
+                None
+            };
+            let entries: Vec<_> = found.groups.into_iter().flatten().collect();
+            let _ = tx.unbounded_send(Snapshot { entries: std::sync::Arc::new(entries), complete: true, elapsed: start.elapsed(), error });
+        })
+        .expect("thread de duplicados");
+    rx
+}
+
+/// Busca no índice do sistema (Everything, Spotlight, locate) numa thread própria.
+pub fn global(query: String, sort: Sort) -> impl Stream<Item = Snapshot> {
+    let (tx, rx) = mpsc::unbounded();
+    std::thread::Builder::new()
+        .name("arbor-global".into())
+        .spawn(move || {
+            let _ = tx.unbounded_send(crate::global_search::snapshot(&query, sort));
+        })
+        .expect("thread de busca global");
+    rx
+}
+
+/// A cesta como listagem (rápido: só um `stat` por item guardado).
+pub fn shelf(sort: Sort) -> impl Stream<Item = Snapshot> {
+    let (tx, rx) = mpsc::unbounded();
+    let _ = tx.unbounded_send(crate::shelf::snapshot(sort));
+    rx
+}

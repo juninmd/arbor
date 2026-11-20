@@ -24,6 +24,8 @@ pub enum Cmd {
     ToggleDual,
     SwitchPane,
     SyncNav,
+    CompareDirs,
+    SyncDirs,
     CopyToOther,
     MoveToOther,
     Copy,
@@ -53,10 +55,16 @@ pub enum Cmd {
     Filter,
     Search,
     FlatView,
+    FindDuplicates,
+    GlobalSearch,
+    AddToShelf,
+    ShowShelf,
+    RemoveFromShelf,
     GoTo,
     Jump,
     ToggleHidden,
     ToggleExtensions,
+    FolderSizes,
     ToggleGrid,
     ColKind,
     ColSize,
@@ -78,11 +86,21 @@ pub enum Cmd {
     ThemeGraphite,
     ThemeOcean,
     ThemeSunset,
+    ThemeCanto,
+    ThemeHuecoMundo,
+    ThemeDracula,
+    ThemeVidro,
+    ThemeAuroraCanto,
+    ThemeClaroCanto,
     VerticalTabs,
     CopyPath,
+    CopyListing,
     Terminal,
     Reveal,
     WhoUses,
+    CreateChecksums,
+    CompareFiles,
+    VerifyChecksums,
     Pin,
     Eject,
     MapDrive,
@@ -93,9 +111,13 @@ pub enum Cmd {
     ToggleAutoUpdate,
     EditKeys,
     ReloadKeys,
+    EditColors,
+    ReloadColors,
     SetDefault,
     UnsetDefault,
     ToggleRestore,
+    SaveLayout,
+    OpenLayout,
     Palette,
 }
 
@@ -122,6 +144,8 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleDual,
     Cmd::SwitchPane,
     Cmd::SyncNav,
+    Cmd::CompareDirs,
+    Cmd::SyncDirs,
     Cmd::CopyToOther,
     Cmd::MoveToOther,
     Cmd::Copy,
@@ -151,10 +175,16 @@ pub const ALL: &[Cmd] = &[
     Cmd::Filter,
     Cmd::Search,
     Cmd::FlatView,
+    Cmd::FindDuplicates,
+    Cmd::GlobalSearch,
+    Cmd::AddToShelf,
+    Cmd::ShowShelf,
+    Cmd::RemoveFromShelf,
     Cmd::GoTo,
     Cmd::Jump,
     Cmd::ToggleHidden,
     Cmd::ToggleExtensions,
+    Cmd::FolderSizes,
     Cmd::ToggleGrid,
     Cmd::ColKind,
     Cmd::ColSize,
@@ -176,11 +206,21 @@ pub const ALL: &[Cmd] = &[
     Cmd::ThemeGraphite,
     Cmd::ThemeOcean,
     Cmd::ThemeSunset,
+    Cmd::ThemeCanto,
+    Cmd::ThemeHuecoMundo,
+    Cmd::ThemeDracula,
+    Cmd::ThemeVidro,
+    Cmd::ThemeAuroraCanto,
+    Cmd::ThemeClaroCanto,
     Cmd::VerticalTabs,
     Cmd::CopyPath,
+    Cmd::CopyListing,
     Cmd::Terminal,
     Cmd::Reveal,
     Cmd::WhoUses,
+    Cmd::CreateChecksums,
+    Cmd::CompareFiles,
+    Cmd::VerifyChecksums,
     Cmd::Pin,
     Cmd::Eject,
     Cmd::MapDrive,
@@ -191,9 +231,13 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleAutoUpdate,
     Cmd::EditKeys,
     Cmd::ReloadKeys,
+    Cmd::EditColors,
+    Cmd::ReloadColors,
     Cmd::SetDefault,
     Cmd::UnsetDefault,
     Cmd::ToggleRestore,
+    Cmd::SaveLayout,
+    Cmd::OpenLayout,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -223,6 +267,8 @@ impl Cmd {
             Cmd::ToggleDual => "Painel duplo",
             Cmd::SwitchPane => "Trocar de painel",
             Cmd::SyncNav => "Navegação sincronizada nos dois painéis",
+            Cmd::CompareDirs => "Comparar pastas (marca o que difere nos dois painéis)",
+            Cmd::SyncDirs => "Sincronizar com o outro painel (copia o que falta ou é mais novo)",
             Cmd::CopyToOther => "Copiar para o outro painel",
             Cmd::MoveToOther => "Mover para o outro painel",
             Cmd::Copy => "Copiar",
@@ -252,10 +298,16 @@ impl Cmd {
             Cmd::Filter => "Filtrar pasta (fuzzy)",
             Cmd::Search => "Buscar nesta pasta e subpastas",
             Cmd::FlatView => "Visão plana (todos os arquivos das subpastas)",
+            Cmd::FindDuplicates => "Procurar arquivos duplicados nesta pasta e subpastas",
+            Cmd::GlobalSearch => "Buscar no computador (Everything, Spotlight, locate)",
+            Cmd::AddToShelf => "Pôr na cesta (juntar arquivos de várias pastas)",
+            Cmd::ShowShelf => "Abrir cesta",
+            Cmd::RemoveFromShelf => "Tirar da cesta (fora dela: esvaziar)",
             Cmd::GoTo => "Ir para caminho",
             Cmd::Jump => "Pular para pasta frequente",
             Cmd::ToggleHidden => "Mostrar/ocultar arquivos ocultos",
             Cmd::ToggleExtensions => "Mostrar/ocultar extensões",
+            Cmd::FolderSizes => "Ligar/desligar tamanho das pastas",
             Cmd::ToggleGrid => "Alternar lista/miniaturas",
             Cmd::ColKind => "Coluna Tipo",
             Cmd::ColSize => "Coluna Tamanho",
@@ -277,11 +329,21 @@ impl Cmd {
             Cmd::ThemeGraphite => "Tema: Grafite",
             Cmd::ThemeOcean => "Tema: Oceano",
             Cmd::ThemeSunset => "Tema: Pôr do sol",
+            Cmd::ThemeCanto => "Tema: Canto",
+            Cmd::ThemeHuecoMundo => "Tema: Hueco Mundo",
+            Cmd::ThemeDracula => "Tema: Drácula",
+            Cmd::ThemeVidro => "Tema: Vidro",
+            Cmd::ThemeAuroraCanto => "Tema: Aurora Canto",
+            Cmd::ThemeClaroCanto => "Tema: Claro Canto",
             Cmd::VerticalTabs => "Abas verticais",
             Cmd::CopyPath => "Copiar caminho",
+            Cmd::CopyListing => "Copiar listagem (tabela para planilha)",
             Cmd::Terminal => "Abrir terminal aqui",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
             Cmd::WhoUses => "Quem está usando este arquivo?",
+            Cmd::CreateChecksums => "Criar soma SHA-256 dos arquivos",
+            Cmd::CompareFiles => "Comparar dois arquivos (conteúdo)",
+            Cmd::VerifyChecksums => "Conferir somas SHA-256 (arquivo .sha256)",
             Cmd::Pin => "Fixar/desafixar na barra lateral",
             Cmd::Details => "Painel de detalhes",
             Cmd::Eject => "Ejetar",
@@ -292,9 +354,13 @@ impl Cmd {
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
             Cmd::EditKeys => "Editar atalhos",
             Cmd::ReloadKeys => "Recarregar atalhos",
+            Cmd::EditColors => "Editar filtros de cor (pintar nomes por máscara)",
+            Cmd::ReloadColors => "Recarregar filtros de cor",
             Cmd::SetDefault => "Usar o arbor para abrir pastas (explorer padrão)",
             Cmd::UnsetDefault => "Voltar a abrir pastas no gerenciador do sistema",
             Cmd::ToggleRestore => "Ligar/desligar restaurar abas ao abrir",
+            Cmd::SaveLayout => "Salvar layout (abas e painéis com um nome)",
+            Cmd::OpenLayout => "Abrir layout salvo",
             Cmd::Palette => "Paleta de comandos",
         }
     }
@@ -323,7 +389,8 @@ impl Cmd {
             Cmd::PrevTab => "Ctrl+Shift+Tab".into(),
             Cmd::ToggleDual => "F3".into(),
             Cmd::SwitchPane => "Tab".into(),
-            Cmd::SyncNav => String::new(),
+            Cmd::SyncNav | Cmd::SyncDirs => String::new(),
+            Cmd::CompareDirs => "Shift+F2".into(),
             Cmd::CopyToOther => "F5".into(),
             Cmd::MoveToOther => "F6".into(),
             Cmd::Copy => format!("{m}+C"),
@@ -348,10 +415,13 @@ impl Cmd {
             Cmd::Filter => format!("{m}+F"),
             Cmd::Search => format!("{m}+Shift+F"),
             Cmd::FlatView => format!("{m}+B"),
+            Cmd::FindDuplicates => String::new(),
+            Cmd::GlobalSearch => format!("{m}+Alt+F"),
+            Cmd::AddToShelf | Cmd::ShowShelf | Cmd::RemoveFromShelf => String::new(),
             Cmd::GoTo => format!("{m}+L"),
             Cmd::Jump => format!("{m}+K"),
             Cmd::ToggleHidden => format!("{m}+H"),
-            Cmd::ToggleExtensions => String::new(),
+            Cmd::ToggleExtensions | Cmd::FolderSizes => String::new(),
             Cmd::ToggleGrid => format!("{m}+G"),
             Cmd::ZoomIn => format!("{m}+= / {m}+roda"),
             Cmd::ZoomOut => format!("{m}+- / {m}+roda"),
@@ -366,8 +436,15 @@ impl Cmd {
             | Cmd::ThemeGraphite
             | Cmd::ThemeOcean
             | Cmd::ThemeSunset
+            | Cmd::ThemeCanto
+            | Cmd::ThemeHuecoMundo
+            | Cmd::ThemeDracula
+            | Cmd::ThemeVidro
+            | Cmd::ThemeAuroraCanto
+            | Cmd::ThemeClaroCanto
             | Cmd::VerticalTabs => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
+            Cmd::CopyListing => String::new(),
             Cmd::Terminal => format!("{m}+'"),
             Cmd::Reveal
             | Cmd::OpenInNewTab
@@ -382,8 +459,11 @@ impl Cmd {
             | Cmd::GroupKind
             | Cmd::GroupModified
             | Cmd::GroupSize
-            | Cmd::WhoUses => String::new(),
-            Cmd::Details => "Alt+Shift+P".into(),
+            | Cmd::WhoUses
+            | Cmd::CreateChecksums
+            | Cmd::CompareFiles
+            | Cmd::VerifyChecksums => String::new(),
+            Cmd::Details => "Alt+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
             Cmd::CheckUpdates
@@ -391,8 +471,12 @@ impl Cmd {
             | Cmd::SetDefault
             | Cmd::UnsetDefault
             | Cmd::ToggleRestore
+            | Cmd::SaveLayout
+            | Cmd::OpenLayout
             | Cmd::EditKeys
-            | Cmd::ReloadKeys => String::new(),
+            | Cmd::ReloadKeys
+            | Cmd::EditColors
+            | Cmd::ReloadColors => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

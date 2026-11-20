@@ -51,12 +51,13 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   que 50.
 * **Bonito em movimento.** Tema *Glass* com fontes Sora, Manrope e JetBrains Mono embutidas, ícones por tipo
   (pasta, imagem, código, documento, áudio, vídeo, compactado).
-* **Temas:** Aurora, Claro, Meia-noite, Grafite, Oceano e Pôr do sol, cada um com a própria aurora atrás do vidro.
+* **Temas:** Aurora, Claro, Meia-noite, Grafite, Oceano, Pôr do sol e, vindos do canto-widget, Canto, Hueco Mundo, Drácula, Vidro, Aurora Canto e Claro Canto, cada um com a própria aurora atrás do vidro.
   Escolha pelo botão de paleta na barra de título ou pela paleta de comandos ("Tema: …", "Próximo tema"); fica
   salvo em `~/.config/arbor/settings`.
 * **Janela própria**, no jeito do Explorer do Windows 11: abas na barra de título, faixa com endereço e barra de
   comandos, minimizar/maximizar/fechar, arrastar e redimensionar pelas bordas (`ARBOR_NATIVE_FRAME=1` volta para
   a moldura do sistema). **Abas verticais** opcionais (menu do tema ou "Abas verticais" na paleta).
+* **Branch do git** da pasta aberta na barra de status (`⎇ main`), lida do `.git/HEAD` sem rodar o `git`.
 * **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
   de fps com o pior quadro do último segundo.
 * **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
@@ -74,15 +75,28 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   lateral ou o outro painel (mesmo disco move, outro disco copia; `Ctrl` copia, `Shift` move).
 * **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`; botão direito em Voltar/Avançar lista o histórico). O `›` da barra de endereço lista as subpastas daquele nível e cada pasta lembra ordenação e lista/grade.
 * **Colunas**: botão direito no cabeçalho mostra/oculta Tipo, Tamanho e Modificado; arraste a divisória para mudar a largura (`~/.config/arbor/columns`).
+* **Tamanho das pastas** na coluna Tamanho (paleta: "Ligar/desligar tamanho das pastas"): somado em segundo plano
+  depois da listagem, em paralelo, e cancelado ao trocar de pasta; ordenar por tamanho passa a considerar as pastas.
 * **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
+* **Comparar e sincronizar pastas** no painel duplo, como no Total Commander: `Shift+F2` seleciona em cada lado o
+  que só existe nele ou é mais novo (`F5` copia); "Sincronizar com o outro painel" copia tudo isso de uma vez,
+  depois de confirmar, substituindo as versões antigas e sem apagar nada.
+* **Layouts** (paleta: "Salvar layout" / "Abrir layout salvo"): o conjunto de abas e painéis guardado com um
+  nome em `~/.config/arbor/layouts/`, para alternar entre "Trabalho", "Fotos"… como no Directory Opus.
 * **Navegação sincronizada** no painel duplo (paleta: "Navegação sincronizada"): entrar numa subpasta de um
   lado entra na de mesmo nome do outro, e subir sobe os dois, como no Directory Opus.
 * **Menu da aba** (botão direito): duplicar (`Ctrl+Shift+D`), **travar** (a aba fica na pasta dela; navegar a
   partir dela abre outra aba, e ela não fecha junto), fechar as outras, à esquerda ou à direita.
+* **Busca no computador** (`Ctrl+Alt+F`): usa o índice que o sistema já tem, sem criar outro: Everything (`es.exe`)
+  no Windows, Spotlight no macOS, `plocate`/`locate` no Linux. Os resultados abrem numa aba, com a pasta de cada um.
+* **Cesta** (menu do item ou paleta: "Pôr na cesta", "Abrir cesta"): junta arquivos de várias pastas numa aba só,
+  para copiar, mover ou compactar tudo de uma vez, como o Shelf do Files e as coleções do Directory Opus.
 * **Visão plana** (`Ctrl+B`, como no Total Commander): a aba lista todos os arquivos da pasta e das subpastas,
   com a pasta de cada um embaixo do nome; dá para ordenar, filtrar e copiar como numa pasta comum.
+* **Filtros de cor** (paleta: "Editar filtros de cor"): `*.log;*.tmp = cinza`, `*.pdf = #ff6b6b`… no arquivo
+  `colors` pintam o nome de quem casa, como no XYplorer. É regra visual, não tag: nada é gravado nos arquivos.
 * **Curinga e seleção por máscara**, como no Total Commander: `*.jpg;*.png` no filtro mostra só o que casa;
   `Num +` / `Num −` somam ou tiram da seleção por máscara, `Num *` inverte, e "Selecionar todos do mesmo tipo"
   está na paleta.
@@ -91,6 +105,14 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   texto e código, e resumo de pastas. **Miniaturas** (`Ctrl+G`) de imagens (inclusive PSD e RAW), capa de MP3 e
   FLAC, vídeo e PDF, com cache em disco limitado a 512 MB. Vídeo e PDF usam o Quick Look no macOS e, no Linux e no
   Windows, o `ffmpeg` e o `pdftoppm` (Poppler) se estiverem no PATH; sem eles, fica o ícone do tipo.
+* **Copiar listagem** (menu da área vazia ou paleta): os itens visíveis, ou só os selecionados, como tabela
+  (nome, tipo, tamanho em bytes, data, caminho) que cola direto numa planilha.
+* **Procurar duplicados** (paleta): abre uma aba com os arquivos repetidos da pasta e das subpastas, do que mais
+  desperdiça espaço para o que menos. Compara tamanho, depois hash e por fim byte a byte: nunca acusa falso positivo.
+* **Comparar dois arquivos** (paleta, com dois selecionados ou um em cada painel): diz na hora se são idênticos;
+  se não, abre o Meld, WinMerge, KDiff3, VS Code… (ou o programa de `diff =` em `settings`).
+* **Somas SHA-256** (paleta): "Criar soma SHA-256" grava `nome.sha256` (ou `checksums.sha256` para vários) no
+  formato do `sha256sum`; "Conferir somas" diz quais arquivos mudaram ou sumiram.
 * **Cópia confiável:** grava em `.nome.arbor-part`, confere o tamanho e só então renomeia. Cancelar nunca deixa
   arquivo pela metade. **Desfazer** (`Ctrl+Z`) para copiar, mover, renomear, nova pasta e lixeira.
 * **Atualiza sozinho** a partir das releases deste repositório, com o SHA-256 conferido antes de trocar o executável.
@@ -101,6 +123,9 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 |---|---|
 | ![Tema Aurora com abas na barra de título](docs/temas/aurora.png) | ![Tema Claro com abas verticais](docs/temas/claro-abas-verticais.png) |
 | ![Tema Oceano com abas verticais](docs/temas/oceano-abas-verticais.png) | ![Tema Grafite em painel duplo](docs/temas/grafite-painel-duplo.png) |
+| ![Tema Canto, verde do canto-widget](docs/temas/canto.png) | ![Tema Hueco Mundo, preto e vermelho](docs/temas/hueco-mundo.png) |
+| ![Tema Drácula com abas verticais](docs/temas/dracula-abas-verticais.png) | ![Tema Vidro, azul no estilo Apple](docs/temas/vidro.png) |
+| ![Tema Aurora Canto, violeta com brilhos rosa e verde-água](docs/temas/aurora-canto.png) | ![Tema Claro Canto, claro com verde](docs/temas/claro-canto.png) |
 
 | Paleta de comandos | Preview com Espaço |
 |---|---|
@@ -209,6 +234,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | digitar | Filtrar a pasta (`Esc` limpa); com `*` ou `?` vira curinga (`*.jpg;*.png`) |
 | `Num +` / `Num −` / `Num *` | Selecionar / tirar da seleção por máscara / inverter seleção |
 | `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
+| `Ctrl+Alt+F` | Buscar no computador inteiro (Everything no Windows, Spotlight no macOS, plocate no Linux) |
 | `Ctrl+B` | Visão plana: todos os arquivos das subpastas numa lista só (de novo volta) |
 | `Ctrl+Shift+P` | Paleta de comandos |
 | `Ctrl+K` | Pular para pasta frequente |
@@ -219,6 +245,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+N` | Nova janela |
 | botões laterais do mouse | Voltar / avançar |
 | `F5` / `F6` | Copiar / mover para o outro painel |
+| `Shift+F2` | Comparar as pastas dos dois painéis (seleciona o que difere) |
 | `F2` / `F7` / `Delete` | Renomear / nova pasta / lixeira |
 | `Shift+Delete` | Excluir permanentemente (pede confirmação) |
 | `Ctrl+Z` | Desfazer |
@@ -227,7 +254,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Troca a visualização: Conteúdo ← Detalhes → Lista → Blocos → ícones pequenos, médios, grandes, extra grandes |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
 | botão direito, `Shift+F10`, tecla Menu | Menu de contexto do item ou da pasta |
-| `Alt+Shift+P` / `Alt+Enter` | Painel de detalhes / propriedades |
+| `Alt+P` (ou `Alt+Shift+P`) / `Alt+Enter` | Painel de detalhes com preview / propriedades |
 | `F12` | Medidor de fps |
 | `Ctrl+Shift+C` | Copiar caminho |
 | ``Ctrl+' `` | Terminal nesta pasta |
@@ -293,7 +320,7 @@ Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.githu
 | 1. Velocidade | listagem paralela, ordem natural por bytes, filtro paralelo e incremental, mimalloc | ✅ |
 | 2. Beleza | tema Glass, fontes, ícones por tipo, selo de ms e medidor de fps; vidro nativo no macOS e Linux; Mica no Windows e animações com mola | 🟡 |
 | 3. Poder | fila de operações com pausa, desfazer persistente, navegar em .zip/.7z/.tar, instância única | ⬜ |
-| 4. Busca global | índice opcional (MFT/USN no Windows, varredura + observador nos outros) | ⬜ |
+| 4. Busca global | índice do sistema (Everything, Spotlight, locate) ✅; índice próprio (MFT/USN) | 🟡 |
 
 ## Licença
 

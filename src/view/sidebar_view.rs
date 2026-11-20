@@ -51,7 +51,8 @@ fn node<'a>(app: &'a App, label: String, path: &Path, ic: Icon, color: Color, de
 
 /// Área que aparece durante um arrasto: soltar pastas aqui as fixa.
 fn pin_drop<'a>(hot: bool) -> Element<'a, Message> {
-    let content = row![icon(Icon::Pin, 14.0, theme::ICE), text("Solte para fixar").size(12)].spacing(10).align_y(Alignment::Center);
+    let content =
+        row![icon(Icon::Pin, 14.0, theme::now().hues.ice), text("Solte para fixar").size(12)].spacing(10).align_y(Alignment::Center);
     let zone = container(content).width(Fill).padding([7, 10]).style(move |t: &Theme| theme::drop_zone(t, hot));
     let p = crate::pins::drop_target();
     mouse_area(zone).on_enter(Message::DragOver(Some(p.clone()))).on_exit(Message::DragLeave { from: p, back: None }).into()
@@ -76,7 +77,7 @@ fn branch<'a>(
         Some(children) => {
             for child in children {
                 let name = child.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                col = branch(col, app, name, child, Icon::Folder, theme::ICE, depth + 1);
+                col = branch(col, app, name, child, Icon::Folder, theme::now().hues.ice, depth + 1);
             }
             col
         }
@@ -103,28 +104,28 @@ fn rule<'a>() -> Element<'a, Message> {
 }
 
 pub fn sidebar(app: &App) -> Element<'_, Message> {
-    let mut col = Column::new().spacing(1).push(node(app, crate::home::TITLE.into(), &app.home, Icon::Home, theme::ICE, 0));
+    let mut col = Column::new().spacing(1).push(node(app, crate::home::TITLE.into(), &app.home, Icon::Home, theme::now().hues.ice, 0));
     for (label, path) in &app.places {
         let (ic, color) = place_icon(label);
         col = branch(col, app, label.clone(), path, ic, color, 0);
     }
     for path in &app.pins {
         let label = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
-        col = branch(col, app, label, path, Icon::Pin, theme::ICE, 0);
+        col = branch(col, app, label, path, Icon::Pin, theme::now().hues.ice, 0);
     }
     // arrastando uma pasta: alvo para fixá-la logo abaixo dos fixados
     if let Some((_, _, over)) = app.dragging() {
         col = col.push(pin_drop(over.is_some_and(crate::pins::is_drop)));
     }
-    col = col.push(rule()).push(node(app, computer::TITLE.into(), &app.computer, Icon::Drive, theme::ICE, 0));
+    col = col.push(rule()).push(node(app, computer::TITLE.into(), &app.computer, Icon::Drive, theme::now().hues.ice, 0));
     if app.tree.open.contains(&app.computer) {
         for d in &app.drives {
             col = drive(col, app, d);
         }
     }
-    col = col.push(node(app, crate::discovery::TITLE.into(), &app.network, Icon::Network, theme::IRIS, 0));
+    col = col.push(node(app, crate::discovery::TITLE.into(), &app.network, Icon::Network, theme::now().hues.iris, 0));
     if crate::trashbin::SUPPORTED {
-        col = col.push(rule()).push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::STEEL, 0));
+        col = col.push(rule()).push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::now().hues.steel, 0));
     }
     let content = scrollable(col).height(Fill).style(theme::scrollbar);
     container(content).padding([10, 6]).width(SIDEBAR_W).height(Fill).style(|t| theme::glass(t, false)).into()

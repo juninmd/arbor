@@ -98,14 +98,14 @@ pub fn style(app: &App, t: &Theme) -> iced::theme::Style {
 
 fn place_icon(label: &str) -> (Icon, Color) {
     match label {
-        "Pasta pessoal" => (Icon::Folder, theme::ICE),
-        "Imagens" => (Icon::Image, theme::ROSE),
-        "Documentos" => (Icon::Doc, theme::IRIS),
-        "Downloads" => (Icon::Download, theme::STEEL),
-        "Músicas" | "Música" => (Icon::Audio, theme::AMBER),
-        "Vídeos" => (Icon::Video, theme::CORAL),
-        "Mesa" | "Área de trabalho" => (Icon::Grid, theme::MINT),
-        _ => (Icon::Folder, theme::ICE),
+        "Pasta pessoal" => (Icon::Folder, theme::now().hues.ice),
+        "Imagens" => (Icon::Image, theme::now().hues.rose),
+        "Documentos" => (Icon::Doc, theme::now().hues.iris),
+        "Downloads" => (Icon::Download, theme::now().hues.steel),
+        "Músicas" | "Música" => (Icon::Audio, theme::now().hues.amber),
+        "Vídeos" => (Icon::Video, theme::now().hues.coral),
+        "Mesa" | "Área de trabalho" => (Icon::Grid, theme::now().hues.mint),
+        _ => (Icon::Folder, theme::now().hues.ice),
     }
 }
 
@@ -140,7 +140,7 @@ fn tabs_bar(p: &Pane, pane: usize, pane_active: bool) -> Element<'_, Message> {
     let mut r = Row::new().spacing(4).align_y(Alignment::Center);
     for (i, tab) in p.tabs.iter().enumerate() {
         let selected = i == p.active;
-        let color = if selected { theme::ICE } else { theme::now().ink3 };
+        let color = if selected { theme::now().hues.ice } else { theme::now().ink3 };
         let ic = if tab.locked { Icon::Lock } else { Icon::Folder };
         let mut label = row![icon(ic, 14.0, color), text(shorten(&tab.title(), 24)).size(12).wrapping(Wrapping::None)]
             .spacing(7)
@@ -412,18 +412,24 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
     let drive = drive_of(app, tab, e);
     let (size, when) = match drive {
         Some(d) => d.space.map(|(free, total)| (human_size(total), human_size(free))).unwrap_or_default(),
-        None => (if e.is_dir { String::new() } else { human_size(e.size) }, human_time(e.modified)),
+        None => (if e.is_dir && !tab.dir_sizes { String::new() } else { human_size(e.size) }, human_time(e.modified)),
     };
     let selected = tab.selected.contains(&e.path);
     let cursor = i == tab.cursor;
     let dim = e.hidden;
     let strong = selected || cursor;
+    let tint = crate::colors::of(&e.name);
     let name =
         text(shown_name(app, e)).size(13).wrapping(Wrapping::None).width(Fill).font(if strong { theme::UI_BOLD } else { theme::UI }).style(
-            move |t: &Theme| text::Style { color: Some(theme::alpha(theme::tokens(t).ink, if dim { theme::HIDDEN_ALPHA } else { 1.0 })) },
+            move |t: &Theme| text::Style {
+                color: Some(theme::alpha(tint.unwrap_or(theme::tokens(t).ink), if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
+            },
         );
     // Na busca, a pasta de cada resultado (relativa à pasta buscada) vai embaixo do nome.
-    let name: Element<_> = match (&tab.search, e.path.parent().and_then(|p| p.strip_prefix(&tab.path).ok())) {
+    // Na busca no computador e na Cesta o item pode estar em qualquer lugar: vai a pasta inteira.
+    let global = tab.search.as_ref().is_some_and(|(q, _)| crate::global_search::query_of(q).is_some() || q == crate::shelf::QUERY);
+    let place = e.path.parent().and_then(|p| if global { Some(p) } else { p.strip_prefix(&tab.path).ok() });
+    let name: Element<_> = match (&tab.search, place) {
         (Some(_), Some(rel)) => {
             let rel = if rel.as_os_str().is_empty() { ".".to_string() } else { rel.to_string_lossy().into_owned() };
             column![name, text(rel).size(10.5).font(theme::MONO).wrapping(Wrapping::None).style(theme::ink3)].width(Fill).into()
@@ -563,13 +569,14 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
             })
             .into(),
     };
+    let tint = crate::colors::of(&e.name);
     let label = text(shorten(shown_name(app, e), 30))
         .size(12)
         .width(Fill)
         .wrapping(Wrapping::None)
         .font(if selected { theme::UI_BOLD } else { theme::UI })
         .style(move |t: &Theme| text::Style {
-            color: Some(theme::alpha(theme::tokens(t).ink, if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
+            color: Some(theme::alpha(tint.unwrap_or(theme::tokens(t).ink), if dim { theme::HIDDEN_ALPHA } else { 1.0 })),
         });
     let label = row![label, git_view::marker(tab, &e.path, e.is_dir)].spacing(6).align_y(Alignment::Center);
     let meta = match drive.and_then(|d| d.space) {
@@ -635,6 +642,9 @@ fn status<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     }
     if tab.loading {
         parts.push(format!("lendo… {}", human_count(tab.entries.len())));
+    }
+    if let Some(b) = &tab.branch {
+        parts.push(format!("⎇ {b}"));
     }
     if app.sync_nav && app.dual {
         parts.push("⇄ sincronizado".into());
@@ -768,7 +778,7 @@ fn update_banner(app: &App) -> Option<Element<'_, Message>> {
     let content: Element<_> = match &app.update {
         UpdateState::Idle => return None,
         UpdateState::Available(u) => row![
-            icon(Icon::Bolt, 15.0, theme::ICE),
+            icon(Icon::Bolt, 15.0, theme::now().hues.ice),
             text(format!("arbor {} disponível", u.version)).font(theme::UI_BOLD).size(12.5),
             text(format!("você usa a {}", update::CURRENT)).size(11.5).style(theme::ink3).width(Fill),
             button(text("Atualizar e reiniciar").font(theme::UI_BOLD).size(12))
@@ -800,7 +810,7 @@ fn update_banner(app: &App) -> Option<Element<'_, Message>> {
                 button(text("Cancelar").size(12)).padding([5, 10]).on_press(Message::UpdateDismiss).style(theme::ghost)
             };
             row![
-                icon(Icon::Download, 15.0, theme::ICE),
+                icon(Icon::Download, 15.0, theme::now().hues.ice),
                 text(label).size(12).width(Length::FillPortion(2)),
                 progress_bar(0.0..=1.0, pct).length(Length::FillPortion(3)).girth(5).style(theme::progress),
                 action
@@ -877,14 +887,14 @@ fn overlay(app: &App) -> Option<Element<'_, Message>> {
         Overlay::Conflict { clashes, .. } => conflict_sheet(clashes),
         Overlay::Menu(m) => return Some(commands_view::menu(app, m)),
         Overlay::Jump(j) => return Some(commands_view::jump(app, j)),
-        Overlay::Confirm { text: question, .. } => sheet(
+        Overlay::Confirm { text: question, action } => sheet(
             column![
                 text("Confirmar").font(theme::DISPLAY).size(16),
                 text(question.as_str()).size(13.5),
                 row![
                     space().width(Fill),
                     button(text("Cancelar").size(13)).padding([7, 14]).on_press(Message::CloseOverlay).style(theme::ghost),
-                    button(text("Excluir").size(13)).padding([7, 14]).on_press(Message::Confirmed).style(theme::primary),
+                    button(text(action.verb()).size(13)).padding([7, 14]).on_press(Message::Confirmed).style(theme::primary),
                 ]
                 .spacing(8)
             ]
@@ -961,9 +971,12 @@ fn suggestions(app: &App, kind: PromptKind) -> Element<'_, Message> {
     let mut col = Column::new().spacing(1);
     for (i, p) in app.suggest.items.iter().enumerate() {
         let hot = app.suggest.selected == Some(i);
-        let label = row![icon(Icon::Folder, 14.0, theme::ICE), text(p.to_string_lossy().into_owned()).size(12.5).wrapping(Wrapping::None)]
-            .spacing(8)
-            .align_y(Alignment::Center);
+        let label = row![
+            icon(Icon::Folder, 14.0, theme::now().hues.ice),
+            text(p.to_string_lossy().into_owned()).size(12.5).wrapping(Wrapping::None)
+        ]
+        .spacing(8)
+        .align_y(Alignment::Center);
         col = col.push(
             button(label)
                 .width(Fill)
@@ -1047,7 +1060,8 @@ fn jump<'a>(app: &'a App, query: &'a str, selected: usize) -> Element<'a, Messag
             st.border.width = 0.0;
             st
         });
-    let input = stack![input, container(icon(Icon::Folder, 18.0, theme::ICE)).padding(Padding::new(0.0).left(14.0)).center_y(Fill)];
+    let input =
+        stack![input, container(icon(Icon::Folder, 18.0, theme::now().hues.ice)).padding(Padding::new(0.0).left(14.0)).center_y(Fill)];
     let items = app.jump_view();
     let mut list = Column::new().spacing(2);
     if items.is_empty() {
@@ -1093,7 +1107,8 @@ fn palette<'a>(app: &'a App, query: &'a str, selected: usize) -> Element<'a, Mes
             st.border.width = 0.0;
             st
         });
-    let input = stack![input, container(icon(Icon::Bolt, 18.0, theme::ICE)).padding(Padding::new(0.0).left(14.0)).center_y(Fill)];
+    let input =
+        stack![input, container(icon(Icon::Bolt, 18.0, theme::now().hues.ice)).padding(Padding::new(0.0).left(14.0)).center_y(Fill)];
     let mut list = Column::new().spacing(2);
     let start = selected.saturating_sub(11);
     for (i, cmd) in app.palette_view().into_iter().enumerate().skip(start).take(12) {
@@ -1162,7 +1177,7 @@ fn preview<'a>(app: &'a App, path: &'a Path, content: Option<&'a Preview>) -> El
             let plus = if *more { "+" } else { "" };
             center(
                 column![
-                    icon(Icon::Folder, 64.0, theme::ICE),
+                    icon(Icon::Folder, 64.0, theme::now().hues.ice),
                     text(format!("{dirs}{plus} pastas · {files}{plus} arquivos · {}{plus}", human_size(*bytes)))
                         .size(14)
                         .style(theme::ink2)
@@ -1253,15 +1268,15 @@ fn entry_kind(e: &Entry, drive: Option<&Drive>) -> Kind {
 /// Ícone e cor de cada tipo de unidade, como o Explorer distingue sistema, USB, DVD e rede.
 pub(crate) fn drive_look(m: Media) -> (Icon, Color) {
     match m {
-        Media::System => (Icon::DriveSystem, theme::ICE),
-        Media::Fixed => (Icon::Drive, theme::STEEL),
-        Media::Usb => (Icon::Usb, theme::AMBER),
-        Media::Optical => (Icon::Disc, theme::ROSE),
-        Media::Network => (Icon::Network, theme::IRIS),
+        Media::System => (Icon::DriveSystem, theme::now().hues.ice),
+        Media::Fixed => (Icon::Drive, theme::now().hues.steel),
+        Media::Usb => (Icon::Usb, theme::now().hues.amber),
+        Media::Optical => (Icon::Disc, theme::now().hues.rose),
+        Media::Network => (Icon::Network, theme::now().hues.iris),
     }
 }
 
-fn kind_label(e: &Entry) -> String {
+pub fn kind_label(e: &Entry) -> String {
     if e.is_dir {
         "Pasta".into()
     } else if e.ext.is_empty() {
@@ -1307,14 +1322,14 @@ fn kind_for(is_dir: bool, ext: &str, path: &Path) -> Kind {
 /// Uma cor por tipo, a mesma do protótipo.
 fn kind_color(k: Kind) -> Color {
     match k {
-        Kind::Folder => theme::ICE,
+        Kind::Folder => theme::now().hues.ice,
         Kind::Drive(m) => drive_look(m).1,
-        Kind::Image => theme::ROSE,
-        Kind::Code => theme::MINT,
-        Kind::Doc => theme::IRIS,
-        Kind::Audio => theme::AMBER,
-        Kind::Video => theme::CORAL,
-        Kind::Archive | Kind::Other => theme::STEEL,
+        Kind::Image => theme::now().hues.rose,
+        Kind::Code => theme::now().hues.mint,
+        Kind::Doc => theme::now().hues.iris,
+        Kind::Audio => theme::now().hues.amber,
+        Kind::Video => theme::now().hues.coral,
+        Kind::Archive | Kind::Other => theme::now().hues.steel,
     }
 }
 
@@ -1341,7 +1356,7 @@ fn chip<'a>(k: Kind, size: f32) -> Element<'a, Message> {
 /// losango do git, em coral (legível até no tamanho da lista, onde um selo sumiria).
 fn entry_chip<'a>(k: Kind, size: f32, hidden: bool, repo: bool) -> Element<'a, Message> {
     let strength = if hidden { theme::HIDDEN_ALPHA } else { 1.0 };
-    let (ic, color) = if repo { (Icon::FolderGit, theme::CORAL) } else { (kind_icon(k), kind_color(k)) };
+    let (ic, color) = if repo { (Icon::FolderGit, theme::now().hues.coral) } else { (kind_icon(k), kind_color(k)) };
     container(icon(ic, size * 0.58, theme::alpha(color, strength)))
         .center_x(size)
         .center_y(size)
