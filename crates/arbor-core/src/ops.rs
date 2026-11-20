@@ -233,7 +233,7 @@ pub fn run(op: Op, ctx: &mut Ctx) -> io::Result<Outcome> {
             })
         }
         Op::Rename { from, to } => {
-            if to.exists() && !same_file_ignoring_case(&from, &to) {
+            if to.exists() && !same_file_ignoring_case(&to, &from) {
                 return Err(io::Error::new(io::ErrorKind::AlreadyExists, format!("{} já existe", name(&to))));
             }
             fs::rename(&from, &to).map_err(|e| crate::lockers::explain(e, &from))?;
@@ -446,8 +446,15 @@ fn restore(_paths: Vec<PathBuf>) -> io::Result<Outcome> {
     Err(io::Error::other("restaurar da lixeira ainda não é suportado no macOS; use \"Colocar de volta\" no Finder"))
 }
 
-fn same_file_ignoring_case(a: &Path, b: &Path) -> bool {
-    a.parent() == b.parent() && name(a).to_lowercase() == name(b).to_lowercase()
+/// `existing` só "existe" porque o disco ignora maiúsculas e ele é o próprio `other` (renomear `a` para `A`
+/// no Windows/macOS). Num disco que diferencia (Linux), `A` com essa grafia exata é outro arquivo.
+fn same_file_ignoring_case(existing: &Path, other: &Path) -> bool {
+    existing.parent() == other.parent() && name(existing).to_lowercase() == name(other).to_lowercase() && !has_entry_spelled(existing)
+}
+
+fn has_entry_spelled(p: &Path) -> bool {
+    let (Some(dir), Some(file)) = (p.parent(), p.file_name()) else { return false };
+    fs::read_dir(dir).map(|mut it| it.any(|e| e.is_ok_and(|e| e.file_name() == file))).unwrap_or(false)
 }
 
 fn check_not_inside(src: &Path, dest: &Path) -> io::Result<()> {
@@ -659,6 +666,24 @@ mod tests {
         let out = run(Op::Rename { from: a.clone(), to: d.path().join("b") }, &mut ctx()).unwrap();
         run(Op::Undo(out.undo.unwrap()), &mut ctx()).unwrap();
         assert!(a.exists());
+    }
+
+    #[test]
+    fn renomear_so_maiusculas_nao_sobrescreve_outro_arquivo() {
+        let d = tempfile::tempdir().unwrap();
+        let a = d.path().join("nota.txt");
+        fs::write(&a, "minúsculo").unwrap();
+        let out = run(Op::Rename { from: a.clone(), to: d.path().join("Nota.txt") }, &mut ctx()).unwrap();
+        assert!(has_entry_spelled(&d.path().join("Nota.txt")) && !has_entry_spelled(&a));
+        run(Op::Undo(out.undo.unwrap()), &mut ctx()).unwrap();
+        assert!(has_entry_spelled(&a));
+        // Disco que diferencia maiúsculas: "Nota.txt" é outro arquivo e não pode ser apagado pelo rename.
+        let other = d.path().join("Nota.txt");
+        if fs::write(&other, "MAIÚSCULO").is_ok() && has_entry_spelled(&a) && has_entry_spelled(&other) {
+            assert!(run(Op::Rename { from: a.clone(), to: other.clone() }, &mut ctx()).is_err());
+            assert_eq!(fs::read_to_string(&other).unwrap(), "MAIÚSCULO");
+            assert_eq!(fs::read_to_string(&a).unwrap(), "minúsculo");
+        }
     }
 
     #[test]
