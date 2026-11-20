@@ -6,6 +6,7 @@ mod app;
 mod aurora;
 mod checksums;
 mod clash;
+mod colors;
 mod columns;
 mod commands;
 mod complete;
@@ -13,11 +14,14 @@ mod computer;
 mod diff;
 mod discovery;
 mod folder_views;
+mod git_branch;
 mod glass;
+mod global_search;
 mod home;
 mod instance;
 mod keymap;
 mod launch;
+mod layouts;
 mod listing;
 mod media;
 mod network;
@@ -26,6 +30,7 @@ mod pins;
 mod pointer;
 mod props;
 mod session;
+mod shelf;
 mod shortcut;
 mod sysclip;
 mod theme;
@@ -59,6 +64,7 @@ fn main() -> iced::Result {
     glass::log_to_stderr();
     glass::prepare();
     keymap::reload();
+    colors::reload();
     let mut app = iced::application(App::boot, App::update, view::view)
         .title(App::title)
         .subscription(App::subscription)

@@ -56,6 +56,10 @@ pub enum Cmd {
     Search,
     FlatView,
     FindDuplicates,
+    GlobalSearch,
+    AddToShelf,
+    ShowShelf,
+    RemoveFromShelf,
     GoTo,
     Jump,
     ToggleHidden,
@@ -107,9 +111,13 @@ pub enum Cmd {
     ToggleAutoUpdate,
     EditKeys,
     ReloadKeys,
+    EditColors,
+    ReloadColors,
     SetDefault,
     UnsetDefault,
     ToggleRestore,
+    SaveLayout,
+    OpenLayout,
     Palette,
 }
 
@@ -168,6 +176,10 @@ pub const ALL: &[Cmd] = &[
     Cmd::Search,
     Cmd::FlatView,
     Cmd::FindDuplicates,
+    Cmd::GlobalSearch,
+    Cmd::AddToShelf,
+    Cmd::ShowShelf,
+    Cmd::RemoveFromShelf,
     Cmd::GoTo,
     Cmd::Jump,
     Cmd::ToggleHidden,
@@ -219,9 +231,13 @@ pub const ALL: &[Cmd] = &[
     Cmd::ToggleAutoUpdate,
     Cmd::EditKeys,
     Cmd::ReloadKeys,
+    Cmd::EditColors,
+    Cmd::ReloadColors,
     Cmd::SetDefault,
     Cmd::UnsetDefault,
     Cmd::ToggleRestore,
+    Cmd::SaveLayout,
+    Cmd::OpenLayout,
 ];
 
 const MOD: &str = if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" };
@@ -283,6 +299,10 @@ impl Cmd {
             Cmd::Search => "Buscar nesta pasta e subpastas",
             Cmd::FlatView => "Visão plana (todos os arquivos das subpastas)",
             Cmd::FindDuplicates => "Procurar arquivos duplicados nesta pasta e subpastas",
+            Cmd::GlobalSearch => "Buscar no computador (Everything, Spotlight, locate)",
+            Cmd::AddToShelf => "Pôr na cesta (juntar arquivos de várias pastas)",
+            Cmd::ShowShelf => "Abrir cesta",
+            Cmd::RemoveFromShelf => "Tirar da cesta (fora dela: esvaziar)",
             Cmd::GoTo => "Ir para caminho",
             Cmd::Jump => "Pular para pasta frequente",
             Cmd::ToggleHidden => "Mostrar/ocultar arquivos ocultos",
@@ -334,9 +354,13 @@ impl Cmd {
             Cmd::ToggleAutoUpdate => "Ligar/desligar atualização automática",
             Cmd::EditKeys => "Editar atalhos",
             Cmd::ReloadKeys => "Recarregar atalhos",
+            Cmd::EditColors => "Editar filtros de cor (pintar nomes por máscara)",
+            Cmd::ReloadColors => "Recarregar filtros de cor",
             Cmd::SetDefault => "Usar o arbor para abrir pastas (explorer padrão)",
             Cmd::UnsetDefault => "Voltar a abrir pastas no gerenciador do sistema",
             Cmd::ToggleRestore => "Ligar/desligar restaurar abas ao abrir",
+            Cmd::SaveLayout => "Salvar layout (abas e painéis com um nome)",
+            Cmd::OpenLayout => "Abrir layout salvo",
             Cmd::Palette => "Paleta de comandos",
         }
     }
@@ -392,6 +416,8 @@ impl Cmd {
             Cmd::Search => format!("{m}+Shift+F"),
             Cmd::FlatView => format!("{m}+B"),
             Cmd::FindDuplicates => String::new(),
+            Cmd::GlobalSearch => format!("{m}+Alt+F"),
+            Cmd::AddToShelf | Cmd::ShowShelf | Cmd::RemoveFromShelf => String::new(),
             Cmd::GoTo => format!("{m}+L"),
             Cmd::Jump => format!("{m}+K"),
             Cmd::ToggleHidden => format!("{m}+H"),
@@ -437,7 +463,7 @@ impl Cmd {
             | Cmd::CreateChecksums
             | Cmd::CompareFiles
             | Cmd::VerifyChecksums => String::new(),
-            Cmd::Details => "Alt+Shift+P".into(),
+            Cmd::Details => "Alt+P".into(),
             Cmd::Properties => "Alt+Enter".into(),
             Cmd::ToggleFps => "F12".into(),
             Cmd::CheckUpdates
@@ -445,8 +471,12 @@ impl Cmd {
             | Cmd::SetDefault
             | Cmd::UnsetDefault
             | Cmd::ToggleRestore
+            | Cmd::SaveLayout
+            | Cmd::OpenLayout
             | Cmd::EditKeys
-            | Cmd::ReloadKeys => String::new(),
+            | Cmd::ReloadKeys
+            | Cmd::EditColors
+            | Cmd::ReloadColors => String::new(),
             Cmd::Palette => format!("{m}+Shift+P"),
         }
     }

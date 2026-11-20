@@ -12,6 +12,10 @@ pub fn is_flat(search: &Option<(String, bool)>) -> bool {
     search.as_ref().is_some_and(|(q, _)| q == FLAT)
 }
 
+pub fn is_shelf(search: &Option<(String, bool)>) -> bool {
+    search.as_ref().is_some_and(|(q, _)| q == crate::shelf::QUERY)
+}
+
 pub fn is_dupes(search: &Option<(String, bool)>) -> bool {
     search.as_ref().is_some_and(|(q, _)| q == DUPES)
 }
@@ -54,5 +58,49 @@ impl App {
         let task = Self::load_tab(tab, root, true);
         tab.refreshing = false;
         Task::batch([task, self.notify("Procurando duplicados (tamanho, depois conteúdo)…", false)])
+    }
+
+    /// Abre (ou reaproveita) a aba da Cesta no painel ativo.
+    pub(super) fn show_shelf(&mut self) -> Task<Message> {
+        let pane = self.active;
+        if let Some(i) = self.panes[pane].tabs.iter().position(|t| is_shelf(&t.search)) {
+            self.panes[pane].active = i;
+            return self.refresh_shelf();
+        }
+        let root = self.tab().path.clone();
+        let _ = self.new_tab(pane);
+        let tab = self.panes[pane].tab_mut();
+        let _ = Self::load_tab(tab, root.clone(), false);
+        tab.search = Some((crate::shelf::QUERY.to_string(), false));
+        let task = Self::load_tab(tab, root, true);
+        tab.refreshing = false;
+        task
+    }
+
+    /// Relista as abas da Cesta abertas (depois de pôr ou tirar itens).
+    pub(super) fn refresh_shelf(&mut self) -> Task<Message> {
+        let mut tasks = vec![];
+        for tab in self.panes.iter_mut().flat_map(|p| p.tabs.iter_mut()).filter(|t| is_shelf(&t.search)) {
+            let path = tab.path.clone();
+            tasks.push(Self::load_tab(tab, path, true));
+        }
+        Task::batch(tasks)
+    }
+
+    pub(super) fn add_to_shelf(&mut self) -> Task<Message> {
+        let n = crate::shelf::add(self.tab().targets());
+        let total = crate::shelf::len();
+        let refresh = self.refresh_shelf();
+        Task::batch([refresh, self.notify(format!("{n} item(ns) na cesta ({total} no total). \"Abrir cesta\" na paleta"), false)])
+    }
+
+    pub(super) fn remove_from_shelf(&mut self) -> Task<Message> {
+        if is_shelf(&self.tab().search) {
+            crate::shelf::remove(&self.tab().targets());
+        } else {
+            crate::shelf::clear();
+        }
+        let refresh = self.refresh_shelf();
+        Task::batch([refresh, self.notify(format!("Cesta: {} item(ns)", crate::shelf::len()), false)])
     }
 }

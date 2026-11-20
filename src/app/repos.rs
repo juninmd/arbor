@@ -41,6 +41,32 @@ impl App {
     }
 }
 
+impl App {
+    /// Branch do git da pasta da aba, lida fora da interface depois da listagem.
+    pub(super) fn read_branch(&mut self, id: u64) -> Task<Message> {
+        let Some(tab) = self.find_tab(id) else { return Task::none() };
+        if crate::computer::is_virtual(&tab.path) || network::server_root(&tab.path).is_some() {
+            tab.branch = None;
+            return Task::none();
+        }
+        let dir = tab.path.clone();
+        Task::perform(
+            {
+                let dir = dir.clone();
+                async move { tokio::task::spawn_blocking(move || crate::git_branch::branch_of(&dir)).await.ok().flatten() }
+            },
+            move |branch| Message::Branch { tab: id, dir: dir.clone(), branch },
+        )
+    }
+
+    pub(super) fn on_branch(&mut self, id: u64, dir: PathBuf, branch: Option<String>) -> Task<Message> {
+        if let Some(tab) = self.find_tab(id).filter(|t| t.path == dir) {
+            tab.branch = branch;
+        }
+        Task::none()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

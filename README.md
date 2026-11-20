@@ -57,6 +57,7 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Janela própria**, no jeito do Explorer do Windows 11: abas na barra de título, faixa com endereço e barra de
   comandos, minimizar/maximizar/fechar, arrastar e redimensionar pelas bordas (`ARBOR_NATIVE_FRAME=1` volta para
   a moldura do sistema). **Abas verticais** opcionais (menu do tema ou "Abas verticais" na paleta).
+* **Branch do git** da pasta aberta na barra de status (`⎇ main`), lida do `.git/HEAD` sem rodar o `git`.
 * **Velocidade visível.** Cada pasta mostra quantos itens tem e quanto custou listar e ordenar; `F12` liga um medidor
   de fps com o pior quadro do último segundo.
 * **Abre em "Este Computador"**, como o Explorer: pastas do usuário e discos/volumes com barra de uso e espaço
@@ -82,12 +83,20 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Comparar e sincronizar pastas** no painel duplo, como no Total Commander: `Shift+F2` seleciona em cada lado o
   que só existe nele ou é mais novo (`F5` copia); "Sincronizar com o outro painel" copia tudo isso de uma vez,
   depois de confirmar, substituindo as versões antigas e sem apagar nada.
+* **Layouts** (paleta: "Salvar layout" / "Abrir layout salvo"): o conjunto de abas e painéis guardado com um
+  nome em `~/.config/arbor/layouts/`, para alternar entre "Trabalho", "Fotos"… como no Directory Opus.
 * **Navegação sincronizada** no painel duplo (paleta: "Navegação sincronizada"): entrar numa subpasta de um
   lado entra na de mesmo nome do outro, e subir sobe os dois, como no Directory Opus.
 * **Menu da aba** (botão direito): duplicar (`Ctrl+Shift+D`), **travar** (a aba fica na pasta dela; navegar a
   partir dela abre outra aba, e ela não fecha junto), fechar as outras, à esquerda ou à direita.
+* **Busca no computador** (`Ctrl+Alt+F`): usa o índice que o sistema já tem, sem criar outro: Everything (`es.exe`)
+  no Windows, Spotlight no macOS, `plocate`/`locate` no Linux. Os resultados abrem numa aba, com a pasta de cada um.
+* **Cesta** (menu do item ou paleta: "Pôr na cesta", "Abrir cesta"): junta arquivos de várias pastas numa aba só,
+  para copiar, mover ou compactar tudo de uma vez, como o Shelf do Files e as coleções do Directory Opus.
 * **Visão plana** (`Ctrl+B`, como no Total Commander): a aba lista todos os arquivos da pasta e das subpastas,
   com a pasta de cada um embaixo do nome; dá para ordenar, filtrar e copiar como numa pasta comum.
+* **Filtros de cor** (paleta: "Editar filtros de cor"): `*.log;*.tmp = cinza`, `*.pdf = #ff6b6b`… no arquivo
+  `colors` pintam o nome de quem casa, como no XYplorer. É regra visual, não tag: nada é gravado nos arquivos.
 * **Curinga e seleção por máscara**, como no Total Commander: `*.jpg;*.png` no filtro mostra só o que casa;
   `Num +` / `Num −` somam ou tiram da seleção por máscara, `Num *` inverte, e "Selecionar todos do mesmo tipo"
   está na paleta.
@@ -225,6 +234,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | digitar | Filtrar a pasta (`Esc` limpa); com `*` ou `?` vira curinga (`*.jpg;*.png`) |
 | `Num +` / `Num −` / `Num *` | Selecionar / tirar da seleção por máscara / inverter seleção |
 | `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
+| `Ctrl+Alt+F` | Buscar no computador inteiro (Everything no Windows, Spotlight no macOS, plocate no Linux) |
 | `Ctrl+B` | Visão plana: todos os arquivos das subpastas numa lista só (de novo volta) |
 | `Ctrl+Shift+P` | Paleta de comandos |
 | `Ctrl+K` | Pular para pasta frequente |
@@ -244,7 +254,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | `Ctrl+roda`, `Ctrl+=` / `Ctrl+-` | Troca a visualização: Conteúdo ← Detalhes → Lista → Blocos → ícones pequenos, médios, grandes, extra grandes |
 | `Ctrl+1` … `Ctrl+4` | Ordenar por nome, tamanho, data, tipo |
 | botão direito, `Shift+F10`, tecla Menu | Menu de contexto do item ou da pasta |
-| `Alt+Shift+P` / `Alt+Enter` | Painel de detalhes / propriedades |
+| `Alt+P` (ou `Alt+Shift+P`) / `Alt+Enter` | Painel de detalhes com preview / propriedades |
 | `F12` | Medidor de fps |
 | `Ctrl+Shift+C` | Copiar caminho |
 | ``Ctrl+' `` | Terminal nesta pasta |
@@ -310,7 +320,7 @@ Todo push em `main` vira uma release, sem passos manuais ([`release.yml`](.githu
 | 1. Velocidade | listagem paralela, ordem natural por bytes, filtro paralelo e incremental, mimalloc | ✅ |
 | 2. Beleza | tema Glass, fontes, ícones por tipo, selo de ms e medidor de fps; vidro nativo no macOS e Linux; Mica no Windows e animações com mola | 🟡 |
 | 3. Poder | fila de operações com pausa, desfazer persistente, navegar em .zip/.7z/.tar, instância única | ⬜ |
-| 4. Busca global | índice opcional (MFT/USN no Windows, varredura + observador nos outros) | ⬜ |
+| 4. Busca global | índice do sistema (Everything, Spotlight, locate) ✅; índice próprio (MFT/USN) | 🟡 |
 
 ## Licença
 
