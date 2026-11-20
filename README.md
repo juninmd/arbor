@@ -91,6 +91,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   partir dela abre outra aba, e ela não fecha junto), fechar as outras, à esquerda ou à direita.
 * **Busca no computador** (`Ctrl+Alt+F`): usa o índice que o sistema já tem, sem criar outro: Everything (`es.exe`)
   no Windows, Spotlight no macOS, `plocate`/`locate` no Linux. Os resultados abrem numa aba, com a pasta de cada um.
+* **Cesta** (menu do item ou paleta: "Pôr na cesta", "Abrir cesta"): junta arquivos de várias pastas numa aba só,
+  para copiar, mover ou compactar tudo de uma vez, como o Shelf do Files e as coleções do Directory Opus.
 * **Visão plana** (`Ctrl+B`, como no Total Commander): a aba lista todos os arquivos da pasta e das subpastas,
   com a pasta de cada um embaixo do nome; dá para ordenar, filtrar e copiar como numa pasta comum.
 * **Filtros de cor** (paleta: "Editar filtros de cor"): `*.log;*.tmp = cinza`, `*.pdf = #ff6b6b`… no arquivo

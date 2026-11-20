@@ -30,6 +30,7 @@ mod pins;
 mod pointer;
 mod props;
 mod session;
+mod shelf;
 mod shortcut;
 mod sysclip;
 mod theme;

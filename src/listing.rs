@@ -114,3 +114,10 @@ pub fn global(query: String, sort: Sort) -> impl Stream<Item = Snapshot> {
         .expect("thread de busca global");
     rx
 }
+
+/// A cesta como listagem (rápido: só um `stat` por item guardado).
+pub fn shelf(sort: Sort) -> impl Stream<Item = Snapshot> {
+    let (tx, rx) = mpsc::unbounded();
+    let _ = tx.unbounded_send(crate::shelf::snapshot(sort));
+    rx
+}

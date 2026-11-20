@@ -254,6 +254,9 @@ impl Tab {
         if let Some(q) = self.search.as_ref().and_then(|(q, _)| crate::global_search::query_of(q)) {
             return format!("Computador: {q}");
         }
+        if flat::is_shelf(&self.search) {
+            return "Cesta".into();
+        }
         if flat::is_dupes(&self.search) {
             return format!("Duplicados: {}", ops::name(&self.path));
         }
@@ -1031,6 +1034,9 @@ impl App {
                 let q = crate::global_search::query_of(&query).unwrap_or_default().to_string();
                 Task::run(listing::global(q, sort), move |snap| Message::Listed { tab: id, generation, snap })
             }
+            (Some((query, _)), _) if refresh && query == crate::shelf::QUERY => {
+                Task::run(listing::shelf(sort), move |snap| Message::Listed { tab: id, generation, snap })
+            }
             (Some((query, hidden)), _) if refresh && query == arbor_core::dupes::QUERY => {
                 Task::run(listing::dupes(path, hidden), move |snap| Message::Listed { tab: id, generation, snap })
             }
@@ -1709,6 +1715,9 @@ impl App {
                 }
             }
             Cmd::FlatView => self.toggle_flat(),
+            Cmd::AddToShelf => self.add_to_shelf(),
+            Cmd::ShowShelf => self.show_shelf(),
+            Cmd::RemoveFromShelf => self.remove_from_shelf(),
             Cmd::GlobalSearch => {
                 let filter = self.tab().filter.trim().to_string();
                 self.open_prompt(PromptKind::GlobalSearch, filter)
