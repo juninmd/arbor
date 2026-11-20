@@ -36,6 +36,11 @@ pub enum Gesture {
         from_x: f32,
         start_w: f32,
     },
+    /// Arrastando a borda esquerda do painel de detalhes: puxar para a esquerda alarga.
+    DetailsResize {
+        from_x: f32,
+        start_w: f32,
+    },
     /// Coordenadas do conteúdo da lista/grade; `start` chega no primeiro movimento.
     Band {
         tab: u64,
@@ -209,6 +214,9 @@ impl App {
                 let (col, w) = (*col, *start_w + *from_x - at.x);
                 self.columns.set_width(col, w);
             }
+            Gesture::DetailsResize { from_x, start_w } => {
+                self.details_w = super::details::clamp_width(*start_w + *from_x - at.x, self.window.width);
+            }
             _ => {}
         }
         Task::none()
@@ -241,6 +249,7 @@ impl App {
                 self.transfer(if copy { Op::Copy { sources: paths, dest, conflict } } else { Op::Move { sources: paths, dest, conflict } })
             }
             Gesture::Resize { .. } => self.save_columns(),
+            Gesture::DetailsResize { .. } => self.save_details_width(),
             _ => Task::none(),
         }
     }

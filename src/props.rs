@@ -34,9 +34,17 @@ pub fn props(path: &Path) -> Vec<(String, String)> {
             out.push((label.into(), human_time(t)));
         }
     }
+    if meta.is_dir() && is_repo(path) {
+        out.push(("Repositório git".into(), "Sim".into()));
+    }
     out.push(("Somente leitura".into(), if meta.permissions().readonly() { "Sim" } else { "Não" }.into()));
     attributes(&meta, &mut out);
     out
+}
+
+/// `.git` pode ser pasta (clone normal) ou arquivo (worktree e submódulo apontam para outro lugar).
+pub fn is_repo(dir: &Path) -> bool {
+    std::fs::symlink_metadata(dir.join(".git")).is_ok()
 }
 
 /// SHA-256 do arquivo em hexadecimal, lido em blocos para não carregar arquivos grandes na memória.

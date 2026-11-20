@@ -7,6 +7,18 @@ use crate::props;
 use iced::Task;
 use std::path::PathBuf;
 
+pub const DEFAULT_W: f32 = 300.0;
+const MIN_W: f32 = 240.0;
+
+/// Entre 240 px e metade da janela: a lista nunca fica espremida pelo painel.
+pub fn clamp_width(w: f32, window_w: f32) -> f32 {
+    w.min((window_w * 0.5).max(MIN_W)).max(MIN_W)
+}
+
+pub fn saved_width() -> f32 {
+    crate::session::setting("details_width").and_then(|v| v.parse::<f32>().ok()).filter(|w| w.is_finite()).unwrap_or(DEFAULT_W).max(MIN_W)
+}
+
 #[derive(Debug, Clone)]
 pub struct Details {
     pub path: PathBuf,
@@ -17,6 +29,19 @@ pub struct Details {
 }
 
 impl App {
+    pub(super) fn details_resize_start(&mut self) -> Task<Message> {
+        self.gesture = super::Gesture::DetailsResize { from_x: crate::pointer::get().x, start_w: self.details_w };
+        crate::pointer::arm(true);
+        Task::none()
+    }
+
+    pub(super) fn save_details_width(&mut self) -> Task<Message> {
+        match crate::session::set_setting("details_width", &format!("{:.0}", self.details_w)) {
+            Ok(()) => Task::none(),
+            Err(e) => self.notify(format!("Não salvou a largura do painel: {e}"), true),
+        }
+    }
+
     /// Chamado depois de toda mensagem; só lê o disco quando o item sob o cursor mudou.
     pub(super) fn refresh_details(&mut self) -> Task<Message> {
         if !self.details_on {
@@ -84,5 +109,18 @@ impl App {
             d.hash = Some(result.unwrap_or_else(|e| format!("Não foi possível ler: {e}")));
         }
         Task::none()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn panel_width_stays_between_minimum_and_half_the_window() {
+        assert_eq!(clamp_width(100.0, 1280.0), MIN_W, "fino demais some o conteúdo");
+        assert_eq!(clamp_width(900.0, 1280.0), 640.0, "nunca passa da metade da janela");
+        assert_eq!(clamp_width(360.0, 1280.0), 360.0);
+        assert_eq!(clamp_width(500.0, 300.0), MIN_W, "janela minúscula ainda deixa o mínimo");
     }
 }

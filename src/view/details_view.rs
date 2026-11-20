@@ -1,6 +1,6 @@
 //! Painel de detalhes à direita (Alt+Shift+P): preview, nome e propriedades do item sob o cursor.
 
-use super::{chip, drive_of, entry_kind};
+use super::{drive_of, entry_chip, entry_kind};
 use crate::app::{App, Message};
 use crate::media::Preview;
 use crate::theme;
@@ -8,8 +8,6 @@ use arbor_core::{human_count, human_size};
 use iced::widget::text::Wrapping;
 use iced::widget::{button, center, column, container, image, row, scrollable, text, Column};
 use iced::{Alignment, ContentFit, Element, Fill, Theme};
-
-pub const WIDTH: f32 = 300.0;
 
 pub fn panel(app: &App) -> Element<'_, Message> {
     let tab = app.tab();
@@ -41,7 +39,9 @@ pub fn panel(app: &App) -> Element<'_, Message> {
                         })
                         .into()
                 }
-                _ => center(chip(entry_kind(e, drive_of(app, tab, e)), 84.0)).height(150).into(),
+                _ => {
+                    center(entry_chip(entry_kind(e, drive_of(app, tab, e)), 84.0, e.hidden, tab.repos.contains(&e.path))).height(150).into()
+                }
             };
             col = col.push(hero).push(text(e.name.as_str()).font(theme::DISPLAY).size(15));
             if let Some(Preview::Folder { dirs, files, bytes, more }) = &d.preview {
@@ -88,5 +88,5 @@ pub fn panel(app: &App) -> Element<'_, Message> {
         }
     }
     let body = scrollable(col.padding(16)).height(Fill).style(theme::scrollbar);
-    container(body).width(WIDTH).height(Fill).style(|t| theme::glass(t, false)).into()
+    container(body).width(app.details_w).height(Fill).style(|t| theme::glass(t, false)).into()
 }

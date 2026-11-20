@@ -122,9 +122,15 @@ pub fn menu<'a>(app: &'a App, m: &'a Menu) -> Element<'a, Message> {
 
 /// Cartão flutuante na posição do mouse, sem passar da borda da janela; clique fora fecha.
 fn floating<'a>(app: &App, content: Element<'a, Message>, at: iced::Point, h: f32) -> Element<'a, Message> {
-    let card = container(content).width(MENU_W).padding(5).style(theme::tooltip);
+    // abre desdobrando: altura e posição chegam ao lugar com a mesma curva dos diálogos
+    let t = app.motion.overlay(std::time::Instant::now());
+    let mut card = container(content).width(MENU_W).padding(5).style(theme::tooltip);
+    if t < 1.0 {
+        card = card.height(h * (0.82 + 0.18 * t)).clip(true);
+    }
     let x = at.x.min(app.window.width - MENU_W - 8.0).max(0.0);
     let y = if at.y + h > app.window.height - 8.0 { (at.y - h).max(0.0) } else { at.y };
+    let y = y + 6.0 * (1.0 - t);
     let catcher =
         mouse_area(container(space()).width(Fill).height(Fill)).on_press(Message::CloseOverlay).on_right_press(Message::CloseOverlay);
     stack![catcher, container(opaque(card)).padding(Padding::new(0.0).left(x).top(y))].into()
