@@ -400,7 +400,7 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
     let cursor = i == tab.cursor;
     let dim = e.hidden;
     let strong = selected || cursor;
-    let name = text(e.name.as_str())
+    let name = text(shown_name(app, e))
         .size(13)
         .wrapping(Wrapping::None)
         .width(Fill)
@@ -497,6 +497,23 @@ fn drop_zone<'a>(app: &App, tab: &Tab, e: &Entry, area: MouseArea<'a, Message>) 
     area.on_enter(Message::DragOver(Some(target.clone()))).on_exit(Message::DragLeave { from: target, back: Some(tab.path.clone()) })
 }
 
+/// Nome como aparece na lista: sem a extensão quando o usuário as ocultou.
+fn shown_name<'a>(app: &App, e: &'a Entry) -> &'a str {
+    if app.hide_ext && !e.is_dir {
+        stem(&e.name)
+    } else {
+        &e.name
+    }
+}
+
+/// "foto.jpg" vira "foto"; ".bashrc" e "arquivo." ficam inteiros, como no Explorer.
+fn stem(name: &str) -> &str {
+    match name.rfind('.') {
+        Some(i) if i > 0 && i + 1 < name.len() => &name[..i],
+        _ => name,
+    }
+}
+
 fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Element<'a, Message> {
     let e = tab.entry_at(i).expect("índice válido");
     let selected = tab.selected.contains(&e.path);
@@ -525,8 +542,11 @@ fn grid_cell<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Ele
             })
             .into(),
     };
-    let label =
-        text(shorten(&e.name, 30)).size(12).width(Fill).wrapping(Wrapping::None).font(if selected { theme::UI_BOLD } else { theme::UI });
+    let label = text(shorten(shown_name(app, e), 30)).size(12).width(Fill).wrapping(Wrapping::None).font(if selected {
+        theme::UI_BOLD
+    } else {
+        theme::UI
+    });
     let meta = match drive.and_then(|d| d.space) {
         Some((free, total)) => format!("{} livres de {}", human_size(free), human_size(total)),
         None if e.is_dir => "Pasta".to_string(),
@@ -1252,5 +1272,19 @@ fn shorten(s: &str, max: usize) -> String {
     } else {
         let head: String = s.chars().take(max - 1).collect();
         format!("{head}…")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stem;
+
+    #[test]
+    fn hiding_extensions_keeps_dotfiles_and_trailing_dots_whole() {
+        assert_eq!(stem("foto.tar.gz"), "foto.tar");
+        assert_eq!(stem("foto.jpg"), "foto");
+        assert_eq!(stem(".bashrc"), ".bashrc");
+        assert_eq!(stem("arquivo."), "arquivo.");
+        assert_eq!(stem("LEIAME"), "LEIAME");
     }
 }

@@ -108,6 +108,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(ZoomIn),
             Some(ZoomOut),
             Some(ToggleHidden),
+            Some(ToggleExtensions),
             None,
             Some(ColKind),
             Some(ColSize),

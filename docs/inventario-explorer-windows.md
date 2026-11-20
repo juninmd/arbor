@@ -57,7 +57,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Painel de visualização à direita (Alt+P) | 🟡 (preview em sobreposição, Espaço) | P1 |
 | Miniaturas de vídeo, PDF, Office | 🟡 (imagem, capa de áudio, vídeo e PDF com ffmpeg/pdftoppm ou Quick Look no macOS; Office não) | P2 |
 | Ícones reais dos programas (.exe, .lnk) e da associação | 🟡 (Windows: ícone real de .exe, .lnk, .msi e .url nas visualizações em grade e Blocos; em Detalhes e na Lista, e o ícone do programa associado a cada tipo, ainda não) | P1 |
-| Mostrar extensões, itens ocultos, caixas de seleção | 🟡 (ocultos sim) | P2 |
+| Mostrar extensões, itens ocultos, caixas de seleção | 🟡 (ocultos com Ctrl+H; extensões pelo menu Visualizar; caixas de seleção não) | P2 |
 | Modo compacto (densidade) | ❌ | P3 |
 
 ## Seleção e operações
