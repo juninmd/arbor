@@ -81,6 +81,10 @@ pub enum Cmd {
     ThemeGraphite,
     ThemeOcean,
     ThemeSunset,
+    ThemeCanto,
+    ThemeHuecoMundo,
+    ThemeDracula,
+    ThemeVidro,
     VerticalTabs,
     CopyPath,
     Terminal,
@@ -182,6 +186,10 @@ pub const ALL: &[Cmd] = &[
     Cmd::ThemeGraphite,
     Cmd::ThemeOcean,
     Cmd::ThemeSunset,
+    Cmd::ThemeCanto,
+    Cmd::ThemeHuecoMundo,
+    Cmd::ThemeDracula,
+    Cmd::ThemeVidro,
     Cmd::VerticalTabs,
     Cmd::CopyPath,
     Cmd::Terminal,
@@ -286,6 +294,10 @@ impl Cmd {
             Cmd::ThemeGraphite => "Tema: Grafite",
             Cmd::ThemeOcean => "Tema: Oceano",
             Cmd::ThemeSunset => "Tema: Pôr do sol",
+            Cmd::ThemeCanto => "Tema: Canto",
+            Cmd::ThemeHuecoMundo => "Tema: Hueco Mundo",
+            Cmd::ThemeDracula => "Tema: Drácula",
+            Cmd::ThemeVidro => "Tema: Vidro",
             Cmd::VerticalTabs => "Abas verticais",
             Cmd::CopyPath => "Copiar caminho",
             Cmd::Terminal => "Abrir terminal aqui",
@@ -376,6 +388,10 @@ impl Cmd {
             | Cmd::ThemeGraphite
             | Cmd::ThemeOcean
             | Cmd::ThemeSunset
+            | Cmd::ThemeCanto
+            | Cmd::ThemeHuecoMundo
+            | Cmd::ThemeDracula
+            | Cmd::ThemeVidro
             | Cmd::VerticalTabs => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::Terminal => format!("{m}+'"),
