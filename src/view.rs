@@ -409,7 +409,7 @@ fn list_row<'a>(app: &'a App, tab: &'a Tab, i: usize, pane_active: bool) -> Elem
     let drive = drive_of(app, tab, e);
     let (size, when) = match drive {
         Some(d) => d.space.map(|(free, total)| (human_size(total), human_size(free))).unwrap_or_default(),
-        None => (if e.is_dir { String::new() } else { human_size(e.size) }, human_time(e.modified)),
+        None => (if e.is_dir && !tab.dir_sizes { String::new() } else { human_size(e.size) }, human_time(e.modified)),
     };
     let selected = tab.selected.contains(&e.path);
     let cursor = i == tab.cursor;

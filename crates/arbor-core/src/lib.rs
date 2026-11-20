@@ -3,6 +3,7 @@
 
 pub mod archive;
 pub mod compare;
+pub mod du;
 pub mod entry;
 pub mod frecency;
 pub mod fuzzy;

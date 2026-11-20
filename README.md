@@ -74,6 +74,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   lateral ou o outro painel (mesmo disco move, outro disco copia; `Ctrl` copia, `Shift` move).
 * **Painel duplo e abas** (`F3`, `Ctrl+T`, `Ctrl+W`, `Ctrl+Tab`), com histórico por aba (`Alt+←` / `Alt+→`; botão direito em Voltar/Avançar lista o histórico). O `›` da barra de endereço lista as subpastas daquele nível e cada pasta lembra ordenação e lista/grade.
 * **Colunas**: botão direito no cabeçalho mostra/oculta Tipo, Tamanho e Modificado; arraste a divisória para mudar a largura (`~/.config/arbor/columns`).
+* **Tamanho das pastas** na coluna Tamanho (paleta: "Ligar/desligar tamanho das pastas"): somado em segundo plano
+  depois da listagem, em paralelo, e cancelado ao trocar de pasta; ordenar por tamanho passa a considerar as pastas.
 * **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
