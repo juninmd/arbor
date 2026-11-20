@@ -3,8 +3,8 @@
 
 use super::{App, Message, Overlay};
 use crate::commands::Cmd;
-use crate::computer;
 use crate::pointer;
+use crate::{computer, launch};
 use iced::keyboard::key::Named;
 use iced::{Point, Task};
 use std::path::PathBuf;
@@ -44,6 +44,7 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             v.extend([
                 Some(OpenDefault),
                 Some(OpenWith),
+                Some(RunAsAdmin),
                 Some(Preview),
                 None,
                 Some(Cut),
@@ -178,6 +179,7 @@ impl App {
             Cmd::Cut | Cmd::Rename | Cmd::Trash | Cmd::MoveToOther => has_target && !here,
             Cmd::NewFolder | Cmd::NewTextFile | Cmd::NewZip => !here,
             Cmd::CreateShortcut => has_target && !here,
+            Cmd::RunAsAdmin => cfg!(windows) && self.tab().current().is_some_and(|e| launch::elevatable(&e.path)),
             Cmd::Copy | Cmd::CopyToOther | Cmd::Open | Cmd::OpenDefault | Cmd::Preview => has_target,
             Cmd::OpenWith => self.tab().current().is_some_and(|e| !e.is_dir && !computer::is_virtual(&e.path)),
             _ => true,

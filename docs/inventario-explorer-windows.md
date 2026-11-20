@@ -77,7 +77,7 @@ _19/11/2026, sobre a `main` v0.2.0 + "Este Computador" (este PR). Complementa o 
 | Renomear vários: "foto (1)", "foto (2)" | ✅ (F2 com vários itens: um nome simples vira "nome (1)", "nome (2)"; modelos com {n}, {date} e "antigo => novo" também) | P2 |
 | Criar atalho / link simbólico | ✅ (botão direito → Criar atalho: link simbólico no Linux/macOS, `.lnk` no Windows) | P2 |
 | Área de transferência do sistema (copiar no arbor, colar no Explorer e vice-versa) | ✅ (recortar vira mover só dentro do arbor) | P0 |
-| Executar como administrador; pedir elevação ao copiar em pasta protegida | ❌ | P2 |
+| Executar como administrador; pedir elevação ao copiar em pasta protegida | 🟡 (botão direito em .exe, .bat, .cmd e .msi → "Executar como administrador", no Windows; copiar em pasta protegida ainda não pede elevação) | P2 |
 
 ## Unidades e sistema
 
