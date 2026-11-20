@@ -7,7 +7,10 @@ mod drag;
 pub mod groups;
 mod jump;
 mod menu;
+mod motion;
+mod properties;
 pub mod rate;
+mod repos;
 mod select;
 mod trash_view;
 mod tree;
@@ -78,6 +81,10 @@ pub struct App {
     pub suggest: address::Suggest,
     pub details_on: bool,
     pub details: Option<Details>,
+    /// Largura do painel de detalhes, ajustável puxando a borda esquerda (gravada nas configurações).
+    pub details_w: f32,
+    pub motion: motion::Motion,
+    pub maximized: bool,
     /// Índice em `view_modes::MODES`: o modo usado quando a aba está em grade.
     pub zoom: usize,
     pub gesture: Gesture,
@@ -186,6 +193,8 @@ pub struct Tab {
     /// "Agrupar por" na lista em Detalhes; `grouped` são as linhas com cabeçalhos.
     pub group: Option<GroupBy>,
     pub grouped: groups::Grouped,
+    /// Subpastas que são repositórios git (têm `.git`), verificadas depois da listagem completa.
+    pub repos: HashSet<PathBuf>,
 }
 
 impl Tab {
@@ -215,6 +224,7 @@ impl Tab {
             search: None,
             group: None,
             grouped: groups::Grouped::default(),
+            repos: HashSet::new(),
         }
     }
 
@@ -383,6 +393,12 @@ pub enum Overlay {
     Preview {
         path: PathBuf,
         content: Option<Preview>,
+    },
+    /// "Propriedades" do item: `None` enquanto lê o disco.
+    Properties {
+        path: PathBuf,
+        props: Option<Vec<(String, String)>>,
+        preview: Option<Preview>,
     },
     Menu(Menu),
     Jump(jump::Jump),
@@ -595,6 +611,22 @@ pub enum Message {
     /// Janela sem moldura do sistema: arrastar, redimensionar e os três botões vêm da barra de título.
     Window(WindowAction),
     Frame(Instant),
+    /// Quadro de animação: só redesenha (a posição sai do relógio na `view`).
+    MotionTick,
+    /// Janela maximizada some com o contorno de 1 px (encostaria na borda da tela).
+    Maximized(bool),
+    PropsLoaded {
+        path: PathBuf,
+        preview: Preview,
+        props: Vec<(String, String)>,
+    },
+    /// Começou a puxar a borda esquerda do painel de detalhes.
+    DetailsResizeStart,
+    Repos {
+        tab: u64,
+        dir: PathBuf,
+        repos: HashSet<PathBuf>,
+    },
     UpdateCheck {
         manual: bool,
     },
@@ -654,6 +686,9 @@ impl App {
             suggest: Default::default(),
             details_on: false,
             details: None,
+            details_w: details::saved_width(),
+            motion: Default::default(),
+            maximized: false,
             zoom: crate::view_modes::DEFAULT,
             gesture: Gesture::None,
             // "Este Computador" começa aberto na barra lateral, mostrando os discos
@@ -769,7 +804,7 @@ impl App {
     fn grid_width(&self) -> f32 {
         let panes = if self.dual { 2.0 } else { 1.0 };
         // Painel de detalhes aberto tira largura da grade; sem isso a última coluna sai cortada.
-        let details = if self.details_on { crate::view::DETAILS_W + 1.0 } else { 0.0 };
+        let details = if self.details_on { self.details_w + crate::view::SPLIT_W } else { 0.0 };
         let vtabs = if self.vertical_tabs { VTABS_W + 1.0 } else { 0.0 };
         // painéis encostados (filete de 1 px entre eles) e o recuo da grade
         (self.window.width - SIDEBAR_W - 1.0 - vtabs - details - (panes - 1.0)) / panes - 20.0
@@ -854,6 +889,12 @@ impl App {
             .filter(|p| !computer::is_virtual(&p.tab().path))
             .map(|p| Subscription::run_with(p.tab().path.clone(), watch::watch).map(Message::DirChanged));
         let fps = if self.fps.is_some() { window::frames().map(Message::Frame) } else { Subscription::none() };
+        // `window::frames` só chega quando algo já pediu redesenho; um relógio garante os quadros da animação
+        let motion = if self.motion.animating(Instant::now()) {
+            iced::time::every(motion::FRAME).map(|_| Message::MotionTick)
+        } else {
+            Subscription::none()
+        };
         let updates = if update::auto_enabled() {
             iced::time::every(update::EVERY).map(|_| Message::UpdateCheck { manual: false })
         } else {
@@ -861,7 +902,7 @@ impl App {
         };
         let remote = Subscription::run(instance::requests).map(Message::Remote);
         let drives = iced::time::every(DRIVES_EVERY).map(|_| Message::DrivesTick);
-        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, updates, drives, remote]))
+        Subscription::batch(std::iter::once(keys).chain(watchers).chain([fps, motion, updates, drives, remote]))
     }
 
     // ---------- navegação e listagem ----------
@@ -1044,7 +1085,8 @@ impl App {
                 sort_entries(Arc::<Vec<Entry>>::make_mut(entries), sort);
             }
         });
-        if snap.complete {
+        let complete = snap.complete;
+        if complete {
             if !tab.refreshing && snap.error.is_none() {
                 let path = tab.path.clone();
                 self.frecency.visit(&path);
@@ -1074,7 +1116,8 @@ impl App {
                 task = self.reveal_cursor(id);
             }
         }
-        Task::batch([task, self.request_thumbs(id)])
+        let repos = if complete { self.scan_repos(id) } else { Task::none() };
+        Task::batch([task, self.request_thumbs(id), repos])
     }
 
     // ---------- seleção e rolagem ----------
@@ -1404,10 +1447,7 @@ impl App {
                 }
                 Task::none()
             }
-            Cmd::Properties => {
-                self.details_on = true;
-                Task::none()
-            }
+            Cmd::Properties => self.open_properties(),
             Cmd::ZoomIn => self.zoom(true),
             Cmd::ZoomOut => self.zoom(false),
             Cmd::Restore | Cmd::Purge | Cmd::EmptyTrash | Cmd::DeleteNow => self.trash_cmd(cmd),
@@ -2091,6 +2131,12 @@ impl App {
                     _ => Task::none(),
                 };
             }
+            Overlay::Properties { .. } => {
+                if matches!(named, Some(Named::Escape | Named::Enter)) {
+                    self.overlay = Overlay::None;
+                }
+                return Task::none();
+            }
             Overlay::Menu(_) => return self.menu_key(named),
             Overlay::Jump(_) => return self.jump_key(named),
             Overlay::Confirm { .. } => {
@@ -2241,10 +2287,12 @@ impl App {
                 | Message::PromptSubmit
                 | Message::PaletteRun(_)
         );
+        let before = std::mem::discriminant(&self.overlay);
         let task = self.handle(message);
         if structural {
             self.persist();
         }
+        self.observe_motion(before);
         Task::batch([task, self.refresh_details()])
     }
 
@@ -2276,9 +2324,19 @@ impl App {
             }
             Message::Resized(size) => {
                 self.window = size;
+                self.details_w = details::clamp_width(self.details_w, size.width);
                 let ids: Vec<u64> = self.panes.iter().map(|p| p.tab().id).collect();
-                Task::batch(ids.into_iter().map(|id| self.request_thumbs(id)).collect::<Vec<_>>())
+                let maximized = window::latest().and_then(window::is_maximized).map(Message::Maximized);
+                Task::batch(ids.into_iter().map(|id| self.request_thumbs(id)).chain([maximized]).collect::<Vec<_>>())
             }
+            Message::MotionTick => Task::none(),
+            Message::Maximized(on) => {
+                self.maximized = on;
+                Task::none()
+            }
+            Message::PropsLoaded { path, preview, props } => self.on_props(path, preview, props),
+            Message::DetailsResizeStart => self.details_resize_start(),
+            Message::Repos { tab, dir, repos } => self.on_repos(tab, dir, repos),
             Message::Dropped(path) => {
                 let dest = self.tab().path.clone();
                 if computer::is_virtual(&dest) || path.parent() == Some(dest.as_path()) {
