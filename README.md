@@ -77,6 +77,8 @@ Spacedrive: nada de nuvem, sincronização ou tags.
 * **Abrir com…** (diálogo nativo no Windows, programa digitado no Linux/macOS) e **Ejetar** mídia removível.
 * **Filtro fuzzy** em paralelo (`nucleo`, a engine do Helix): é só digitar. Cada letra a mais filtra só o resultado
   anterior.
+* **Visão plana** (`Ctrl+B`, como no Total Commander): a aba lista todos os arquivos da pasta e das subpastas,
+  com a pasta de cada um embaixo do nome; dá para ordenar, filtrar e copiar como numa pasta comum.
 * **Curinga e seleção por máscara**, como no Total Commander: `*.jpg;*.png` no filtro mostra só o que casa;
   `Num +` / `Num −` somam ou tiram da seleção por máscara, `Num *` inverte, e "Selecionar todos do mesmo tipo"
   está na paleta.
@@ -203,6 +205,7 @@ abriu + 4 s / a cada 6 h ──► GET releases/latest ──► tag mais nova? 
 | digitar | Filtrar a pasta (`Esc` limpa); com `*` ou `?` vira curinga (`*.jpg;*.png`) |
 | `Num +` / `Num −` / `Num *` | Selecionar / tirar da seleção por máscara / inverter seleção |
 | `Ctrl+Shift+F` / `Ctrl+Enter` no filtro | Buscar nesta pasta e em todas as subpastas (palavras ou `*.pdf`) |
+| `Ctrl+B` | Visão plana: todos os arquivos das subpastas numa lista só (de novo volta) |
 | `Ctrl+Shift+P` | Paleta de comandos |
 | `Ctrl+K` | Pular para pasta frequente |
 | `Ctrl+L`, `Alt+D`, `F4` (ou duplo clique no caminho) | Ir para caminho (aceita `~`; `Tab` completa a pasta) |

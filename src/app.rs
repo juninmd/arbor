@@ -4,6 +4,7 @@ use crate::commands::{self, Cmd};
 mod address;
 mod details;
 mod drag;
+mod flat;
 pub mod groups;
 mod jump;
 mod menu;
@@ -229,6 +230,9 @@ impl Tab {
     }
 
     pub fn title(&self) -> String {
+        if flat::is_flat(&self.search) {
+            return format!("Plana: {}", ops::name(&self.path));
+        }
         if let Some((q, _)) = &self.search {
             return format!("Busca: {q}");
         }
@@ -1609,6 +1613,7 @@ impl App {
                     Err(e) => self.notify(format!("Nova janela: {e}"), true),
                 }
             }
+            Cmd::FlatView => self.toggle_flat(),
             Cmd::SelectMask => self.open_mask_prompt(PromptKind::SelectMask),
             Cmd::DeselectMask => self.open_mask_prompt(PromptKind::DeselectMask),
             Cmd::SelectSameKind => self.select_same_kind(),
@@ -2211,6 +2216,7 @@ impl App {
                     ("f", true) => Some(Cmd::Search),
                     ("h", false) => Some(Cmd::ToggleHidden),
                     ("g", false) => Some(Cmd::ToggleGrid),
+                    ("b", false) => Some(Cmd::FlatView),
                     ("1", _) => Some(Cmd::SortName),
                     ("2", _) => Some(Cmd::SortSize),
                     ("3", _) => Some(Cmd::SortModified),
