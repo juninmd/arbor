@@ -20,3 +20,14 @@ antes/depois, não como número absoluto de quadros).
 
 Sob Xvfb não há GPU: o arbor cai no renderizador `tiny-skia`, que domina o CPU da thread da interface
 (gradiente e imagem esticada da aurora). Medir quadros de verdade exige uma GPU.
+
+## Duplicados (PR de desempenho 2)
+
+`arbor-bench dupes <pasta>`: 800 conteúdos × 2 cópias de ~400 KB, cache quente, 4 núcleos, mediana de 9 rodadas.
+Grupos de 2 arquivos agora são comparados direto (cada arquivo lido uma vez) em vez de hash dos dois e depois comparação.
+
+| | Antes | Depois |
+|---|---:|---:|
+| Busca de duplicados | 300 ms | 120 ms |
+
+Testado e descartado: paralelizar entre grupos de tamanho (125 → 120 ms, dentro do ruído com cache quente).
