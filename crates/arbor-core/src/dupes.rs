@@ -123,8 +123,9 @@ pub fn find(root: &Path, show_hidden: bool, stop: &(dyn Fn() -> bool + Sync)) ->
             return None;
         }
         for g in split(g, |e| hash(&e.path, Some(HEAD))) {
-            let small = g[0].size as usize <= HEAD;
-            let full = if small { vec![g] } else { split(g, |e| hash(&e.path, None)) };
+            // Par: comparar direto lê cada arquivo uma vez; hash dos dois e depois a comparação leria duas.
+            let direct = g[0].size as usize <= HEAD || g.len() == 2;
+            let full = if direct { vec![g] } else { split(g, |e| hash(&e.path, None)) };
             for g in full {
                 let first: PathBuf = g[0].path.clone();
                 let confirmed: Vec<Entry> = g.into_iter().filter(|e| e.path == first || same_bytes(&first, &e.path)).collect();

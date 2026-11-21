@@ -4,6 +4,7 @@
 //! arbor-bench gen    <pasta> [n]         cria n arquivos (padrão 100 mil) com nomes realistas
 //! arbor-bench suite  <pasta> [--check]   mede primeiro quadro, listagem, ordenação e filtro; --check falha se passar das metas
 //! arbor-bench list   <pasta>             lista + metadados + ordem natural (para comparar com ls, eza, find no hyperfine)
+//! arbor-bench dupes  <pasta>             cria (se faltar) 800 conteúdos × 2 cópias de ~400 KB e mede a busca de duplicados
 //! arbor-bench churn  <pasta> [segundos]  pasta que muda sem parar: leituras e CPU gastos pela política antiga (250 ms) e pela atual
 //! arbor-bench filter <consulta>          filtro fuzzy nos nomes lidos da entrada padrão (para comparar com fzf --filter)
 //! ```
@@ -64,10 +65,57 @@ fn main() -> ExitCode {
             let check = args.iter().any(|a| a == "--check");
             suite(&dir, check)
         }
+        Some("dupes") => {
+            let dir = PathBuf::from(arg(1).unwrap_or("bench-dupes"));
+            dupes(&dir)
+        }
         _ => {
-            eprintln!("uso: arbor-bench gen <pasta> [n] | suite <pasta> [--check] | list <pasta> | filter <consulta>");
+            eprintln!("uso: arbor-bench dupes <pasta> | gen <pasta> [n] | suite <pasta> [--check] | list <pasta> | filter <consulta>");
             ExitCode::from(2)
         }
+    }
+}
+
+/// Duplicados: muitos grupos pequenos de mesmo tamanho, o caso que a busca por grupo em série atende mal.
+fn dupes(dir: &Path) -> ExitCode {
+    const CONTENTS: usize = 800;
+    if !dir.is_dir() {
+        for i in 0..CONTENTS {
+            let mut x = (i as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+            let body: Vec<u8> = (0..400_000)
+                .map(|_| {
+                    x ^= x << 13;
+                    x ^= x >> 7;
+                    x ^= x << 17;
+                    x as u8
+                })
+                .collect();
+            for copy in 0..2 {
+                let sub = dir.join(format!("d{}", (i + copy * 7) % 40));
+                std::fs::create_dir_all(&sub).expect("criar pasta");
+                std::fs::write(sub.join(format!("f{i}_{copy}.bin")), &body).expect("gravar");
+            }
+        }
+    }
+    let mut times = vec![];
+    let mut groups = 0;
+    for _ in 0..RUNS {
+        let t = Instant::now();
+        let r = arbor_core::dupes::find(dir, true, &|| false).expect("sem cancelar");
+        times.push(t.elapsed().as_secs_f64() * 1e3);
+        groups = r.groups.len();
+    }
+    times.sort_by(f64::total_cmp);
+    println!(
+        "dupes: {groups} grupos; mediana {:.0} ms, min {:.0} ms, max {:.0} ms ({RUNS} rodadas, cache quente)",
+        times[RUNS / 2],
+        times[0],
+        times[RUNS - 1]
+    );
+    if groups == CONTENTS {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
 
