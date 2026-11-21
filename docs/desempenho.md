@@ -31,3 +31,10 @@ Grupos de 2 arquivos agora são comparados direto (cada arquivo lido uma vez) em
 | Busca de duplicados | 300 ms | 120 ms |
 
 Testado e descartado: paralelizar entre grupos de tamanho (125 → 120 ms, dentro do ruído com cache quente).
+
+### Medidos e sem ganho a buscar (100 mil arquivos, cache quente, 4 núcleos, mediana de 9)
+
+| Caminho | Resultado | Por quê parar |
+|---|---:|---|
+| Busca recursiva (`search`), 20 mil achados | 91–135 ms | ~1 µs por arquivo, variância (±25%) maior que qualquer ganho de alocação |
+| Tamanho de pasta (`du::dir_size`) | 107–118 ms | `du -sb` leva 176 ms na mesma pasta |
