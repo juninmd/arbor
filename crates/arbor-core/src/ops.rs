@@ -310,6 +310,8 @@ fn resolve(dest: &Path, src: &Path, conflict: Conflict) -> io::Result<Option<Pat
     match conflict {
         Conflict::KeepBoth => Ok(Some(unique_dest(dest, &name(src)))),
         Conflict::Skip => Ok(None),
+        // Colar na própria pasta: "substituir" apagaria a origem antes da cópia.
+        Conflict::Replace if target == src => Ok(Some(unique_dest(dest, &name(src)))),
         Conflict::Replace => {
             trash::delete(&target).map_err(io::Error::other)?;
             Ok(Some(target))
@@ -707,6 +709,18 @@ mod tests {
         assert_eq!(fs::read_to_string(dest.join("a.txt")).unwrap(), "novo");
         assert_eq!(out.created, vec![dest.join("a.txt")]);
         assert!(!dest.join("a (2).txt").exists());
+    }
+
+    #[test]
+    fn copiar_na_mesma_pasta_com_substituir_nao_perde_a_origem() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("a.txt");
+        fs::write(&f, "dados").unwrap();
+        let out =
+            run(Op::Copy { sources: vec![f.clone()], dest: d.path().to_path_buf(), conflict: Conflict::Replace }, &mut ctx()).unwrap();
+        assert_eq!(fs::read_to_string(&f).unwrap(), "dados");
+        assert_eq!(out.created, vec![d.path().join("a (2).txt")]);
+        assert_eq!(fs::read_to_string(d.path().join("a (2).txt")).unwrap(), "dados");
     }
 
     #[test]
