@@ -56,7 +56,8 @@ fn id3(version: u8, flags: u8, tag: &[u8]) -> Option<Vec<u8>> {
             break; // preenchimento
         }
         let len = if version == 4 { syncsafe(&head[4..8]) } else { be32(&head[4..8]) };
-        let body = tag.get(pos + 10..pos + 10 + len)?;
+        // Quadro truncado: vale a capa já achada, como no FLAC.
+        let Some(body) = tag.get(pos + 10..pos + 10 + len) else { break };
         if &head[..4] == b"APIC" {
             if let Some((kind, data)) = apic(body) {
                 if kind == FRONT_COVER {
@@ -181,6 +182,16 @@ mod tests {
         assert_eq!(read(&p2), None);
         let (_d3, p3) = write("c.mp3", b"");
         assert_eq!(read(&p3), None);
+    }
+
+    #[test]
+    fn mp3_quadro_truncado_depois_da_capa_mantem_a_capa() {
+        let back = frame_v3(b"APIC", &apic_body(0, 4, b"verso\0", b"BACK"));
+        let mut broken = b"TIT2".to_vec();
+        broken.extend(1_000_000u32.to_be_bytes());
+        broken.extend([0, 0, 0]);
+        let (_d, p) = write("a.mp3", &mp3(&[back, broken]));
+        assert_eq!(read(&p).as_deref(), Some(&b"BACK"[..]));
     }
 
     #[test]
