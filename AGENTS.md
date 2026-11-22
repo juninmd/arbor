@@ -44,7 +44,7 @@ scripts/bench-compare.sh /tmp/bench-100k                  # against ls, eza, fin
 - CI uses `--locked`. Do not edit `Cargo.lock` by hand.
 - Dependencies come only from crates.io or the `vislo` repository (`deny.toml`). New licenses must be compatible with MIT.
 - When upgrading iced, keep the `arbor:`-marked line in `patches/iced_wgpu/src/window/compositor.rs`.
-- The bench suite expects a 100k-file folder at `/tmp/bench-100k`. Create it before running `--check`.
+- `arbor-bench suite <dir>` generates the 100k-file folder in `<dir>` when it is missing (README uses `/tmp/bench-100k`).
 
 <!-- base-actions-main-policy -->
 ## GitHub Actions — padrão obrigatório (@main)
