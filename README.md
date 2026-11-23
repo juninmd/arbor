@@ -50,7 +50,7 @@ Spacedrive: nada de nuvem, sincronização ou tags.
   que 50.
 * **Bonito em movimento.** Tema *Glass* com fontes Sora, Manrope e JetBrains Mono embutidas, ícones por tipo
   (pasta, imagem, código, documento, áudio, vídeo, compactado).
-* **Temas:** Aurora, Claro, Meia-noite, Grafite, Oceano, Pôr do sol e, vindos do canto-widget, Canto, Hueco Mundo, Drácula, Vidro, Aurora Canto e Claro Canto, cada um com a própria aurora atrás do vidro.
+* **Temas:** Aurora, Claro, Meia-noite, Grafite, Oceano, Pôr do sol e, vindos do canto-widget, Canto, Hueco Mundo, Drácula, Vidro, Aurora Canto e Claro Canto, mais Explorer Claro e Explorer Escuro (estilo Windows 11, acento azul), cada um com a própria aurora atrás do vidro.
   Escolha pelo botão de paleta na barra de título ou pela paleta de comandos ("Tema: …", "Próximo tema"); fica
   salvo em `~/.config/arbor/settings`.
 * **Janela própria**, no jeito do Explorer do Windows 11: abas na barra de título, faixa com endereço e barra de
