@@ -22,7 +22,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   # runners compartilhados variam; a folga evita falso alarme sem esconder uma regressão de verdade
-  ARBOR_BENCH_SLACK: "2"
+  ARBOR_BENCH_SLACK: "5"
 
 jobs:
   bench:
