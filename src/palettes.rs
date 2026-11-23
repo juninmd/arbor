@@ -8,8 +8,10 @@ use crate::theme::{Tokens, DARK, LIGHT};
 use canto::{AURORA_CANTO, CANTO, CLARO_CANTO, DRACULA, HUECO_MUNDO, NO_BLOBS, VIDRO};
 use iced::Color;
 use std::sync::atomic::{AtomicU8, Ordering};
+use windows::{EXPLORER_CLARO, EXPLORER_ESCURO};
 
 mod canto;
+mod windows;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Palette {
@@ -26,9 +28,11 @@ pub enum Palette {
     Vidro,
     AuroraCanto,
     ClaroCanto,
+    ExplorerClaro,
+    ExplorerEscuro,
 }
 
-pub const ALL: [Palette; 12] = [
+pub const ALL: [Palette; 14] = [
     Palette::Aurora,
     Palette::Light,
     Palette::Midnight,
@@ -41,6 +45,8 @@ pub const ALL: [Palette; 12] = [
     Palette::Vidro,
     Palette::AuroraCanto,
     Palette::ClaroCanto,
+    Palette::ExplorerClaro,
+    Palette::ExplorerEscuro,
 ];
 
 /// Mancha da aurora: (cor, centro x, centro y, raio, opacidade), em frações da janela.
@@ -88,6 +94,8 @@ impl Palette {
             Palette::Vidro => "vidro",
             Palette::AuroraCanto => "aurora-canto",
             Palette::ClaroCanto => "claro-canto",
+            Palette::ExplorerClaro => "explorer-claro",
+            Palette::ExplorerEscuro => "explorer-escuro",
         }
     }
 
@@ -105,6 +113,8 @@ impl Palette {
             Palette::Vidro => "Vidro",
             Palette::AuroraCanto => "Aurora Canto",
             Palette::ClaroCanto => "Claro Canto",
+            Palette::ExplorerClaro => "Explorer Claro",
+            Palette::ExplorerEscuro => "Explorer Escuro",
         }
     }
 
@@ -113,7 +123,7 @@ impl Palette {
     }
 
     pub fn is_dark(self) -> bool {
-        !matches!(self, Palette::Light | Palette::ClaroCanto)
+        !matches!(self, Palette::Light | Palette::ClaroCanto | Palette::ExplorerClaro)
     }
 
     pub fn tokens(self) -> Tokens {
@@ -130,6 +140,8 @@ impl Palette {
             Palette::Vidro => VIDRO,
             Palette::AuroraCanto => AURORA_CANTO,
             Palette::ClaroCanto => CLARO_CANTO,
+            Palette::ExplorerClaro => EXPLORER_CLARO,
+            Palette::ExplorerEscuro => EXPLORER_ESCURO,
         }
     }
 
@@ -156,7 +168,12 @@ impl Palette {
                 (0xff3f7f, 0.52, 0.93, 0.26, 0.55),
                 (0xffc145, -0.10, 0.89, 0.20, 0.45),
             ],
-            Palette::Canto | Palette::HuecoMundo | Palette::Dracula | Palette::ClaroCanto => NO_BLOBS,
+            Palette::Canto
+            | Palette::HuecoMundo
+            | Palette::Dracula
+            | Palette::ClaroCanto
+            | Palette::ExplorerClaro
+            | Palette::ExplorerEscuro => NO_BLOBS,
             // Os três radial-gradient da skin aurora do canto, nas mesmas posições.
             Palette::AuroraCanto => [
                 (0xff7ad9, 0.08, 0.0, 0.55, 0.30),
@@ -188,6 +205,8 @@ impl Palette {
             Palette::Vidro => Cmd::ThemeVidro,
             Palette::AuroraCanto => Cmd::ThemeAuroraCanto,
             Palette::ClaroCanto => Cmd::ThemeClaroCanto,
+            Palette::ExplorerClaro => Cmd::ThemeExplorerClaro,
+            Palette::ExplorerEscuro => Cmd::ThemeExplorerEscuro,
         }
     }
 
