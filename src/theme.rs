@@ -530,7 +530,6 @@ pub enum Icon {
     Pin,
     Sidebar,
     Lock,
-    Palette,
     FolderGit,
     Branch,
     WinMin,
@@ -591,9 +590,6 @@ impl Icon {
             Icon::Pin => r#"<path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z"/>"#,
             Icon::Sidebar => r#"<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>"#,
             Icon::Lock => r#"<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>"#,
-            Icon::Palette => {
-                r#"<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.9 1.2-1.8-.5-1-.1-2.2 1.1-2.2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15.5" cy="7.5" r="1.2"/>"#
-            }
             Icon::FolderGit => {
                 r#"<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" fill="currentColor" fill-opacity=".2"/><path d="m14.5 10 3.5 3.5-3.5 3.5-3.5-3.5z" fill="currentColor" stroke="none"/>"#
             }

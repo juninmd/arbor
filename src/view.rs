@@ -51,7 +51,7 @@ pub fn view(app: &App) -> Element<'_, Message> {
     }
     // faixa da cor da aba ativa: endereço (quando há um painel só) e a barra de comandos
     let mut band = Column::new();
-    if !app.dual {
+    if !app.dual && !chrome_view::merged(app) {
         band = band.push(toolbar(app, app.tab()));
     }
     let band = container(band.push(commands_view::bar(app))).width(Fill).style(theme::surface);
@@ -260,7 +260,9 @@ fn breadcrumbs<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     }
     // Largura que sobra para os degraus: painel menos botões, filtro, selo de tempo e "Este Computador".
     // Um painel: a faixa ocupa a janela toda. Dois: cada painel tem a sua metade da área de arquivos.
-    let width = if app.dual {
+    let width = if chrome_view::merged(app) {
+        app.window.width - chrome_view::MERGED_CHROME_W
+    } else if app.dual {
         let details = if app.details_on { app.details_w + SPLIT_W } else { 0.0 };
         (app.window.width - app.side_w() - 2.0 - details) / 2.0
     } else {

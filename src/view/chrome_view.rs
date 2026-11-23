@@ -104,23 +104,43 @@ fn window_button<'a>(ic: Icon, action: WindowAction, close: bool) -> Element<'a,
         .into()
 }
 
+/// Abas verticais e um painel só: endereço e comandos de navegação dividem a barra de título.
+pub fn merged(app: &App) -> bool {
+    app.vertical_tabs && !app.dual
+}
+
+/// Espaço que logo, busca e botões da janela tiram do endereço quando ele mora na barra de título.
+pub const MERGED_CHROME_W: f32 = 230.0;
+
 pub fn titlebar(app: &App) -> Element<'_, Message> {
-    let logo = mouse_area(container(icon(Icon::Logo, 20.0, theme::now().hues.ice)).center_x(46).center_y(TITLE_H))
-        .on_press(Message::Window(WindowAction::Drag))
-        .on_double_click(Message::Window(WindowAction::ToggleMaximize));
-    let tabs: Element<_> = if app.vertical_tabs || app.dual {
+    // o logo abre o menu de tema e abas; arrastar a janela fica com o vão livre
+    let logo = tooltip(
+        button(container(icon(Icon::Logo, 20.0, theme::now().hues.ice)).center_x(46).center_y(TITLE_H))
+            .padding(0)
+            .on_press(Message::OpenMenu(MenuKind::Themes))
+            .style(theme::ghost),
+        text("Tema e abas").size(12),
+        tooltip::Position::Bottom,
+    )
+    .padding(8)
+    .style(theme::tooltip);
+    // abas verticais com um painel só: a barra de endereço sobe para a barra de título e o espaço de cima volta para os arquivos
+    let tabs: Element<_> = if merged(app) {
+        super::toolbar(app, app.tab())
+    } else if app.vertical_tabs || app.dual {
         container(text(app.title()).size(12.5).style(theme::ink2).wrapping(Wrapping::None)).center_y(TITLE_H).into()
     } else {
         container(title_tabs(app)).height(TITLE_H).align_bottom(TITLE_H).into()
     };
     // o vão livre arrasta a janela; duplo clique maximiza, como na barra do sistema
-    let grip = mouse_area(container(space()).width(Fill).height(TITLE_H))
+    let grip_w = if merged(app) { Length::Fixed(28.0) } else { Fill };
+    let grip = mouse_area(container(space()).width(grip_w).height(TITLE_H))
         .on_press(Message::Window(WindowAction::Drag))
         .on_double_click(Message::Window(WindowAction::ToggleMaximize));
-    let mut bar = row![logo, container(tabs).width(Length::Shrink).max_width(app.window.width - 330.0), grip]
+    let tabs_w = if merged(app) { Length::Fill } else { Length::Shrink };
+    let mut bar = row![logo, container(tabs).width(tabs_w).max_width(app.window.width - 330.0), grip]
         .align_y(Alignment::Center)
         .push(chrome_button(Icon::Search, Message::Run(Cmd::Palette), "Comandos  Ctrl+Shift+P"))
-        .push(chrome_button(Icon::Palette, Message::OpenMenu(MenuKind::Themes), "Tema e abas"))
         .push(space().width(6));
     if crate::window_chrome::custom() {
         bar = bar
