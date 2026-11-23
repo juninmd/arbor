@@ -124,7 +124,6 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(GroupSize),
         ],
         MenuKind::View => vec![
-            Some(OpenRemoteWithVisual),
             Some(ToggleGrid),
             Some(ZoomIn),
             Some(ZoomOut),
@@ -191,7 +190,7 @@ impl App {
             // A área do sistema pode ter arquivos de outro app; lê-la a cada quadro custaria caro.
             Cmd::Paste => !here,
             Cmd::MapDrive => cfg!(windows),
-            Cmd::OpenRemote, Cmd::OpenRemoteWithVisual => self.tab().git.as_ref().is_some_and(|g| g.remote.is_some() || g.remote.is_none()),
+            Cmd::OpenRemote => self.tab().git.as_ref().is_some_and(|g| g.remote.is_some()),
             Cmd::Undo => !self.undo.is_empty(),
             Cmd::Restore | Cmd::Purge => in_trash && has_target,
             Cmd::Eject => self.tab().current().is_some_and(|e| self.drives.iter().any(|d| d.path == e.path && d.removable())),
