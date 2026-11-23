@@ -102,19 +102,22 @@ pub fn reveal(path: &Path) -> Result<(), String> {
 }
 
 pub fn terminal_here(dir: &Path) -> Result<(), String> {
+    let terminal = std::env::var_os("TERMINAL")
+        .map(|s| s.to_string_lossy().to_string())
+        .or_else(|| Some("x-terminal-emulator".to_string()));
     #[cfg(windows)]
     let result = Command::new("cmd")
-        .args(["/C", "start", "", "wt", "-d"])
+        .args(["/C", "start", "", &terminal, "-d"])
         .arg(dir)
         .spawn()
-        .or_else(|_| Command::new("cmd").args(["/C", "start", "cmd"]).current_dir(dir).spawn());
+        .or_else(|_| Command::new("cmd").args(["/C", "start", &terminal]).current_dir(dir).spawn());
     #[cfg(target_os = "macos")]
-    let result = Command::new("open").args(["-a", "Terminal"]).arg(dir).spawn();
+    let result = Command::new("open").args(["-a", &terminal]).arg(dir).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
-    let result = linux_terminals(std::env::var("TERMINAL").ok().as_deref())
+    let result = linux_terminals(terminal.as_deref())
         .iter()
         .find_map(|t| Command::new(t).current_dir(dir).spawn().ok())
-        .ok_or_else(|| std::io::Error::other("nenhum terminal encontrado (defina $TERMINAL)"));
+        .ok_or_else(|| std::io::Error::other("nenhum terminal encontrado"));
     result.map(|_| ()).map_err(|e| e.to_string())
 }
 
