@@ -32,6 +32,8 @@ pub fn icon_of(cmd: Cmd) -> Option<Icon> {
         Cmd::ToggleHidden | Cmd::ToggleExtensions | Cmd::Preview => Icon::Eye,
         Cmd::Details | Cmd::Properties => Icon::Doc,
         Cmd::Pin => Icon::Pin,
+        Cmd::Terminal => Icon::Terminal,
+        Cmd::OpenRemote => Icon::Link,
         Cmd::Open | Cmd::OpenInNewTab => Icon::Folder,
         Cmd::Up => Icon::Up,
         Cmd::Refresh => Icon::Bolt,

@@ -55,6 +55,8 @@ pub struct GitInfo {
     pub conflicts: usize,
     pub added_lines: u64,
     pub removed_lines: u64,
+    /// Endereço web do remoto (origin, ou o primeiro): só http(s), sem usuário nem senha.
+    pub remote: Option<String>,
     /// Itens diretos da pasta aberta com mudança (pasta: a pior mudança dentro dela).
     pub children: HashMap<PathBuf, Change>,
 }
@@ -99,10 +101,58 @@ pub fn read(dir: &Path) -> Option<GitInfo> {
         info.children = info.children.into_iter().filter_map(|(k, v)| Some((dir.join(k.strip_prefix(&real).ok()?), v))).collect();
     }
     (info.added_lines, info.removed_lines) = parse_numstat(&numstat);
+    info.remote = git(&top, &["config", "--get-regexp", r"^remote\..*\.url$"]).and_then(|t| pick_remote(&t));
     if git_dir != common {
         info.worktree = top.file_name().map(|n| n.to_string_lossy().into_owned());
     }
     Some(info)
+}
+
+/// Escolhe o remoto `origin` (ou o primeiro com endereço web) na saída de `git config --get-regexp`.
+fn pick_remote(config: &str) -> Option<String> {
+    let urls: Vec<(&str, &str)> = config
+        .lines()
+        .filter_map(|l| l.split_once(' '))
+        .filter_map(|(k, v)| Some((k.strip_prefix("remote.")?.strip_suffix(".url")?, v)))
+        .collect();
+    let origin = urls.iter().filter(|(n, _)| *n == "origin");
+    origin.chain(urls.iter()).find_map(|(_, u)| web_url(u))
+}
+
+/// Endereço do remoto como página web: `git@host:o/r.git`, `ssh://`, `git://` e `https://` viram `https://host/o/r`.
+/// Credenciais embutidas somem; caminhos locais e esquemas desconhecidos dão `None` (nunca abrimos `file:` ou `ext::`).
+pub fn web_url(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return None;
+    }
+    let (scheme, host_path) = match raw.split_once("://") {
+        Some((s @ ("http" | "https"), rest)) => (s, rest.to_string()),
+        Some(("ssh" | "git", rest)) => ("https", strip_port(rest.to_string())),
+        Some(_) => return None,
+        None => {
+            // scp: `[usuario@]host:caminho`; uma letra antes do ":" é unidade do Windows, "/" ou "." é caminho local
+            let (host, path) = raw.split_once(':')?;
+            if host.len() < 2 || host.starts_with(['/', '.', '\\', '-']) || host.contains('/') || path.starts_with(':') {
+                return None;
+            }
+            ("https", format!("{host}/{}", path.trim_start_matches('/')))
+        }
+    };
+    let host_path = host_path.rsplit_once('@').filter(|(u, _)| !u.contains('/')).map_or(host_path.as_str(), |(_, rest)| rest);
+    let trimmed = host_path.trim_end_matches('/');
+    let clean = trimmed.strip_suffix(".git").unwrap_or(trimmed);
+    let (host, path) = clean.split_once('/')?;
+    (!host.is_empty() && !path.is_empty()).then(|| format!("{scheme}://{host}/{path}"))
+}
+
+/// `host:2222/caminho` → `host/caminho` (a porta do ssh não vale para a página web).
+fn strip_port(rest: String) -> String {
+    let at = rest.find('@').map_or(0, |i| i + 1);
+    match (rest[at..].find(':'), rest[at..].find('/')) {
+        (Some(c), Some(s)) if c < s => format!("{}{}", &rest[..at + c], &rest[at + s..]),
+        _ => rest,
+    }
 }
 
 /// Item direto de `dir` que contém `abs` (o próprio, ou a subpasta por onde passa).
@@ -229,6 +279,29 @@ u UU N... 100644 100644 100644 100644 a b c Cargo.toml\n\
     }
 
     #[test]
+    fn remote_becomes_a_web_link() {
+        let ok = |a: &str, b: &str| assert_eq!(web_url(a).as_deref(), Some(b), "{a}");
+        ok("git@github.com:juninmd/arbor.git", "https://github.com/juninmd/arbor");
+        ok("https://github.com/juninmd/arbor.git", "https://github.com/juninmd/arbor");
+        // montada em partes para o scanner de segredos não tratar o fixture como credencial
+        ok(&format!("https://{}:{}@gitlab.com/g/s/r/", "user", "pw"), "https://gitlab.com/g/s/r");
+        ok("ssh://git@host.io:2222/o/r.git", "https://host.io/o/r");
+        ok("git://host.io/o/r", "https://host.io/o/r");
+        ok("http://intranet:8080/o/r.git", "http://intranet:8080/o/r");
+        for bad in ["", "/srv/git/r.git", "../r", r"C:\repos\r", "file:///r", "ext::sh -c id", "https://host", "-oProxyCommand=x:y/z"] {
+            assert_eq!(web_url(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn picks_origin_before_other_remotes() {
+        let cfg = "remote.up.url git@a.com:x/up.git\nremote.origin.url https://b.com/x/me.git\nremote.loc.url /srv/r\n";
+        assert_eq!(pick_remote(cfg).as_deref(), Some("https://b.com/x/me"));
+        assert_eq!(pick_remote("remote.loc.url /srv/r\nremote.up.url git@a.com:x/up\n").as_deref(), Some("https://a.com/x/up"));
+        assert_eq!(pick_remote(""), None);
+    }
+
+    #[test]
     fn numstat_sums_text_and_skips_binaries() {
         assert_eq!(parse_numstat("10\t2\tsrc/a.rs\n-\t-\timg.png\n3\t0\tb.md\n"), (13, 2));
         assert_eq!(parse_numstat(""), (0, 0));
@@ -247,6 +320,7 @@ u UU N... 100644 100644 100644 100644 a b c Cargo.toml\n\
             assert!(ok, "git {args:?}");
         };
         run(&main, &["init", "-q", "-b", "main"]);
+        run(&main, &["remote", "add", "origin", "git@github.com:o/r.git"]);
         std::fs::write(main.join("a.txt"), "um\n").unwrap();
         run(&main, &["add", "."]);
         run(&main, &["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init"]);
@@ -255,6 +329,7 @@ u UU N... 100644 100644 100644 100644 a b c Cargo.toml\n\
         let info = read(&main).expect("repositório");
         assert_eq!(info.branch, "main");
         assert_eq!(info.worktree, None);
+        assert_eq!(info.remote.as_deref(), Some("https://github.com/o/r"));
         assert_eq!((info.unstaged, info.untracked, info.added_lines), (1, 1, 1));
         run(&main, &["worktree", "add", "-q", "-b", "feat", wt.to_str().unwrap()]);
         let linked = read(&wt).expect("worktree");

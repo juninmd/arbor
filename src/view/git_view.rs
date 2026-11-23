@@ -90,6 +90,16 @@ pub fn pill<'a>(tab: &Tab) -> Option<Element<'a, Message>> {
     Some(tip(b, summary(g)))
 }
 
+/// Link do remoto ("github.com/o/r"): um clique abre a página no navegador.
+pub fn remote<'a>(tab: &Tab) -> Option<Element<'a, Message>> {
+    let url = tab.git.as_ref()?.remote.as_deref()?;
+    let label = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let content =
+        row![icon(Icon::Link, 12.0, theme::now().ink2), text(super::shorten(label, 34)).size(11.5)].spacing(5).align_y(Alignment::Center);
+    let b = button(content).padding([3, 9]).on_press(Message::Run(Cmd::OpenRemote)).style(theme::pill(theme::now().accent, false));
+    Some(tip(b, vec![format!("Abrir no navegador: {url}")]))
+}
+
 /// "N ocultos": avisa que a pasta tem itens escondidos e liga/desliga com um clique (Ctrl+H).
 pub fn hidden<'a>(tab: &Tab, showing: bool) -> Option<Element<'a, Message>> {
     if tab.hidden == 0 {

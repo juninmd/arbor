@@ -111,14 +111,19 @@ pub fn terminal_here(dir: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let result = Command::new("open").args(["-a", "Terminal"]).arg(dir).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]
-    let result = {
-        let candidates = ["x-terminal-emulator", "gnome-terminal", "konsole", "kitty", "alacritty", "wezterm", "foot", "xterm"];
-        candidates
-            .iter()
-            .find_map(|t| Command::new(t).current_dir(dir).spawn().ok())
-            .ok_or_else(|| std::io::Error::other("nenhum terminal encontrado"))
-    };
+    let result = linux_terminals(std::env::var("TERMINAL").ok().as_deref())
+        .iter()
+        .find_map(|t| Command::new(t).current_dir(dir).spawn().ok())
+        .ok_or_else(|| std::io::Error::other("nenhum terminal encontrado (defina $TERMINAL)"));
     result.map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// `$TERMINAL` primeiro (só o nome do programa, sem shell), depois os terminais comuns.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn linux_terminals(env: Option<&str>) -> Vec<String> {
+    let common = ["x-terminal-emulator", "gnome-terminal", "konsole", "kitty", "alacritty", "wezterm", "foot", "xterm"];
+    let own = env.map(str::trim).filter(|t| !t.is_empty() && !t.contains(char::is_whitespace));
+    own.into_iter().chain(common).map(String::from).collect()
 }
 
 pub fn vislo() -> Option<&'static Path> {
@@ -195,6 +200,14 @@ mod tests {
         let path = std::env::join_paths([PathBuf::from("/nao/existe"), d.path().to_path_buf()]).unwrap();
         assert_eq!(search_path(&path, "vislo"), Some(d.path().join("vislo")));
         assert_eq!(search_path(&path, "outro"), None);
+    }
+
+    #[test]
+    #[cfg(all(unix, not(target_os = "macos")))]
+    fn terminal_do_ambiente_vem_primeiro() {
+        assert_eq!(linux_terminals(Some("kitty"))[..2], ["kitty", "x-terminal-emulator"]);
+        assert_eq!(linux_terminals(Some("sh -c x"))[0], "x-terminal-emulator", "com argumentos não é só um programa");
+        assert_eq!(linux_terminals(None)[0], "x-terminal-emulator");
     }
 
     #[test]

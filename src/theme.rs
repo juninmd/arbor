@@ -532,6 +532,8 @@ pub enum Icon {
     Lock,
     FolderGit,
     Branch,
+    Terminal,
+    Link,
     WinMin,
     WinMax,
     WinClose,
@@ -595,6 +597,10 @@ impl Icon {
             }
             Icon::Branch => {
                 r#"<circle cx="6" cy="5.5" r="2.3"/><circle cx="6" cy="18.5" r="2.3"/><circle cx="18" cy="8" r="2.3"/><path d="M6 7.8v8.4M18 10.3c0 4.2-6.5 3.2-11 6.4"/>"#
+            }
+            Icon::Terminal => r#"<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m7 10 3 2.5L7 15M12.5 15H17"/>"#,
+            Icon::Link => {
+                r#"<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>"#
             }
             Icon::WinMin => r#"<path d="M4 12h16"/>"#,
             Icon::WinMax => r#"<rect x="4" y="4" width="16" height="16" rx="2"/>"#,

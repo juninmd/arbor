@@ -171,6 +171,7 @@ fn toolbar<'a>(app: &'a App, tab: &'a Tab) -> Element<'a, Message> {
         mouse_area(icon_button(Icon::Right, Cmd::Forward, Message::Run(Cmd::Forward)))
             .on_right_press(Message::JumpOpen { kind: JumpKind::Forward, dir: None }),
         icon_button(Icon::Up, Cmd::Up, Message::Run(Cmd::Up)),
+        icon_button(Icon::Terminal, Cmd::Terminal, Message::Run(Cmd::Terminal)),
     ]
     .spacing(2);
     let id = tab.id;
@@ -673,7 +674,7 @@ fn status<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
         parts.push(app.mode().name.to_string());
     }
     let mut r = Row::new().spacing(8).align_y(Alignment::Center);
-    r = r.push(git_view::pill(tab)).push(git_view::hidden(tab, show_hidden));
+    r = r.push(git_view::pill(tab)).push(git_view::remote(tab)).push(git_view::hidden(tab, show_hidden));
     r = r.push(text(parts.join("  ·  ")).size(11.5).style(theme::ink3).wrapping(Wrapping::None));
     if let Some(badge) = latency_badge(tab) {
         r = r.push(badge);

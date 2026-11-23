@@ -62,6 +62,9 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             if dir {
                 v.push(Some(Pin));
             }
+            if dir {
+                v.push(Some(Terminal));
+            }
             v.extend([Some(Reveal), None, Some(CopyToOther), Some(MoveToOther), None, Some(Eject), Some(Properties)]);
             v
         }
@@ -191,6 +194,7 @@ impl App {
             // A área do sistema pode ter arquivos de outro app; lê-la a cada quadro custaria caro.
             Cmd::Paste => !here,
             Cmd::MapDrive => cfg!(windows),
+            Cmd::OpenRemote => self.tab().git.as_ref().is_some_and(|g| g.remote.is_some()),
             Cmd::Undo => !self.undo.is_empty(),
             Cmd::Restore | Cmd::Purge => in_trash && has_target,
             Cmd::Eject => self.tab().current().is_some_and(|e| self.drives.iter().any(|d| d.path == e.path && d.removable())),
