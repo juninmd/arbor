@@ -34,8 +34,7 @@ ordenação de lista grande roda na thread de interface.
 
 O visual vem do protótipo *arbor Glass*: aurora ao fundo, cartões de vidro, uma cor por tipo de arquivo, a pílula de
 seleção em gelo e íris e a velocidade visível ("N itens em X ms"). A janela é de vidro de verdade onde o sistema
-deixa: transparência com desfoque do compositor no Linux; no macOS e no Windows o vidro é o da aurora, e o material do sistema (vibrancy, Mica) é experimental (`ARBOR_GLASS=1`)
-(`ARBOR_NO_GLASS=1` desliga o vidro no macOS e no Linux). O escopo é enxuto de propósito, a lição do
+deixa: transparência com desfoque do compositor no Linux; no macOS e no Windows o vidro é o da aurora, e o material do sistema (vibrancy, Mica) é experimental (`ARBOR_GLASS=1`; no macOS ainda cobre a interface, não use). `ARBOR_NO_GLASS=1` desliga o vidro no Linux. O escopo é enxuto de propósito, a lição do
 Spacedrive: nada de nuvem, sincronização ou tags.
 
 ## Índice
