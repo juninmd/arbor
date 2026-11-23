@@ -2,7 +2,7 @@
 //! verticais, bordas de redimensionar e o cartão de avisos que substituiu a doca de baixo.
 
 use super::{kbd, shorten};
-use crate::app::{App, MenuKind, Message, Pane, WindowAction, VTABS_W};
+use crate::app::{App, MenuKind, Message, Pane, WindowAction};
 use crate::commands::Cmd;
 use crate::theme::{self, icon, Icon};
 use iced::mouse::Interaction;
@@ -10,6 +10,20 @@ use iced::widget::text::Wrapping;
 use iced::widget::{button, column, container, mouse_area, row, scrollable, space, text, tooltip, Column, Row};
 use iced::window::Direction;
 use iced::{Alignment, Element, Fill, Length, Padding, Theme};
+use std::time::Instant;
+
+/// Faz o item crescer até o tamanho inteiro: `frac` de 0 a 1 revela o conteúdo sem refluxo dele.
+pub fn reveal<'a>(e: impl Into<Element<'a, Message>>, frac: f32, full: f32, horizontal: bool) -> Element<'a, Message> {
+    if frac >= 1.0 {
+        return e.into();
+    }
+    let c = container(e).clip(true);
+    if horizontal {
+        c.width((full * frac).max(0.1)).into()
+    } else {
+        c.height((full * frac).max(0.1)).into()
+    }
+}
 
 pub const TITLE_H: f32 = 40.0;
 const TAB_W: f32 = 210.0;
@@ -55,9 +69,9 @@ fn title_tabs(app: &App) -> Element<'_, Message> {
             .padding(Padding::from([0, 4]).left(12.0))
             .on_press(Message::SelectTab { pane, index: i })
             .style(move |t: &Theme, s| theme::win_tab(t, s, selected));
-        r = r.push(
-            mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }).on_right_press(Message::TabMenu { pane, index: i }),
-        );
+        let item =
+            mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }).on_right_press(Message::TabMenu { pane, index: i });
+        r = r.push(reveal(item, app.motion.tab_open(tab.id, Instant::now()), TAB_W, true));
         // filete entre abas inativas, como no Explorer
         let next_selected = i + 1 == p.active;
         if !selected && !next_selected {
@@ -90,23 +104,43 @@ fn window_button<'a>(ic: Icon, action: WindowAction, close: bool) -> Element<'a,
         .into()
 }
 
+/// Abas verticais e um painel só: endereço e comandos de navegação dividem a barra de título.
+pub fn merged(app: &App) -> bool {
+    app.vertical_tabs && !app.dual
+}
+
+/// Espaço que logo, busca e botões da janela tiram do endereço quando ele mora na barra de título.
+pub const MERGED_CHROME_W: f32 = 230.0;
+
 pub fn titlebar(app: &App) -> Element<'_, Message> {
-    let logo = mouse_area(container(icon(Icon::Logo, 20.0, theme::now().hues.ice)).center_x(46).center_y(TITLE_H))
-        .on_press(Message::Window(WindowAction::Drag))
-        .on_double_click(Message::Window(WindowAction::ToggleMaximize));
-    let tabs: Element<_> = if app.vertical_tabs || app.dual {
+    // o logo abre o menu de tema e abas; arrastar a janela fica com o vão livre
+    let logo = tooltip(
+        button(container(icon(Icon::Logo, 20.0, theme::now().hues.ice)).center_x(46).center_y(TITLE_H))
+            .padding(0)
+            .on_press(Message::OpenMenu(MenuKind::Themes))
+            .style(theme::ghost),
+        text("Tema e abas").size(12),
+        tooltip::Position::Bottom,
+    )
+    .padding(8)
+    .style(theme::tooltip);
+    // abas verticais com um painel só: a barra de endereço sobe para a barra de título e o espaço de cima volta para os arquivos
+    let tabs: Element<_> = if merged(app) {
+        super::toolbar(app, app.tab())
+    } else if app.vertical_tabs || app.dual {
         container(text(app.title()).size(12.5).style(theme::ink2).wrapping(Wrapping::None)).center_y(TITLE_H).into()
     } else {
         container(title_tabs(app)).height(TITLE_H).align_bottom(TITLE_H).into()
     };
     // o vão livre arrasta a janela; duplo clique maximiza, como na barra do sistema
-    let grip = mouse_area(container(space()).width(Fill).height(TITLE_H))
+    let grip_w = if merged(app) { Length::Fixed(28.0) } else { Fill };
+    let grip = mouse_area(container(space()).width(grip_w).height(TITLE_H))
         .on_press(Message::Window(WindowAction::Drag))
         .on_double_click(Message::Window(WindowAction::ToggleMaximize));
-    let mut bar = row![logo, container(tabs).width(Length::Shrink).max_width(app.window.width - 330.0), grip]
+    let tabs_w = if merged(app) { Length::Fill } else { Length::Shrink };
+    let mut bar = row![logo, container(tabs).width(tabs_w).max_width(app.window.width - 330.0), grip]
         .align_y(Alignment::Center)
         .push(chrome_button(Icon::Search, Message::Run(Cmd::Palette), "Comandos  Ctrl+Shift+P"))
-        .push(chrome_button(Icon::Palette, Message::OpenMenu(MenuKind::Themes), "Tema e abas"))
         .push(space().width(6));
     if crate::window_chrome::custom() {
         bar = bar
@@ -117,30 +151,54 @@ pub fn titlebar(app: &App) -> Element<'_, Message> {
     container(bar).height(TITLE_H).width(Fill).style(theme::titlebar).into()
 }
 
-/// Abas verticais: coluna à esquerda com as abas do painel ativo, como nos navegadores.
-pub fn vertical_tabs(app: &App) -> Element<'_, Message> {
+/// Abas verticais: uma linha por aba do painel ativo, como nos navegadores; `full` mostra o título e o fechar.
+pub fn tab_rows(app: &App, full: bool) -> Column<'_, Message> {
     let pane = app.active;
     let p = &app.panes[pane];
     let mut col = Column::new().spacing(2);
     for (i, tab) in p.tabs.iter().enumerate() {
         let selected = i == p.active;
-        let close = button(icon(Icon::WinClose, 11.0, theme::now().ink3))
-            .padding(5)
-            .on_press(Message::CloseTabAt { pane, index: i })
-            .style(theme::ghost);
-        let label = row![tab_icon(p, i), text(tab.title()).size(12.5).width(Fill).wrapping(Wrapping::None), close]
-            .spacing(9)
-            .align_y(Alignment::Center);
-        let b = button(label)
-            .width(Fill)
-            .padding(Padding::from([4, 4]).left(10.0))
-            .on_press(Message::SelectTab { pane, index: i })
-            .style(move |t: &Theme, s| theme::side_tab(t, s, selected));
-        col = col.push(
-            mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }).on_right_press(Message::TabMenu { pane, index: i }),
-        );
+        let b: Element<_> = if full {
+            let close = button(icon(Icon::WinClose, 11.0, theme::now().ink3))
+                .padding(5)
+                .on_press(Message::CloseTabAt { pane, index: i })
+                .style(theme::ghost);
+            let label = row![tab_icon(p, i), text(tab.title()).size(12.5).width(Fill).wrapping(Wrapping::None), close]
+                .spacing(9)
+                .align_y(Alignment::Center);
+            button(label)
+                .width(Fill)
+                .padding(Padding::from([4, 4]).left(10.0))
+                .on_press(Message::SelectTab { pane, index: i })
+                .style(move |t: &Theme, s| theme::side_tab(t, s, selected))
+                .into()
+        } else {
+            let b = button(container(tab_icon(p, i)).center_x(Fill))
+                .width(Fill)
+                .padding([7, 0])
+                .on_press(Message::SelectTab { pane, index: i })
+                .style(move |t: &Theme, s| theme::side_tab(t, s, selected));
+            tooltip(b, text(tab.title()).size(12), tooltip::Position::Right).padding(8).style(theme::tooltip).into()
+        };
+        let item =
+            mouse_area(b).on_middle_press(Message::CloseTabAt { pane, index: i }).on_right_press(Message::TabMenu { pane, index: i });
+        col = col.push(reveal(item, app.motion.tab_open(tab.id, Instant::now()), 32.0, false));
     }
-    let add = button(
+    col
+}
+
+/// "Nova aba" da barra lateral (só o ícone na faixa recolhida).
+pub fn new_tab_button(app: &App, full: bool) -> Element<'_, Message> {
+    let pane = app.active;
+    if !full {
+        let b = button(container(icon(Icon::Plus, 14.0, theme::now().ink2)).center_x(Fill))
+            .width(Fill)
+            .padding([7, 0])
+            .on_press(Message::NewTabIn(pane))
+            .style(theme::ghost);
+        return tooltip(b, text("Nova aba").size(12), tooltip::Position::Right).padding(8).style(theme::tooltip).into();
+    }
+    button(
         row![icon(Icon::Plus, 14.0, theme::now().ink2), text("Nova aba").size(12.5), space().width(Fill), kbd(Cmd::NewTab.shortcut())]
             .spacing(9)
             .align_y(Alignment::Center),
@@ -148,10 +206,8 @@ pub fn vertical_tabs(app: &App) -> Element<'_, Message> {
     .width(Fill)
     .padding([7, 10])
     .on_press(Message::NewTabIn(pane))
-    .style(theme::ghost);
-    let head = container(text("ABAS").font(theme::UI_BOLD).size(10).style(theme::ink3)).padding(Padding::new(4.0).left(10.0));
-    let content = column![head, scrollable(col).height(Fill).style(theme::scrollbar), add].spacing(6);
-    container(content).padding([10, 8]).width(VTABS_W).height(Fill).style(|t| theme::glass(t, false)).into()
+    .style(theme::ghost)
+    .into()
 }
 
 /// Contorno de 1 px da janela sem moldura: separa o arbor do que está atrás (outra janela escura,

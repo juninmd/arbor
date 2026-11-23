@@ -148,4 +148,13 @@ mod tests {
         assert_eq!(parse_setting(&with_setting("", "vertical_tabs", "true"), "vertical_tabs").as_deref(), Some("true"));
         assert_eq!(parse_setting("x=1", "theme"), None);
     }
+
+    #[test]
+    fn autohide_da_barra_lateral_volta_como_foi_gravado() {
+        let on = with_setting("vertical_tabs=true\n", "sidebar_autohide", "true");
+        assert_eq!(parse_setting(&on, "sidebar_autohide").as_deref(), Some("true"));
+        let off = with_setting(&on, "sidebar_autohide", "false");
+        assert_eq!(parse_setting(&off, "sidebar_autohide").as_deref(), Some("false"));
+        assert_eq!(parse_setting(&off, "vertical_tabs").as_deref(), Some("true"), "não mexe nas outras linhas");
+    }
 }

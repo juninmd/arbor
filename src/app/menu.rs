@@ -134,11 +134,12 @@ pub fn items(kind: MenuKind, here_virtual: bool) -> Vec<Option<Cmd>> {
             Some(Details),
             Some(ToggleDual),
             Some(VerticalTabs),
+            Some(SidebarAutoHide),
             Some(ToggleTheme),
         ],
         MenuKind::Themes => {
             let mut v: Vec<Option<Cmd>> = crate::palettes::ALL.iter().map(|p| Some(p.cmd())).collect();
-            v.extend([None, Some(VerticalTabs)]);
+            v.extend([None, Some(VerticalTabs), Some(SidebarAutoHide)]);
             v
         }
         MenuKind::Columns => vec![Some(ColKind), Some(ColSize), Some(ColModified)],
@@ -172,6 +173,9 @@ impl App {
         }
         if cmd == Cmd::VerticalTabs {
             return self.vertical_tabs;
+        }
+        if cmd == Cmd::SidebarAutoHide {
+            return self.sidebar_hide;
         }
         if let Some(by) = super::group_of(cmd) {
             return self.tab().group == by;

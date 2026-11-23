@@ -103,7 +103,8 @@ fn rule<'a>() -> Element<'a, Message> {
     container(super::separator()).padding([6, 10]).into()
 }
 
-pub fn sidebar(app: &App) -> Element<'_, Message> {
+/// Locais, fixados, Este Computador e Lixeira, em coluna (a barra comum e a unificada embrulham isto).
+pub fn tree(app: &App) -> Column<'_, Message> {
     let mut col = Column::new().spacing(1).push(node(app, crate::home::TITLE.into(), &app.home, Icon::Home, theme::now().hues.ice, 0));
     for (label, path) in &app.places {
         let (ic, color) = place_icon(label);
@@ -127,6 +128,10 @@ pub fn sidebar(app: &App) -> Element<'_, Message> {
     if crate::trashbin::SUPPORTED {
         col = col.push(rule()).push(node(app, crate::trashbin::TITLE.into(), &app.trash, Icon::Trash, theme::now().hues.steel, 0));
     }
-    let content = scrollable(col).height(Fill).style(theme::scrollbar);
+    col
+}
+
+pub fn sidebar(app: &App) -> Element<'_, Message> {
+    let content = scrollable(tree(app)).height(Fill).style(theme::scrollbar);
     container(content).padding([10, 6]).width(SIDEBAR_W).height(Fill).style(|t| theme::glass(t, false)).into()
 }

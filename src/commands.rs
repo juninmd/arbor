@@ -98,6 +98,7 @@ pub enum Cmd {
     ThemeExplorerClaro,
     ThemeExplorerEscuro,
     VerticalTabs,
+    SidebarAutoHide,
     CopyPath,
     CopyListing,
     Terminal,
@@ -223,6 +224,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::ThemeExplorerClaro,
     Cmd::ThemeExplorerEscuro,
     Cmd::VerticalTabs,
+    Cmd::SidebarAutoHide,
     Cmd::CopyPath,
     Cmd::CopyListing,
     Cmd::Terminal,
@@ -351,6 +353,7 @@ impl Cmd {
             Cmd::ThemeExplorerClaro => "Tema: Explorer Claro",
             Cmd::ThemeExplorerEscuro => "Tema: Explorer Escuro",
             Cmd::VerticalTabs => "Abas verticais",
+            Cmd::SidebarAutoHide => "Ocultar barra lateral automaticamente",
             Cmd::CopyPath => "Copiar caminho",
             Cmd::CopyListing => "Copiar listagem (tabela para planilha)",
             Cmd::Terminal => "Abrir terminal aqui",
@@ -461,7 +464,8 @@ impl Cmd {
             | Cmd::ThemeClaroCanto
             | Cmd::ThemeExplorerClaro
             | Cmd::ThemeExplorerEscuro
-            | Cmd::VerticalTabs => String::new(),
+            | Cmd::VerticalTabs
+            | Cmd::SidebarAutoHide => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::CopyListing => String::new(),
             Cmd::Terminal => format!("{m}+'"),
