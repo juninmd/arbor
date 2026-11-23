@@ -1,7 +1,9 @@
 //! Vidro nativo atrás da janela transparente:
 //! - Windows 11: Mica; Windows 10: Acrylic. A swapchain DX12 vem de DirectComposition (patch em
 //!   `patches/iced_wgpu`), a única forma de o conteúdo ter alfa por cima do material do sistema.
-//! - macOS: NSVisualEffectView (vibrancy).
+//! - macOS: NSVisualEffectView (vibrancy), opt-in (`ARBOR_GLASS=1`): `apply_vibrancy` o põe como subview
+//!   da view do winit, cuja camada é a CAMetalLayer; subcamadas desenham por cima do conteúdo e a
+//!   janela fica só com o material, sem a interface.
 //! - Linux: transparência com desfoque do compositor (KDE desfoca; nos outros a área de trabalho aparece
 //!   suave atrás da aurora).
 //!
@@ -11,7 +13,8 @@
 pub fn wanted() -> bool {
     // Windows: a swapchain de DirectComposition ainda derruba o app em algumas máquinas
     // ("Invalid surface" no Surface::configure). Até validar, o Mica é opt-in (ARBOR_GLASS=1).
-    if cfg!(target_os = "windows") {
+    // macOS: o vibrancy cobre a interface (ver acima); opt-in até ficar atrás da view do winit.
+    if cfg!(any(target_os = "windows", target_os = "macos")) {
         return std::env::var_os("ARBOR_GLASS").is_some();
     }
     std::env::var_os("ARBOR_NO_GLASS").is_none()
