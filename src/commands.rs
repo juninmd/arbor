@@ -99,6 +99,7 @@ pub enum Cmd {
     CopyPath,
     CopyListing,
     Terminal,
+    OpenRemote,
     Reveal,
     WhoUses,
     CreateChecksums,
@@ -222,6 +223,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::CopyPath,
     Cmd::CopyListing,
     Cmd::Terminal,
+    Cmd::OpenRemote,
     Cmd::Reveal,
     Cmd::WhoUses,
     Cmd::CreateChecksums,
@@ -348,6 +350,7 @@ impl Cmd {
             Cmd::CopyPath => "Copiar caminho",
             Cmd::CopyListing => "Copiar listagem (tabela para planilha)",
             Cmd::Terminal => "Abrir terminal aqui",
+            Cmd::OpenRemote => "Abrir repositório remoto no navegador",
             Cmd::Reveal => "Mostrar no gerenciador do sistema",
             Cmd::WhoUses => "Quem está usando este arquivo?",
             Cmd::CreateChecksums => "Criar soma SHA-256 dos arquivos",
@@ -457,7 +460,8 @@ impl Cmd {
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::CopyListing => String::new(),
             Cmd::Terminal => format!("{m}+'"),
-            Cmd::Reveal
+            Cmd::OpenRemote
+            | Cmd::Reveal
             | Cmd::OpenInNewTab
             | Cmd::Pin
             | Cmd::Eject

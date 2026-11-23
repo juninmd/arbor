@@ -1893,11 +1893,24 @@ impl App {
                 Task::batch([iced::clipboard::write(text), self.notify("Caminho copiado", false)])
             }
             Cmd::Terminal => {
-                match launch::terminal_here(&if here { dirs::home_dir().unwrap_or_default() } else { self.tab().path.clone() }) {
+                // botão direito numa pasta abre o terminal nela; no resto, na pasta aberta
+                let dir = match self.menu_target.clone().filter(|p| p.is_dir()) {
+                    Some(d) => d,
+                    None if here => dirs::home_dir().unwrap_or_default(),
+                    None => self.tab().path.clone(),
+                };
+                match launch::terminal_here(&dir) {
                     Ok(()) => Task::none(),
                     Err(e) => self.notify(format!("Terminal: {e}"), true),
                 }
             }
+            Cmd::OpenRemote => match self.tab().git.as_ref().and_then(|g| g.remote.clone()) {
+                Some(url) => match open::that_detached(&url) {
+                    Ok(()) => Task::none(),
+                    Err(e) => self.notify(format!("Remoto: {e}"), true),
+                },
+                None => Task::none(),
+            },
             Cmd::Reveal => {
                 let target = self.tab().current().map(|e| e.path.clone()).unwrap_or_else(|| self.tab().path.clone());
                 match launch::reveal(&target) {
