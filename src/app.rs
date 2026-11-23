@@ -53,7 +53,8 @@ const THUMBS_KEPT: usize = 5000;
 pub const ROW_H: f32 = 34.0;
 pub const SIDEBAR_W: f32 = 236.0;
 /// Coluna das abas verticais.
-pub const VTABS_W: f32 = 200.0;
+/// Faixa de ícones da barra lateral recolhida.
+pub const RAIL_W: f32 = 52.0;
 pub use crate::window_chrome::WindowAction;
 
 pub struct App {
@@ -76,6 +77,9 @@ pub struct App {
     pub palette: crate::palettes::Palette,
     /// Abas numa coluna à esquerda em vez de na barra de título.
     pub vertical_tabs: bool,
+    /// Barra lateral unificada recolhida em faixa de ícones; abre ao passar o mouse.
+    pub sidebar_hide: bool,
+    pub sidebar_hover: bool,
     /// Calcular o tamanho das pastas na coluna Tamanho (ver `folder_sizes`).
     pub folder_sizes: bool,
     pub show_hidden: bool,
@@ -631,6 +635,8 @@ pub enum Message {
         index: usize,
     },
     NewTabIn(usize),
+    /// Mouse entrou ou saiu da barra lateral recolhida.
+    SidebarHover(bool),
     FocusPane(usize),
     SortBy {
         tab: u64,
@@ -760,6 +766,8 @@ impl App {
             next_toast: 0,
             palette,
             vertical_tabs: crate::session::setting("vertical_tabs").as_deref() == Some("true"),
+            sidebar_hide: crate::session::setting("sidebar_autohide").as_deref() == Some("true"),
+            sidebar_hover: false,
             folder_sizes: folder_sizes::enabled(),
             show_hidden: false,
             hide_ext: false,
@@ -886,6 +894,15 @@ impl App {
         self.panes.iter().position(|p| p.tabs.iter().any(|t| t.id == id))
     }
 
+    /// Largura reservada à barra lateral: aberta, ou só a faixa quando recolhida (a aberta flutua por cima).
+    pub fn side_w(&self) -> f32 {
+        if self.vertical_tabs && self.sidebar_hide {
+            RAIL_W
+        } else {
+            SIDEBAR_W
+        }
+    }
+
     pub fn grid_cols(&self) -> usize {
         ((self.grid_width() / self.cell_w()).floor() as usize).max(1)
     }
@@ -894,9 +911,8 @@ impl App {
         let panes = if self.dual { 2.0 } else { 1.0 };
         // Painel de detalhes aberto tira largura da grade; sem isso a última coluna sai cortada.
         let details = if self.details_on { self.details_w + crate::view::SPLIT_W } else { 0.0 };
-        let vtabs = if self.vertical_tabs { VTABS_W + 1.0 } else { 0.0 };
         // painéis encostados (filete de 1 px entre eles) e o recuo da grade
-        (self.window.width - SIDEBAR_W - 1.0 - vtabs - details - (panes - 1.0)) / panes - 20.0
+        (self.window.width - self.side_w() - 1.0 - details - (panes - 1.0)) / panes - 20.0
     }
 
     pub fn mode(&self) -> &'static crate::view_modes::Mode {
@@ -1887,6 +1903,14 @@ impl App {
                     Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
                 }
             }
+            Cmd::SidebarAutoHide => {
+                self.sidebar_hide = !self.sidebar_hide;
+                self.sidebar_hover = false;
+                match crate::session::set_setting("sidebar_autohide", if self.sidebar_hide { "true" } else { "false" }) {
+                    Ok(()) => Task::none(),
+                    Err(e) => self.notify(format!("Não salvou a preferência: {e}"), true),
+                }
+            }
             Cmd::CopyPath => {
                 let text = self.tab().targets().iter().map(|p| p.to_string_lossy().into_owned()).collect::<Vec<_>>().join("\n");
                 let text = if text.is_empty() { self.tab().path.to_string_lossy().into_owned() } else { text };
@@ -2647,6 +2671,10 @@ impl App {
             }
             Message::CloseTabAt { pane, index } => self.close_tab(pane, index),
             Message::TabMenu { pane, index } => self.tab_menu(pane, index),
+            Message::SidebarHover(on) => {
+                self.sidebar_hover = on && self.sidebar_hide;
+                Task::none()
+            }
             Message::NewTabIn(pane) => self.new_tab(pane),
             Message::FocusPane(pane) => {
                 self.active = pane;

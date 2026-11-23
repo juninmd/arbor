@@ -30,6 +30,7 @@ mod details_view;
 mod git_view;
 mod home_view;
 mod sidebar_view;
+mod unified_side;
 
 mod props_view;
 
@@ -40,10 +41,8 @@ pub const SPLIT_W: f32 = 7.0;
 pub fn view(app: &App) -> Element<'_, Message> {
     let panes: Element<_> = if app.dual { row![pane(app, 0), separator_v(), pane(app, 1)].into() } else { pane(app, app.active) };
     let mut body = Row::new().height(Fill);
-    if app.vertical_tabs {
-        body = body.push(chrome_view::vertical_tabs(app)).push(separator_v());
-    }
-    body = body.push(sidebar_view::sidebar(app)).push(separator_v()).push(container(panes).width(Fill).height(Fill));
+    let side = if app.vertical_tabs { unified_side::slot(app) } else { sidebar_view::sidebar(app) };
+    body = body.push(side).push(separator_v()).push(container(panes).width(Fill).height(Fill));
     // o painel desliza: largura cresce de 0 até a escolhida, com o conteúdo já na largura final (sem refluxo)
     let open = app.motion.details(Instant::now());
     if app.details_on || open > 0.0 {
@@ -56,6 +55,11 @@ pub fn view(app: &App) -> Element<'_, Message> {
         band = band.push(toolbar(app, app.tab()));
     }
     let band = container(band.push(commands_view::bar(app))).width(Fill).style(theme::surface);
+    // barra lateral recolhida: a versão aberta flutua sobre os arquivos, sem empurrá-los
+    let body: Element<_> = match app.vertical_tabs.then(|| unified_side::flyout(app)).flatten() {
+        Some(fly) => stack![body, container(fly).align_left(Fill)].into(),
+        None => body.into(),
+    };
     let main: Element<_> = column![chrome_view::titlebar(app), band, separator(), body].width(Fill).height(Fill).into();
     let main: Element<_> = match notices(app) {
         Some(n) => {
@@ -127,7 +131,7 @@ fn pane(app: &App, index: usize) -> Element<'_, Message> {
     let mut content = Column::new();
     if app.dual {
         if !app.vertical_tabs {
-            content = content.push(tabs_bar(p, index, is_active));
+            content = content.push(tabs_bar(app, p, index, is_active));
         }
         content = content.push(toolbar(app, tab));
     }
@@ -136,7 +140,7 @@ fn pane(app: &App, index: usize) -> Element<'_, Message> {
     mouse_area(framed).on_press(Message::FocusPane(index)).into()
 }
 
-fn tabs_bar(p: &Pane, pane: usize, pane_active: bool) -> Element<'_, Message> {
+fn tabs_bar<'a>(app: &App, p: &'a Pane, pane: usize, pane_active: bool) -> Element<'a, Message> {
     let mut r = Row::new().spacing(4).align_y(Alignment::Center);
     for (i, tab) in p.tabs.iter().enumerate() {
         let selected = i == p.active;
@@ -153,7 +157,8 @@ fn tabs_bar(p: &Pane, pane: usize, pane_active: bool) -> Element<'_, Message> {
             .padding([6, 11])
             .on_press(Message::SelectTab { pane, index: i })
             .style(move |t: &Theme, s| theme::tab(t, s, selected, pane_active));
-        r = r.push(mouse_area(b).on_right_press(Message::TabMenu { pane, index: i }));
+        let item = mouse_area(b).on_right_press(Message::TabMenu { pane, index: i });
+        r = r.push(chrome_view::reveal(item, app.motion.tab_open(tab.id, Instant::now()), 140.0, true));
     }
     r = r.push(icon_button(Icon::Plus, Cmd::NewTab, Message::NewTabIn(pane)));
     container(scrollable(r).direction(thin_horizontal()).style(theme::scrollbar)).padding(Padding::new(8.0).bottom(0.0)).into()
@@ -256,9 +261,8 @@ fn breadcrumbs<'a>(app: &App, tab: &'a Tab) -> Element<'a, Message> {
     // Largura que sobra para os degraus: painel menos botões, filtro, selo de tempo e "Este Computador".
     // Um painel: a faixa ocupa a janela toda. Dois: cada painel tem a sua metade da área de arquivos.
     let width = if app.dual {
-        let vtabs = if app.vertical_tabs { crate::app::VTABS_W + 1.0 } else { 0.0 };
         let details = if app.details_on { app.details_w + SPLIT_W } else { 0.0 };
-        (app.window.width - crate::app::SIDEBAR_W - 2.0 - vtabs - details) / 2.0
+        (app.window.width - app.side_w() - 2.0 - details) / 2.0
     } else {
         app.window.width
     };

@@ -96,6 +96,7 @@ pub enum Cmd {
     ThemeAuroraCanto,
     ThemeClaroCanto,
     VerticalTabs,
+    SidebarAutoHide,
     CopyPath,
     CopyListing,
     Terminal,
@@ -219,6 +220,7 @@ pub const ALL: &[Cmd] = &[
     Cmd::ThemeAuroraCanto,
     Cmd::ThemeClaroCanto,
     Cmd::VerticalTabs,
+    Cmd::SidebarAutoHide,
     Cmd::CopyPath,
     Cmd::CopyListing,
     Cmd::Terminal,
@@ -345,6 +347,7 @@ impl Cmd {
             Cmd::ThemeAuroraCanto => "Tema: Aurora Canto",
             Cmd::ThemeClaroCanto => "Tema: Claro Canto",
             Cmd::VerticalTabs => "Abas verticais",
+            Cmd::SidebarAutoHide => "Ocultar barra lateral automaticamente",
             Cmd::CopyPath => "Copiar caminho",
             Cmd::CopyListing => "Copiar listagem (tabela para planilha)",
             Cmd::Terminal => "Abrir terminal aqui",
@@ -453,7 +456,8 @@ impl Cmd {
             | Cmd::ThemeVidro
             | Cmd::ThemeAuroraCanto
             | Cmd::ThemeClaroCanto
-            | Cmd::VerticalTabs => String::new(),
+            | Cmd::VerticalTabs
+            | Cmd::SidebarAutoHide => String::new(),
             Cmd::CopyPath => format!("{m}+Shift+C"),
             Cmd::CopyListing => String::new(),
             Cmd::Terminal => format!("{m}+'"),
